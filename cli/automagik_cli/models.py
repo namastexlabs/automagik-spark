@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, JSON, DateTime, Integer, ForeignKey, Bool
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import create_engine
-from shared.base import Base
+from .shared.base import Base
 
 def get_db_session():
     """Get a database session"""

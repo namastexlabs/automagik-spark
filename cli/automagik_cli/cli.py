@@ -7,9 +7,11 @@ from typing import List, Dict, Any
 import uuid
 from dotenv import load_dotenv
 from .commands.run import run
+from .commands.flows import flows
 from .commands.tasks import tasks
 from .commands.schedule import schedule
-from .commands.flows import flows
+from .commands.schedules import schedules
+from .commands.db import db
 from .logger import setup_logger
 import logging
 import pkg_resources
@@ -37,9 +39,11 @@ def cli(log_level):
 
 # Register commands
 cli.add_command(run)
+cli.add_command(flows)
 cli.add_command(tasks)
 cli.add_command(schedule)
-cli.add_command(flows)
+cli.add_command(schedules)
+cli.add_command(db)
 
 @cli.command()
 def install_service():
