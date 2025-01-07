@@ -1,12 +1,36 @@
 from datetime import datetime
 import uuid
+import os
 from sqlalchemy import Column, String, JSON, DateTime, Integer, ForeignKey, Boolean, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import create_engine
 from shared.base import Base
+
+def get_db_session():
+    """Get a database session"""
+    db_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    db_path = os.path.join(db_dir, 'automagik.db')
+    
+    # Ensure database directory exists
+    os.makedirs(db_dir, exist_ok=True)
+    
+    # Create database URL with absolute path
+    db_url = f'sqlite:///{os.path.abspath(db_path)}'
+    
+    # Create engine with echo for debugging
+    engine = create_engine(db_url, echo=os.getenv('AUTOMAGIK_DEBUG') == '1')
+    
+    # Create tables if they don't exist
+    Base.metadata.create_all(engine)
+    
+    # Create session
+    Session = sessionmaker(bind=engine)
+    return Session()
 
 class FlowComponent(Base):
     __tablename__ = "flow_components"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
@@ -23,6 +47,7 @@ class FlowComponent(Base):
 
 class FlowDB(Base):
     __tablename__ = "flows"
+    __table_args__ = {'extend_existing': True}
     id = Column(UUID(as_uuid=True), primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String)
@@ -49,6 +74,7 @@ class FlowDB(Base):
 
 class Task(Base):
     __tablename__ = "tasks"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
@@ -65,6 +91,7 @@ class Task(Base):
 
 class Log(Base):
     __tablename__ = "logs"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     task_id = Column(UUID(as_uuid=True), ForeignKey('tasks.id'), nullable=False)
@@ -76,10 +103,12 @@ class Log(Base):
 
 class Schedule(Base):
     __tablename__ = "schedules"
+    __table_args__ = {'extend_existing': True}
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
     schedule_type = Column(String, nullable=False)  # 'interval' or 'cron'
     schedule_expr = Column(String, nullable=False)  # '30m' for interval, '0 * * * *' for cron
+    flow_params = Column(JSON, default={})  # Parameters to pass to the flow
     status = Column(String, default='active')
     next_run_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)

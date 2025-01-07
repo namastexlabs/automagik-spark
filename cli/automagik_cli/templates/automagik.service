@@ -1,0 +1,25 @@
+[Unit]
+Description=AutoMagik Service
+After=network.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%USER%
+Group=%USER%
+WorkingDirectory=%WORKDIR%
+Environment=PYTHONUNBUFFERED=1
+Environment=AUTOMAGIK_DEBUG=1
+Environment=AUTOMAGIK_LOG_LEVEL=DEBUG
+EnvironmentFile=%WORKDIR%/.env
+ExecStart=%VENV_PATH%/bin/automagik run start --daemon
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=automagik
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

@@ -4,8 +4,13 @@ import json
 from urllib.parse import urljoin
 import os
 from dotenv import load_dotenv
+from .db import get_db_session
+from .models import FlowDB
+from .logger import setup_logger
 
 load_dotenv()
+
+logger = setup_logger()
 
 class LangflowClient:
     def __init__(self, base_url: str = None, api_key: str = None):
@@ -42,19 +47,29 @@ class LangflowClient:
                 headers=self.headers,
                 follow_redirects=True
             )
-            print(f"Response status: {response.status_code}")
-            print(f"Response text: {response.text}")
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response text: {response.text}")
             response.raise_for_status()
             return response.json()
 
     async def get_flow(self, flow_id: str) -> Dict[str, Any]:
         """Get details of a specific flow."""
+        url = self._make_url(f'/api/v1/flows/{flow_id}/')
+        logger.debug(f"\nGetting flow details:")
+        logger.debug(f"URL: {url}")
+        
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                self._make_url(f'/api/v1/flows/{flow_id}/'),
+                url,
                 headers=self.headers,
                 follow_redirects=True
             )
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response text: {response.text}")
+            
+            if response.status_code == 404:
+                return None
+                
             response.raise_for_status()
             return response.json()
 
@@ -101,8 +116,10 @@ class LangflowClient:
         else:
             url += "?stream=false"
 
-        print(f"Making request to URL: {url}")
-        print(f"With payload: {json.dumps(payload, indent=2)}")
+        logger.debug(f"\nLangflow API Request:")
+        logger.debug(f"  URL: {url}")
+        logger.debug(f"  Headers: {json.dumps({k: '***' if k == 'x-api-key' else v for k, v in self.headers.items()}, indent=2)}")
+        logger.debug(f"  Payload: {json.dumps(payload, indent=2)}")
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -111,10 +128,22 @@ class LangflowClient:
                 json=payload,
                 follow_redirects=True
             )
-            print(f"Run flow response status: {response.status_code}")
-            print(f"Run flow response text: {response.text}")
-            response.raise_for_status()
-            return response.json()
+            logger.debug(f"\nLangflow API Response:")
+            logger.debug(f"  Status: {response.status_code}")
+            
+            try:
+                response_json = response.json()
+                logger.debug(f"  Response JSON: {json.dumps(response_json, indent=2)}")
+                response.raise_for_status()
+                return response_json
+            except json.JSONDecodeError:
+                logger.debug(f"  Raw Response Text: {response.text}")
+                if response.status_code == 200:
+                    # If status is 200 but response is not JSON, return empty dict
+                    return {}
+                else:
+                    response.raise_for_status()
+                    return {}
 
     async def get_components(self) -> Dict[str, Any]:
         """Get all available components and their configurations."""
@@ -139,33 +168,47 @@ class LangflowClient:
             response.raise_for_status()
             return response.json()
 
-    async def process_flow(self, flow_id: str, input_data: Dict[str, Any], stream: bool = False) -> Dict[str, Any]:
+    async def process_flow(self, flow_id: str, input_data: Dict[str, Any], tweaks: Optional[Dict[str, Any]] = None, stream: bool = False) -> Dict[str, Any]:
         """Process a flow by its ID with input data.
         
         Args:
             flow_id: ID of the flow to process
             input_data: Input data for the flow
+            tweaks: Optional component tweaks
             stream: Whether to stream the response
         """
-        url = self._make_url(f'api/v1/process/{flow_id}')
-        if stream:
-            url += "?stream=true"
-        else:
-            url += "?stream=false"
-
-        print(f"Processing flow {flow_id} with input: {json.dumps(input_data, indent=2)}")
+        logger.debug(f"\nProcessing flow {flow_id}")
+        logger.debug(f"  Input data: {json.dumps(input_data, indent=2)}")
+        logger.debug(f"  Tweaks: {json.dumps(tweaks, indent=2)}")
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                headers=self.headers,
-                json=input_data,
-                follow_redirects=True
-            )
-            print(f"Process flow response status: {response.status_code}")
-            print(f"Process flow response text: {response.text}")
-            response.raise_for_status()
-            return response.json()
+        # Get flow from database
+        db = get_db_session()
+        flow = db.query(FlowDB).filter(FlowDB.id == flow_id).first()
+        if not flow:
+            raise ValueError(f"Flow {flow_id} not found")
+            
+        if not flow.name:
+            raise ValueError(f"Flow {flow_id} has no name")
+            
+        # Convert input_data to input_value
+        input_value = input_data.get('input')
+        if input_value is None:
+            raise ValueError("No 'input' key found in input_data")
+            
+        flow_endpoint = flow.data.get('endpoint') if flow.data else None
+        if not flow_endpoint:
+            # Fallback to flow ID if no endpoint
+            flow_endpoint = str(flow.id)
+            
+        logger.debug(f"  Using flow endpoint: {flow_endpoint}")
+        logger.debug(f"  Input value: {input_value}")
+            
+        # Use run_flow with endpoint and tweaks
+        return await self.run_flow(
+            flow_name=flow_endpoint,
+            input_value=input_value,
+            tweaks=tweaks
+        )
 
 class FlowComponent:
     """Helper class to manage flow component configurations."""

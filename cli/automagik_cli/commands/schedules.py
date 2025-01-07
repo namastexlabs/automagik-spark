@@ -3,9 +3,10 @@ import json
 import uuid
 from datetime import datetime
 from tabulate import tabulate
-
-from automagik_cli.scheduler_service import SchedulerService
-from automagik_cli.db import get_db_session
+from sqlalchemy import text
+from ..db import get_db_session
+from ..models import FlowDB, Schedule
+from ..scheduler_service import SchedulerService
 
 def format_datetime(dt):
     """Format datetime for display."""
@@ -21,34 +22,92 @@ def schedules():
     pass
 
 @schedules.command()
-@click.option('--flow', required=True, help='Name of the flow to schedule')
-@click.option('--type', 'schedule_type', type=click.Choice(['interval', 'cron']), required=True,
-              help='Type of schedule (interval or cron)')
-@click.option('--expr', 'schedule_expr', required=True,
-              help='Schedule expression (e.g., "30m" for interval, "0 * * * *" for cron)')
-@click.option('--params', 'flow_params', type=str, help='Flow parameters as JSON string')
-def create(flow, schedule_type, schedule_expr, flow_params):
-    """Create a new schedule for a flow"""
+def schedule():
+    """Schedule a flow to run automatically"""
     try:
         db = get_db_session()
         scheduler = SchedulerService(db)
         
-        # Parse flow parameters if provided
-        params = json.loads(flow_params) if flow_params else None
+        # Get flows with schedule count
+        flows = db.execute(text("""
+            SELECT f.*, COUNT(s.id) as schedule_count
+            FROM flows f
+            LEFT JOIN schedules s ON f.id = s.flow_id
+            GROUP BY f.id
+        """)).fetchall()
         
+        if not flows:
+            click.echo("No flows found")
+            return
+            
+        # Show available flows
+        click.echo("\nAvailable flows:")
+        for i, flow in enumerate(flows):
+            schedule_text = f"({flow.schedule_count} schedules)" if flow.schedule_count else "(no schedules)"
+            click.echo(f"{i}: {flow.name} {schedule_text}")
+            
+        # Get flow selection
+        flow_idx = click.prompt("\nSelect a flow by index", type=int)
+        if flow_idx < 0 or flow_idx >= len(flows):
+            click.echo("Invalid flow index")
+            return
+            
+        selected_flow = flows[flow_idx]
+        
+        # Show schedule types
+        click.echo("\nAvailable schedule types:")
+        click.echo("0: Interval (e.g., every 30 minutes)")
+        click.echo("1: Cron expression (e.g., every day at 8 AM)")
+        
+        # Get schedule type
+        schedule_type_idx = click.prompt("\nSelect schedule type by index", type=int)
+        if schedule_type_idx not in [0, 1]:
+            click.echo("Invalid schedule type")
+            return
+            
+        schedule_type = 'interval' if schedule_type_idx == 0 else 'cron'
+        
+        # Get schedule expression
+        if schedule_type == 'interval':
+            click.echo("\nInterval examples:")
+            click.echo("  5m - Every 5 minutes")
+            click.echo("  30m - Every 30 minutes")
+            click.echo("  1h - Every hour")
+            click.echo("  4h - Every 4 hours")
+            click.echo("  1d - Every day")
+            schedule_expr = click.prompt("\nEnter interval (e.g., 30m, 1h, 1d)")
+        else:
+            click.echo("\nCron examples:")
+            click.echo("  */30 * * * * - Every 30 minutes")
+            click.echo("  0 * * * * - Every hour")
+            click.echo("  0 8 * * * - Every day at 8 AM")
+            click.echo("  0 8 * * 1-5 - Every weekday at 8 AM")
+            schedule_expr = click.prompt("\nEnter cron expression")
+            
+        # Get input value
+        if click.confirm("\nDo you want to set an input value?"):
+            input_value = click.prompt("Enter input value")
+            flow_params = {"input": input_value}
+        else:
+            flow_params = {}
+            
+        # Create schedule
         schedule = scheduler.create_schedule(
-            flow_name=flow,
+            flow_name=selected_flow.name,
             schedule_type=schedule_type,
             schedule_expr=schedule_expr,
-            flow_params=params
+            flow_params=flow_params
         )
         
-        click.echo(f"Created schedule {schedule.id} for flow {flow}")
-        click.echo(f"Next run at: {format_datetime(schedule.next_run_at)}")
-    except ValueError as e:
-        click.echo(f"Error: {str(e)}", err=True)
-    except json.JSONDecodeError:
-        click.echo("Error: Invalid JSON format for flow parameters", err=True)
+        click.echo(f"\nCreated schedule {schedule.id} for flow {selected_flow.name}")
+        click.echo(f"Type: {schedule_type}")
+        click.echo(f"Expression: {schedule_expr}")
+        if flow_params:
+            click.echo(f"Input value: {flow_params.get('input')}")
+        click.echo(f"Next run at: {schedule.next_run_at}")
+        
+    except Exception as e:
+        click.echo(f"Error creating schedule: {str(e)}", err=True)
 
 @schedules.command()
 @click.option('--flow', help='Filter schedules by flow name')

@@ -8,8 +8,9 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 from .models import Task, Log, FlowDB
 from .langflow_client import LangflowClient
+from .logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 class TaskRunner:
     def __init__(self, session: Session, langflow_client: LangflowClient):
@@ -31,53 +32,111 @@ class TaskRunner:
         self.session.commit()
         return task
 
+    def _extract_output_data(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract useful information from the Langflow response."""
+        output_data = {
+            "session_id": response.get("session_id"),
+            "messages": [],
+            "artifacts": [],
+            "logs": []
+        }
+        
+        # Extract messages and outputs
+        for output in response.get("outputs", []):
+            for result in output.get("outputs", []):
+                # Get messages
+                messages = result.get("messages", [])
+                output_data["messages"].extend(messages)
+                
+                # Get artifacts
+                if "artifacts" in result:
+                    output_data["artifacts"].append(result["artifacts"])
+                    
+                # Get logs
+                if "logs" in result:
+                    for component_logs in result["logs"].values():
+                        output_data["logs"].extend(component_logs)
+        
+        return output_data
+
     async def run_task(self, task_id: uuid.UUID) -> Task:
         """Run a task."""
         task = self.session.query(Task).filter(Task.id == task_id).first()
         if not task:
-            raise ValueError(f"Task {task_id} not found")
+            logger.error(f"Task {task_id} not found")
+            return
 
         flow = task.flow
         if not flow:
-            raise ValueError(f"Flow for task {task_id} not found")
+            logger.error(f"Flow for task {task_id} not found")
+            return
 
-        if not flow.input_component or not flow.output_component:
-            raise ValueError(f"Flow {flow.id} does not have input/output components configured")
+        if not flow.input_component:
+            logger.error(f"Flow {flow.id} does not have input component configured")
+            return
 
         task.status = "running"
         task.tries += 1
         self.session.commit()
 
         try:
-            # Log start
-            self._log_message(task.id, "info", f"Starting task execution for flow {flow.id}")
+            # Get flow tweaks
+            tweaks = flow.data.get('tweaks', {}) if flow.data else {}
             
-            # Execute flow
+            # Log basic info at INFO level
+            logger.info(f"Running flow: {flow.name}")
+            logger.info(f"Input: {task.input_data.get('input', '')}")
+            
+            # Log detailed info at DEBUG level
+            logger.debug(f"Flow details:")
+            logger.debug(f"  ID: {flow.id}")
+            logger.debug(f"  Input component: {flow.input_component}")
+            logger.debug(f"  Output component: {flow.output_component}")
+            logger.debug(f"  Input data: {json.dumps(task.input_data, indent=2)}")
+            logger.debug(f"  Tweaks: {json.dumps(tweaks, indent=2)}")
+            
+            # Execute flow with tweaks
+            logger.debug("Sending request to Langflow API...")
             result = await self.langflow_client.process_flow(
                 flow_id=str(flow.id),
-                input_data=task.input_data
+                input_data=task.input_data,
+                tweaks=tweaks
             )
             
-            # Update task with result
-            task.output_data = result
+            # Log full API response at DEBUG level
+            logger.debug(f"Full API Response: {json.dumps(result, indent=2)}")
+            
+            # Extract output data
+            output_data = self._extract_output_data(result)
+            task.output_data = output_data
+            
+            # Log messages concisely at INFO level
+            for msg in output_data["messages"]:
+                text = msg.get("text", msg.get("message", "")).replace('\n\n', ' ').replace('\n', ' ')
+                logger.info(f'Response: {text}')
+            
+            # Log artifacts at DEBUG level
+            if output_data.get("artifacts"):
+                logger.debug(f'Artifacts: {json.dumps(output_data["artifacts"], indent=2)}')
+            
+            # Update task
             task.status = "completed"
-            self._log_message(task.id, "info", "Task completed successfully")
-            
-        except Exception as e:
-            # Handle failure
-            error_msg = str(e)
-            self._log_message(task.id, "error", f"Task failed: {error_msg}")
-            task.status = "failed"
-            
-            # Retry logic
-            if task.tries < task.max_retries:
-                task.status = "pending"
-                self._log_message(task.id, "info", f"Scheduling retry {task.tries}/{task.max_retries}")
-            
-        finally:
+            task.output_data = output_data
             self.session.commit()
             
-        return task
+            logger.info("Task completed successfully")
+            return task
+            
+        except Exception as e:
+            error_msg = str(e)
+            if hasattr(e, 'response'):
+                error_msg += f"\nResponse status: {e.response.status_code}"
+                error_msg += f"\nResponse text: {e.response.text}"
+            
+            logger.error(error_msg)
+            task.status = "failed"
+            self.session.commit()
+            raise
 
     def _log_message(self, task_id: uuid.UUID, level: str, message: str):
         """Add a log message for a task."""
