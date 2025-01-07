@@ -8,16 +8,16 @@ AutoMagik CLI is a powerful command-line interface for managing and scheduling L
 - Schedule workflows with cron expressions or intervals
 - Daemon mode for background execution
 - Systemd service integration
-- SQLite database for workflow and task management
+- PostgreSQL database for workflow and task management
 - Comprehensive logging and error handling
 
 ## Installation
 
-### From PyPI
+### Prerequisites
 
-```bash
-pip install automagik
-```
+- Python 3.8 or higher
+- PostgreSQL database
+- LangFlow server running
 
 ### From Source
 
@@ -27,7 +27,7 @@ git clone https://github.com/yourusername/automagik.git
 cd automagik
 ```
 
-2. Create a virtual environment and activate it:
+2. Create and activate a virtual environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # On Linux/Mac
@@ -48,22 +48,45 @@ pip install -e ./cli    # Install CLI package
 
 ## Configuration
 
-1. Create a `.env` file in your project directory:
+1. Create a `.env` file:
 ```bash
 cp .env.example .env
 ```
 
 2. Edit the `.env` file with your settings:
 ```ini
+TIMEZONE=America/Sao_Paulo
 LANGFLOW_API_URL=http://localhost:7860
+DATABASE_URL=postgresql://user:password@localhost:5432/automagik_db
 AUTOMAGIK_DEBUG=1
 AUTOMAGIK_LOG_LEVEL=DEBUG
-TZ=America/Sao_Paulo
 ```
 
 ## Database Setup
 
-The database will be automatically created on first run. By default, it uses SQLite and creates a file named `automagik.db` in your project directory.
+1. Create the PostgreSQL database:
+```bash
+# Connect to PostgreSQL and create the database
+psql -h your_host -U your_user postgres -c "CREATE DATABASE automagik_db;"
+```
+
+2. Initialize the database schema:
+```bash
+# Make sure you're in the project directory
+cd /path/to/automagik
+
+# Run database initialization
+automagik db init
+```
+
+To verify the database setup:
+```bash
+# List all tables
+psql -h your_host -U your_user automagik_db -c "\dt"
+
+# View specific table structure
+psql -h your_host -U your_user automagik_db -c "\d flows"
+```
 
 ## Usage
 
@@ -83,10 +106,10 @@ automagik run start --flow-id <flow_id> --input '{"key": "value"}'
 
 1. Create a new schedule:
 ```bash
-# Using cron expression
+# Using cron expression (run every 5 minutes)
 automagik schedules create --flow-id <flow_id> --type cron --expr "*/5 * * * *" --params '{"key": "value"}'
 
-# Using interval
+# Using interval (run every 30 minutes)
 automagik schedules create --flow-id <flow_id> --type interval --expr "30m" --params '{"key": "value"}'
 ```
 
@@ -127,6 +150,39 @@ sudo systemctl status automagik
 View service logs:
 ```bash
 journalctl -u automagik -f
+```
+
+## Troubleshooting
+
+### Database Issues
+
+1. Check database connection:
+```bash
+psql -h your_host -U your_user automagik_db
+```
+
+2. View migration status:
+```bash
+cd cli  # Go to directory with alembic.ini
+alembic current
+```
+
+3. Reset migrations if needed:
+```bash
+alembic downgrade base  # Reset to beginning
+alembic upgrade head    # Apply all migrations
+```
+
+### Service Issues
+
+1. Check service logs for errors:
+```bash
+journalctl -u automagik -n 50 --no-pager
+```
+
+2. Verify environment configuration:
+```bash
+sudo systemctl cat automagik
 ```
 
 ## Development
