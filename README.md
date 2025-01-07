@@ -40,9 +40,10 @@ source .venv/bin/activate  # On Linux/Mac
 pip install -r requirements.txt
 ```
 
-4. Install the package in development mode:
+4. Install the packages in development mode:
 ```bash
-pip install -e ./cli
+pip install -e ./shared  # Install shared package first
+pip install -e ./cli    # Install CLI package
 ```
 
 ## Configuration
