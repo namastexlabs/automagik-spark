@@ -5,7 +5,7 @@ from datetime import datetime
 from tabulate import tabulate
 from sqlalchemy import text
 from ..db import get_db_session
-from ..models import FlowDB, Schedule
+from ..services.models import FlowDB, Schedule
 from ..scheduler_service import SchedulerService
 
 def format_datetime(dt):

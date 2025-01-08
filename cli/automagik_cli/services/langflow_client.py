@@ -4,9 +4,9 @@ import json
 from urllib.parse import urljoin
 import os
 from dotenv import load_dotenv
-from .db import get_db_session
-from .models import FlowDB
-from .logger import setup_logger
+from ..db import get_db_session
+from ..services.models import FlowDB
+from ..logger import setup_logger
 
 load_dotenv()
 
