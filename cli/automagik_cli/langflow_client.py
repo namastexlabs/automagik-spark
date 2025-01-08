@@ -126,7 +126,8 @@ class LangflowClient:
                 url,
                 headers=self.headers,
                 json=payload,
-                follow_redirects=True
+                follow_redirects=True,
+                timeout=600
             )
             logger.debug(f"\nLangflow API Response:")
             logger.debug(f"  Status: {response.status_code}")
@@ -135,13 +136,16 @@ class LangflowClient:
                 response_json = response.json()
                 logger.debug(f"  Response JSON: {json.dumps(response_json, indent=2)}")
                 response.raise_for_status()
+                logger.debug("Response status is OK, returning JSON data.")
                 return response_json
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 logger.debug(f"  Raw Response Text: {response.text}")
+                logger.error(f"JSON decoding failed: {str(e)}")
                 if response.status_code == 200:
-                    # If status is 200 but response is not JSON, return empty dict
+                    logger.warning("Status code 200 but response is not JSON, returning empty dict.")
                     return {}
                 else:
+                    logger.error(f"Non-JSON response with status code: {response.status_code}")
                     response.raise_for_status()
                     return {}
 
