@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from .commands.run import run
 from .commands.flows import flows
 from .commands.tasks import tasks
-from .commands.schedule import schedule
 from .commands.schedules import schedules
 from .commands.db import db
 from .logger import setup_logger
@@ -41,7 +40,6 @@ def cli(log_level):
 cli.add_command(run)
 cli.add_command(flows)
 cli.add_command(tasks)
-cli.add_command(schedule)
 cli.add_command(schedules)
 cli.add_command(db)
 

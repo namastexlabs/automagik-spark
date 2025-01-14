@@ -42,7 +42,6 @@ pip install -r requirements.txt
 
 4. Install the packages in development mode:
 ```bash
-pip install -e ./shared  # Install shared package first
 pip install -e ./cli    # Install CLI package
 ```
 

@@ -3,10 +3,10 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from ..task_runner import TaskRunner
+from ..services import task_runner
 from ..scheduler_service import SchedulerService
 from ..db import get_db_session
-from ..langflow_client import LangflowClient
+from ..services.langflow_client import LangflowClient
 from ..logger import setup_logger
 
 logger = setup_logger()
@@ -36,7 +36,7 @@ def start(daemon, log_level):
     
     db = get_db_session()
     langflow_client = LangflowClient()
-    runner = TaskRunner(db, langflow_client)
+    runner = task_runner.TaskRunner(db, langflow_client)
     scheduler = SchedulerService(db)
     
     if daemon:
@@ -93,7 +93,7 @@ def test(schedule_id):
     try:
         db = get_db_session()
         langflow_client = LangflowClient()
-        runner = TaskRunner(db, langflow_client)
+        runner = task_runner.TaskRunner(db, langflow_client)
         scheduler = SchedulerService(db)
         
         # Get the schedule

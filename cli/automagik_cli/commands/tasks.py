@@ -5,7 +5,7 @@ import json
 import os
 import pytz
 from datetime import datetime
-from ..models import Task, Log
+from ..services.models import Task, Log
 from ..db import engine
 from sqlalchemy.orm import Session
 

@@ -6,7 +6,7 @@ from croniter import croniter
 from datetime import timedelta
 import pytz
 import os
-from .models import Schedule, FlowDB, Task, Log, Base
+from .services.models import Schedule, FlowDB, Task, Log, Base
 from .logger import setup_logger
 
 logger = setup_logger()

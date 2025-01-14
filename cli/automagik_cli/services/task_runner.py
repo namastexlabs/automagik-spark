@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 from .models import Task, Log, FlowDB
 from .langflow_client import LangflowClient
-from .logger import setup_logger
+from ..logger import setup_logger
 
 logger = setup_logger()
 

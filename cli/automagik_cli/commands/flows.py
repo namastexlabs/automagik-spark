@@ -2,7 +2,7 @@ import click
 import json
 from tabulate import tabulate
 from sqlalchemy import select
-from ..models import FlowDB
+from ..services.models import FlowDB
 from ..db import get_db_session
 from ..flow_sync import get_remote_flows, get_flow_details, sync_flow
 import os
