@@ -13,8 +13,8 @@ def db():
 def init():
     """Initialize the database with all tables"""
     try:
-        # Get the absolute path to alembic.ini
-        alembic_ini = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'alembic.ini')
+        # Get the absolute path to alembic.ini in root directory
+        alembic_ini = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'alembic.ini')
         
         if not os.path.exists(alembic_ini):
             click.echo(f"Error: Could not find alembic.ini at {alembic_ini}")
