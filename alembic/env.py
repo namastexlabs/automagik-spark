@@ -10,8 +10,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from automagik_cli.services.models import Base
-from automagik_cli.shared.base import Base as SharedBase
+from cli.automagik_cli.services.models import Base
+from cli.automagik_cli.shared.base import Base as SharedBase
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
