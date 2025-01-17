@@ -31,7 +31,8 @@ def combine_metadata(*args):
     m = MetaData()
     for metadata in args:
         for t in metadata.tables.values():
-            t.tometadata(m)
+            if t.name not in m.tables:
+                t.tometadata(m)
     return m
 
 # add your model's MetaData object here
