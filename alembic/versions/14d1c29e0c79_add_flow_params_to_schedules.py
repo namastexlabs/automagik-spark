@@ -55,7 +55,11 @@ def upgrade() -> None:
         op.drop_constraint('logs_task_id_fkey', 'logs', type_='foreignkey')
     
     op.create_foreign_key(None, 'logs', 'tasks', ['task_id'], ['id'])
-    op.add_column('schedules', sa.Column('flow_params', sa.JSON(), nullable=True))
+    
+    # Check if flow_params column exists before adding
+    if 'flow_params' not in [col['name'] for col in inspector.get_columns('schedules')]:
+        op.add_column('schedules', sa.Column('flow_params', sa.JSON(), nullable=True))
+    
     op.alter_column('tasks', 'flow_id',
                existing_type=sa.UUID(),
                nullable=False)
