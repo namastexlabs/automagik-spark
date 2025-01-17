@@ -26,7 +26,10 @@ def sync():
         
         click.echo("\nEnvironment Configuration:")
         click.echo(f"LANGFLOW_API_URL: {api_url}")
-        click.echo(f"LANGFLOW_API_KEY: {api_key[:8]}... (truncated)")
+        if api_key:
+            click.echo(f"LANGFLOW_API_KEY: {api_key[:8]}... (truncated)")
+        else:
+            click.echo("LANGFLOW_API_KEY: Not set")
         
         if not api_url or not api_key:
             click.echo("\nError: LANGFLOW_API_URL and LANGFLOW_API_KEY must be set", err=True)

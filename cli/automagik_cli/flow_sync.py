@@ -37,6 +37,10 @@ def analyze_component(node: Dict[str, Any]) -> Tuple[bool, bool, List[str]]:
 
 def get_remote_flows(langflow_api_url: str, langflow_api_key: str) -> List[Dict[str, Any]]:
     """Fetch flows from Langflow server."""
+    if not langflow_api_url or not langflow_api_key:
+        click.echo("Error: API URL and API key are required")
+        return []
+        
     headers = {
         "x-api-key": langflow_api_key,
         "accept": "application/json"
@@ -57,27 +61,37 @@ def get_remote_flows(langflow_api_url: str, langflow_api_key: str) -> List[Dict[
         api_url = f"{api_url}/api/v1"
     
     click.echo(f"Connecting to Langflow server at: {api_url}")
-    click.echo(f"Using API key: {langflow_api_key[:8]}...")
     
     try:
         with httpx.Client(verify=False) as client:
             url = f"{api_url}/flows/"
-            click.echo(f"Making request to: {url}")
-            click.echo(f"With headers: {headers}")
-            click.echo(f"With params: {params}")
-            
             response = client.get(url, headers=headers, params=params)
-            click.echo(f"Response status code: {response.status_code}")
-            click.echo(f"Response text: {response.text[:200]}...")  # Show first 200 chars
             
+            if response.status_code == 401:
+                click.echo("Error: Invalid API key or unauthorized access")
+                return []
+            elif response.status_code == 404:
+                click.echo("Error: API endpoint not found. Please check the API URL")
+                return []
+                
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            
+            if not data:
+                click.echo("No flows found on the server")
+                return []
+                
+            return data
+            
+    except httpx.HTTPError as e:
+        click.echo(f"HTTP Error: {str(e)}")
+        if hasattr(e, 'response'):
+            click.echo(f"Status code: {e.response.status_code}")
+            click.echo(f"Response: {e.response.text}")
+        return []
     except Exception as e:
         click.echo(f"Error fetching flows: {str(e)}")
         click.echo(f"Error type: {type(e)}")
-        if isinstance(e, httpx.HTTPError):
-            click.echo(f"HTTP Status code: {e.response.status_code if hasattr(e, 'response') else 'N/A'}")
-            click.echo(f"Response text: {e.response.text if hasattr(e, 'response') else 'N/A'}")
         return []
 
 def get_flow_details(langflow_api_url: str, langflow_api_key: str, flow_id: str) -> Dict[str, Any]:
