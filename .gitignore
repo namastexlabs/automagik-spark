@@ -36,3 +36,8 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker
+docker/
+postgres_data/
+redis_data/

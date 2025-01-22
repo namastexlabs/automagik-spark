@@ -5,8 +5,8 @@ from typing import Optional, Dict, Any
 import logging
 import json
 
-from .models import Task, Log
-from .db import engine
+from core.database.models import Task, Log
+from core.database.session import engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -4,9 +4,9 @@ from tabulate import tabulate
 from dotenv import load_dotenv
 import os
 
-from core.flows import FlowManager
-from core.database import get_db_session
-from core.database.models import FlowDB
+from automagik.core.services.flow_manager import FlowManager
+from automagik.core.database.session import get_db_session
+from automagik.core.database.models import FlowDB
 
 @click.group()
 def flows():

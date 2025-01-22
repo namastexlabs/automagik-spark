@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 
 import click
+from dotenv import load_dotenv
 import os
 import sys
-from typing import List, Dict, Any
-import uuid
-from dotenv import load_dotenv
-from .commands.run import run
-from .commands.flows import flows
-from .commands.tasks import tasks
-from .commands.schedules import schedules
-from .commands.db import db
-from .logger import setup_logger
 import logging
-import pkg_resources
-from pathlib import Path
-import subprocess
-import shutil
+
+from automagik.core.logger import get_logger
+from automagik.cli.commands.run import run
+from automagik.cli.commands.flows import flows
+from automagik.cli.commands.tasks import tasks
+from automagik.cli.commands.schedules import schedules
+from automagik.cli.commands.db import db
+from automagik.cli.commands.install import install
 
 # Add parent directory to Python path to find shared package
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,7 +20,7 @@ sys.path.append(ROOT_DIR)
 
 def set_log_level(ctx, param, value):
     if value:
-        logger = setup_logger(level=value.upper())
+        logger = get_logger(level=value.upper())
         logger.debug(f"Log level set to {value.upper()}")
     return value
 
@@ -42,6 +38,7 @@ cli.add_command(flows)
 cli.add_command(tasks)
 cli.add_command(schedules)
 cli.add_command(db)
+cli.add_command(install)
 
 @cli.command()
 def install_service():
@@ -60,7 +57,7 @@ def install_service():
             return
 
         # Get template path
-        template_path = pkg_resources.resource_filename('automagik_cli', 'templates/automagik.service')
+        template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates', 'automagik.service')
         if not os.path.exists(template_path):
             click.echo("Error: Service template not found", err=True)
             return

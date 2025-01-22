@@ -1,13 +1,16 @@
 import click
+import os
+import sys
+import json
+from typing import Dict, Any
 import asyncio
 import logging
-import os
 from datetime import datetime
-from core.services import task_runner
-from core.scheduler import SchedulerService
-from core.database import get_db_session
-from core.services.langflow_client import LangflowClient
-from core.logger import setup_logger
+from automagik.core.services.task_runner import TaskRunner
+from automagik.core.scheduler import SchedulerService
+from automagik.core.database.session import get_db_session
+from automagik.core.services.langflow_client import LangflowClient
+from automagik.core.logger import setup_logger
 
 logger = setup_logger()
 
@@ -36,7 +39,7 @@ def start(daemon, log_level):
     
     db = get_db_session()
     langflow_client = LangflowClient()
-    runner = task_runner.TaskRunner(db, langflow_client)
+    runner = TaskRunner(db, langflow_client)
     scheduler = SchedulerService(db)
     
     if daemon:
@@ -93,7 +96,7 @@ def test(schedule_id):
     try:
         db = get_db_session()
         langflow_client = LangflowClient()
-        runner = task_runner.TaskRunner(db, langflow_client)
+        runner = TaskRunner(db, langflow_client)
         scheduler = SchedulerService(db)
         
         # Get the schedule

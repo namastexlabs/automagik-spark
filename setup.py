@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 setup(
     name="automagik",
     version="0.1.0",
-    packages=find_packages(include=['automagik_cli*', 'core*']),
+    packages=find_packages(include=['automagik*']),
     package_data={
-        'automagik_cli': ['templates/*'],
+        'cli': ['templates/*'],
     },
     include_package_data=True,
     install_requires=[
@@ -22,6 +22,8 @@ setup(
         'redis>=4.5.0',
         'psycopg2-binary>=2.9.0',  # PostgreSQL adapter
         'alembic>=1.12.0',  # Database migrations
+        'fastapi>=0.104.0',  # API framework
+        'uvicorn>=0.24.0',  # ASGI server
     ],
     extras_require={
         'dev': [
@@ -33,9 +35,10 @@ setup(
             'mypy>=1.5.0',
         ],
     },
-    entry_points='''
-        [console_scripts]
-        automagik=automagik_cli.cli:cli
-    ''',
+    entry_points={
+        'console_scripts': [
+            'automagik=automagik.cli.cli:cli',
+        ],
+    },
     python_requires='>=3.9',
 )
