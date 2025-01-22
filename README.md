@@ -24,15 +24,14 @@ automagik/
 └── README.md            # This file
 ```
 
+## Prerequisites
+
+- Python 3.10 or higher
+- PostgreSQL 12 or higher
+- Redis Server
+- LangFlow instance
+
 ## Installation
-
-### Prerequisites
-
-- Python 3.9 or higher
-- PostgreSQL 13 or higher
-- LangFlow server
-
-### Installation Steps
 
 1. Clone the repository:
 ```bash
@@ -42,19 +41,36 @@ cd automagik
 
 2. Create and activate a virtual environment:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Linux/Mac
-# or
-venv\Scripts\activate     # On Windows
+python -m venv .venv
+source .venv/bin/activate
 ```
 
 3. Install the package:
 ```bash
-# For normal installation
 pip install -e .
+```
 
-# For development (includes testing tools)
-pip install -e ".[dev]"
+4. Configure environment variables:
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit .env with your configuration
+# Required variables:
+AUTOMAGIK_API_KEY=your-api-key
+DATABASE_URL=postgresql://user:password@localhost:5432/automagik_db
+LANGFLOW_API_URL=http://your-langflow-instance
+LANGFLOW_API_KEY=your-langflow-api-key
+```
+
+5. Initialize the database:
+```bash
+automagik db init
+```
+
+6. Install as a system service (optional):
+```bash
+automagik install-service
 ```
 
 ## Docker Setup
