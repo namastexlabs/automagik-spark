@@ -19,10 +19,14 @@ class InvalidScheduleError(SchedulerError):
     """Raised when a schedule configuration is invalid."""
     pass
 
-class FlowNotFoundError(SchedulerError):
-    """Raised when a referenced flow cannot be found."""
-    pass
-
 class ComponentNotConfiguredError(SchedulerError):
     """Raised when required flow components are not configured."""
+    pass
+
+class ScheduleNotFoundError(SchedulerError):
+    """Raised when a requested schedule is not found."""
+    pass
+
+class FlowNotFoundError(SchedulerError):
+    """Raised when a requested flow is not found."""
     pass

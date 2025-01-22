@@ -5,14 +5,15 @@ import uuid
 from tabulate import tabulate
 from sqlalchemy import text
 
-from core.scheduler import SchedulerService
-from core.database import get_db_session
-from core.scheduler.exceptions import (
+from automagik.core.scheduler.scheduler import SchedulerService
+from automagik.core.database.session import get_db_session
+from automagik.core.scheduler.exceptions import (
     SchedulerError,
     InvalidScheduleError,
-    FlowNotFoundError,
-    ComponentNotConfiguredError
+    ScheduleNotFoundError,
+    FlowNotFoundError
 )
+from automagik.core.database.models import Schedule, FlowDB
 
 @click.group()
 def schedules():

@@ -9,6 +9,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 import uuid
 import logging
+
+from automagik.core.database.models import FlowDB, FlowComponent
 from .flow_analyzer import FlowAnalyzer
 from .flow_sync import FlowSync
 

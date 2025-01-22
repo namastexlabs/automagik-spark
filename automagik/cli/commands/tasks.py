@@ -7,10 +7,10 @@ import uuid
 from datetime import datetime
 from sqlalchemy import desc
 
-from core.database import get_db_session
-from core.database.models import Task, FlowDB
-from core.scheduler import TaskRunner
-from core.scheduler.exceptions import TaskExecutionError
+from automagik.core.database.session import get_db_session
+from automagik.core.database.models import Task, FlowDB, Log
+from automagik.core.scheduler import TaskRunner
+from automagik.core.scheduler.exceptions import TaskExecutionError
 
 @click.group()
 def tasks():

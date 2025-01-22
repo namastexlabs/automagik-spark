@@ -6,13 +6,13 @@ from datetime import datetime
 from typing import List, Optional
 import uvicorn
 
-from core.database import get_db_session
-from core.database.models import FlowDB, Schedule, Task
-from core.flows import FlowManager
-from core.scheduler import SchedulerService
-from core.services.langflow_client import LangflowClient
-from . import schemas
-from .security import get_api_key
+from automagik.core.database.session import get_db_session
+from automagik.core.database.models import FlowDB, Schedule, Task, Log
+from automagik.core.services.flow_manager import FlowManager
+from automagik.api.security import get_api_key
+from automagik.core.services.langflow_client import LangflowClient
+from automagik.api import schemas
+from automagik.core.scheduler import SchedulerService
 
 app = FastAPI(
     title="AutoMagik API",

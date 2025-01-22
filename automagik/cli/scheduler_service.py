@@ -6,8 +6,9 @@ from croniter import croniter
 from datetime import timedelta
 import pytz
 import os
-from .services.models import Schedule, FlowDB, Task, Log, Base
-from .logger import setup_logger
+
+from automagik.core.database.models import Schedule, FlowDB, Task, Log, Base
+from automagik.core.logger import setup_logger
 
 logger = setup_logger()
 

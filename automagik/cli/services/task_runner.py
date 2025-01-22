@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
-from .models import Task, Log, FlowDB
-from .langflow_client import LangflowClient
-from ..logger import setup_logger
+from automagik.core.database.models import Task, Log, FlowDB
+from automagik.core.services.langflow_client import LangflowClient
+from automagik.core.logger import setup_logger
 
 logger = setup_logger()
 

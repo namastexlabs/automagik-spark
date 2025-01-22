@@ -5,7 +5,8 @@ import uuid
 from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from .services.models import FlowDB, FlowComponent
+
+from automagik.core.database.models import FlowDB, FlowComponent
 
 # Load environment variables
 load_dotenv()
