@@ -1,13 +1,14 @@
 import click
 from tabulate import tabulate
-from sqlalchemy import select, desc
 import json
 import os
 import pytz
+import uuid
 from datetime import datetime
-from ..services.models import Task, Log
-from ..db import engine
-from sqlalchemy.orm import Session
+
+from core.database import get_db_session
+from core.scheduler import TaskRunner
+from core.scheduler.exceptions import TaskExecutionError
 
 @click.group()
 def tasks():
@@ -29,76 +30,129 @@ def format_datetime(dt):
     return local_dt.strftime('%Y-%m-%d %H:%M:%S %Z')
 
 @tasks.command()
-def list():
+@click.option('--flow', help='Filter tasks by flow name')
+@click.option('--status', help='Filter tasks by status')
+@click.option('--limit', type=int, default=50, help='Limit number of tasks shown')
+def list(flow: str = None, status: str = None, limit: int = 50):
     """List all tasks"""
-    session = Session(engine)
-    tasks = session.execute(
-        select(Task).order_by(desc(Task.created_at))
-    ).scalars()
-    
-    rows = []
-    for task in tasks:
-        flow_name = task.flow.name if task.flow else "N/A"
-        rows.append([
-            str(task.id),
-            flow_name,
-            task.status,
-            task.tries,
-            format_datetime(task.created_at),
-            format_datetime(task.updated_at)
-        ])
-    
-    headers = ['ID', 'Flow', 'Status', 'Tries', 'Created', 'Updated']
-    click.echo(tabulate(rows, headers=headers))
+    try:
+        db_session = get_db_session()
+        
+        # Build query
+        query = db_session.query(Task).order_by(desc(Task.created_at))
+        
+        if flow:
+            query = query.join(Task.flow).filter(FlowDB.name == flow)
+        if status:
+            query = query.filter(Task.status == status)
+            
+        tasks = query.limit(limit).all()
+        
+        if not tasks:
+            click.echo("No tasks found")
+            return
+        
+        rows = []
+        for task in tasks:
+            flow_name = task.flow.name if task.flow else "N/A"
+            rows.append([
+                str(task.id),
+                flow_name,
+                task.status,
+                task.tries,
+                format_datetime(task.created_at),
+                format_datetime(task.updated_at)
+            ])
+        
+        headers = ['ID', 'Flow', 'Status', 'Tries', 'Created', 'Updated']
+        click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
+        
+    except Exception as e:
+        click.secho(f"Error listing tasks: {str(e)}", fg='red')
 
 @tasks.command()
 @click.argument('task_id')
-def logs(task_id):
+def logs(task_id: str):
     """Show logs for a specific task"""
-    session = Session(engine)
-    logs = session.execute(
-        select(Log).where(Log.task_id == task_id)
-    ).scalars()
-    
-    rows = []
-    for log in logs:
-        rows.append([
-            format_datetime(log.created_at),
-            log.level,
-            log.message
-        ])
-    
-    headers = ['Timestamp', 'Level', 'Message']
-    click.echo(tabulate(rows, headers=headers))
+    try:
+        db_session = get_db_session()
+        
+        try:
+            task_uuid = uuid.UUID(task_id)
+        except ValueError:
+            click.secho("Invalid task ID format", fg='red')
+            return
+        
+        task = db_session.query(Task).filter(Task.id == task_uuid).first()
+        if not task:
+            click.secho(f"Task {task_id} not found", fg='red')
+            return
+        
+        if not task.logs:
+            click.echo("No logs found for this task")
+            return
+        
+        rows = []
+        for log in task.logs:
+            rows.append([
+                format_datetime(log.created_at),
+                log.level.upper(),
+                log.message
+            ])
+        
+        headers = ['Timestamp', 'Level', 'Message']
+        click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
+        
+    except Exception as e:
+        click.secho(f"Error retrieving logs: {str(e)}", fg='red')
 
 @tasks.command()
 @click.argument('task_id')
-def output(task_id):
+def output(task_id: str):
     """Show output data for a specific task"""
     try:
-        session = Session(engine)
-        task = session.execute(
-            select(Task).where(Task.id == task_id)
-        ).scalar_one_or_none()
+        db_session = get_db_session()
         
+        try:
+            task_uuid = uuid.UUID(task_id)
+        except ValueError:
+            click.secho("Invalid task ID format", fg='red')
+            return
+        
+        task = db_session.query(Task).filter(Task.id == task_uuid).first()
         if not task:
-            click.echo(f"Task {task_id} not found")
+            click.secho(f"Task {task_id} not found", fg='red')
             return
             
         click.echo("\nTask Details:")
-        click.echo(f"Flow: {task.flow.name}")
-        click.echo(f"Status: {task.status}")
+        click.echo(f"Flow: {click.style(task.flow.name, fg='blue')}")
+        click.echo(f"Status: {click.style(task.status, fg='green' if task.status == 'completed' else 'yellow')}")
         click.echo(f"Tries: {task.tries}/{task.max_retries}")
+        click.echo(f"Created: {format_datetime(task.created_at)}")
+        click.echo(f"Updated: {format_datetime(task.updated_at)}")
         
-        click.echo("\nInput Data:")
-        click.echo(json.dumps(task.input_data, indent=2))
+        if task.input_data:
+            click.echo("\nInput Data:")
+            click.echo(json.dumps(task.input_data, indent=2))
         
-        click.echo("\nOutput Data:")
-        click.echo(json.dumps(task.output_data, indent=2))
+        if task.output_data:
+            click.echo("\nOutput Data:")
+            click.echo(json.dumps(task.output_data, indent=2))
         
-        click.echo("\nTask Logs:")
-        for log in task.logs:
-            click.echo(f"[{log.level.upper()}] {format_datetime(log.created_at)}: {log.message}")
-            
+        if task.logs:
+            click.echo("\nTask Logs:")
+            for log in task.logs:
+                level_color = {
+                    'debug': 'blue',
+                    'info': 'green',
+                    'warning': 'yellow',
+                    'error': 'red'
+                }.get(log.level.lower(), 'white')
+                
+                click.echo(
+                    f"[{click.style(log.level.upper(), fg=level_color)}] "
+                    f"{format_datetime(log.created_at)}: {log.message}"
+                )
+        
     except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
+        click.secho(f"Error retrieving task output: {str(e)}", fg='red')

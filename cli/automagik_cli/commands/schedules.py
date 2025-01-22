@@ -1,13 +1,18 @@
 import click
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import text
-from ..scheduler_service import SchedulerService
-from ..db import get_db_session
-from ..logger import setup_logger
+import uuid
 from tabulate import tabulate
+from sqlalchemy import text
 
-logger = setup_logger()
+from core.scheduler import SchedulerService
+from core.database import get_db_session
+from core.scheduler.exceptions import (
+    SchedulerError,
+    InvalidScheduleError,
+    FlowNotFoundError,
+    ComponentNotConfiguredError
+)
 
 @click.group()
 def schedules():
@@ -18,11 +23,11 @@ def schedules():
 def create():
     """Create a new schedule for a flow"""
     try:
-        db = get_db_session()
-        scheduler = SchedulerService(db)
+        db_session = get_db_session()
+        scheduler = SchedulerService(db_session)
         
         # Get flows with schedule count
-        flows = db.execute(text("""
+        flows = db_session.execute(text("""
             SELECT f.*, COUNT(s.id) as schedule_count
             FROM flows f
             LEFT JOIN schedules s ON f.id = s.flow_id
@@ -84,88 +89,89 @@ def create():
         else:
             flow_params = {}
             
-        # Create schedule
-        schedule = scheduler.create_schedule(
-            flow_name=selected_flow.name,
-            schedule_type=schedule_type,
-            schedule_expr=schedule_expr,
-            flow_params=flow_params
-        )
-        
-        # Calculate and show next run
-        next_run = scheduler._calculate_next_run(schedule_type, schedule_expr)
-        
-        # Show success message
-        click.secho("\nSchedule created successfully!", fg='green', bold=True)
-        click.echo(f"\nDetails:")
-        click.echo(f"  ID: {click.style(str(schedule.id), fg='blue')}")
-        click.echo(f"  Flow: {click.style(selected_flow.name, fg='green')}")
-        click.echo(f"  Type: {schedule_type}")
-        click.echo(f"  Expression: {schedule_expr}")
-        if flow_params:
-            click.echo(f"  Input: {input_value}")
-        click.echo(f"  Next run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
-        
+        try:
+            # Create schedule
+            schedule = scheduler.create_schedule(
+                flow_name=selected_flow.name,
+                schedule_type=schedule_type,
+                schedule_expr=schedule_expr,
+                flow_params=flow_params
+            )
+            
+            # Show success message
+            click.secho("\nSchedule created successfully!", fg='green', bold=True)
+            click.echo(f"\nDetails:")
+            click.echo(f"  ID: {click.style(str(schedule.id), fg='blue')}")
+            click.echo(f"  Flow: {click.style(selected_flow.name, fg='blue')}")
+            click.echo(f"  Type: {click.style(schedule_type, fg='blue')}")
+            click.echo(f"  Expression: {click.style(schedule_expr, fg='blue')}")
+            click.echo(f"  Next Run: {click.style(str(schedule.next_run_at), fg='blue')}")
+            if flow_params:
+                click.echo(f"  Input: {click.style(str(flow_params), fg='blue')}")
+                
+        except InvalidScheduleError as e:
+            click.secho(f"\nInvalid schedule: {str(e)}", fg='red')
+        except FlowNotFoundError as e:
+            click.secho(f"\nFlow not found: {str(e)}", fg='red')
+        except ComponentNotConfiguredError as e:
+            click.secho(f"\nComponent not configured: {str(e)}", fg='red')
+        except SchedulerError as e:
+            click.secho(f"\nScheduler error: {str(e)}", fg='red')
+            
     except Exception as e:
-        click.secho(f"Error creating schedule: {str(e)}", fg='red')
-        raise click.ClickException(str(e))
+        click.secho(f"\nError creating schedule: {str(e)}", fg='red')
 
 @schedules.command()
 @click.argument('schedule_id')
 def delete(schedule_id: str):
     """Delete a schedule"""
     try:
-        db = get_db_session()
-        scheduler = SchedulerService(db)
+        db_session = get_db_session()
+        scheduler = SchedulerService(db_session)
         
-        # Get the schedule
-        schedule = scheduler.get_schedule(schedule_id)
-        if not schedule:
-            click.secho(f"Schedule {schedule_id} not found", fg='red')
+        try:
+            schedule_uuid = uuid.UUID(schedule_id)
+        except ValueError:
+            click.secho("Invalid schedule ID format", fg='red')
             return
-        
-        # Delete the schedule
-        scheduler.delete_schedule(schedule_id)
-        click.secho(f"Deleted schedule {schedule_id}", fg='green')
-        
+            
+        if scheduler.delete_schedule(schedule_uuid):
+            click.secho("Schedule deleted successfully", fg='green')
+        else:
+            click.secho("Schedule not found", fg='red')
+            
     except Exception as e:
         click.secho(f"Error deleting schedule: {str(e)}", fg='red')
-        raise click.ClickException(str(e))
 
 @schedules.command()
 @click.option('--flow', help='Filter schedules by flow name')
-def list(flow: Optional[str] = None):
-    """List all schedules or filter by flow"""
+@click.option('--status', help='Filter schedules by status (active/paused)')
+def list(flow: Optional[str] = None, status: Optional[str] = None):
+    """List all schedules"""
     try:
-        db = get_db_session()
-        scheduler = SchedulerService(db)
+        db_session = get_db_session()
+        scheduler = SchedulerService(db_session)
         
-        schedules = scheduler.list_schedules(flow_name=flow)
+        schedules = scheduler.list_schedules(flow_name=flow, status=status)
         
         if not schedules:
-            click.secho("No schedules found", fg='yellow')
+            click.echo("No schedules found")
             return
-
-        # Prepare table data
-        headers = ["ID", "Flow", "Type", "Expression", "Status", "Next Run"]
+            
         rows = []
-        
         for schedule in schedules:
-            flow_name = schedule.flow.name if schedule.flow else "N/A"
+            next_run = schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run_at else 'N/A'
             rows.append([
                 str(schedule.id),
-                flow_name,
+                schedule.flow.name,
                 schedule.schedule_type,
                 schedule.schedule_expr,
                 schedule.status,
-                schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S") if schedule.next_run_at else "N/A"
+                next_run
             ])
-        
-        # Print table with a title
-        click.secho("\nSchedules:", bold=True)
-        click.echo(tabulate(rows, headers=headers, tablefmt="grid"))
-        click.echo()
             
+        headers = ['ID', 'Flow', 'Type', 'Expression', 'Status', 'Next Run']
+        click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
+        
     except Exception as e:
         click.secho(f"Error listing schedules: {str(e)}", fg='red')
-        raise click.ClickException(str(e))

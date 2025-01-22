@@ -1,187 +1,109 @@
-# AutoMagik CLI
+# AutoMagik
 
-AutoMagik CLI is a powerful command-line interface for managing and scheduling LangFlow workflows. It provides seamless integration with LangFlow, allowing you to run and schedule flows directly from your terminal.
+AutoMagik is a powerful tool for managing and scheduling LangFlow workflows. It provides seamless integration with LangFlow, allowing you to run and schedule flows directly from your terminal.
 
 ## Features
 
 - Run LangFlow workflows from the command line
 - Schedule workflows with cron expressions or intervals
-- Daemon mode for background execution
-- Systemd service integration
+- Real-time task monitoring and logging
 - PostgreSQL database for workflow and task management
-- Comprehensive logging and error handling
+- Comprehensive error handling and retries
+- Flow analysis and component validation
+
+## Project Structure
+
+```
+automagik/
+├── cli/                  # CLI implementation
+├── core/                # Core business logic
+├── alembic/             # Database migrations
+├── instructions/        # Project documentation
+├── setup.py            # Package configuration
+├── alembic.ini         # Alembic configuration
+└── README.md           # This file
+```
 
 ## Installation
 
 ### Prerequisites
 
-- Python 3.8 or higher
-- PostgreSQL database
-- LangFlow server running
+- Python 3.9 or higher
+- PostgreSQL 13 or higher
+- LangFlow server
 
-### From Source
+### Installation Steps
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/automagik.git
+git clone https://github.com/namastexlabs/automagik.git
 cd automagik
 ```
 
 2. Create and activate a virtual environment:
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Linux/Mac
+python -m venv venv
+source venv/bin/activate  # On Linux/Mac
 # or
-.venv\Scripts\activate  # On Windows
+venv\Scripts\activate     # On Windows
 ```
 
-3. Install requirements:
+3. Install the package:
 ```bash
-pip install -r requirements.txt
-```
+# For normal installation
+pip install -e .
 
-4. Install the packages in development mode:
-```bash
-pip install -e ./cli    # Install CLI package
+# For development (includes testing tools)
+pip install -e ".[dev]"
 ```
 
 ## Configuration
 
-1. Create a `.env` file:
+Create a `.env` file in your project directory:
+
 ```bash
-cp .env.example .env
-```
-
-2. Edit the `.env` file with your settings:
-```ini
-TIMEZONE=America/Sao_Paulo
-LANGFLOW_API_URL=http://localhost:7860
-DATABASE_URL=postgresql://user:password@localhost:5432/automagik_db
-AUTOMAGIK_DEBUG=1
-AUTOMAGIK_LOG_LEVEL=DEBUG
-```
-
-## Database Setup
-
-1. Create the PostgreSQL database:
-```bash
-# Connect to PostgreSQL and create the database
-psql -h your_host -U your_user postgres -c "CREATE DATABASE automagik_db;"
-```
-
-2. Initialize the database schema:
-```bash
-# Make sure you're in the project directory
-cd /path/to/automagik
-
-# Run database initialization
-automagik db init
-```
-
-To verify the database setup:
-```bash
-# List all tables
-psql -h your_host -U your_user automagik_db -c "\dt"
-
-# View specific table structure
-psql -h your_host -U your_user automagik_db -c "\d flows"
+LANGFLOW_API_URL=http://your-langflow-server:7860
+LANGFLOW_API_KEY=your-api-key
+DATABASE_URL=postgresql://user:password@localhost:5432/automagik
+TIMEZONE=UTC  # Or your local timezone, e.g., America/New_York
 ```
 
 ## Usage
 
-### Running Flows
+### Flow Management
 
-1. List available flows:
 ```bash
+# List available flows
 automagik flows list
+
+# Sync flows from LangFlow
+automagik flows sync
 ```
 
-2. Run a flow:
+### Schedule Management
+
 ```bash
-automagik run start --flow-id <flow_id> --input '{"key": "value"}'
-```
+# Create a new schedule
+automagik schedules create
 
-### Scheduling Flows
-
-1. Create a new schedule:
-```bash
-# Using cron expression (run every 5 minutes)
-automagik schedules create --flow-id <flow_id> --type cron --expr "*/5 * * * *" --params '{"key": "value"}'
-
-# Using interval (run every 30 minutes)
-automagik schedules create --flow-id <flow_id> --type interval --expr "30m" --params '{"key": "value"}'
-```
-
-2. List schedules:
-```bash
+# List all schedules
 automagik schedules list
+
+# Delete a schedule
+automagik schedules delete <schedule-id>
 ```
 
-3. Delete a schedule:
+### Task Management
+
 ```bash
-automagik schedules delete --id <schedule_id>
-```
+# List all tasks
+automagik tasks list
 
-## Running as a Service
+# View task logs
+automagik tasks logs <task-id>
 
-1. Install the service:
-```bash
-automagik install-service
-```
-
-2. Start the service:
-```bash
-sudo systemctl start automagik
-```
-
-3. Enable autostart:
-```bash
-sudo systemctl enable automagik
-```
-
-4. Check service status:
-```bash
-sudo systemctl status automagik
-```
-
-### Service Logs
-
-View service logs:
-```bash
-journalctl -u automagik -f
-```
-
-## Troubleshooting
-
-### Database Issues
-
-1. Check database connection:
-```bash
-psql -h your_host -U your_user automagik_db
-```
-
-2. View migration status:
-```bash
-cd cli  # Go to directory with alembic.ini
-alembic current
-```
-
-3. Reset migrations if needed:
-```bash
-alembic downgrade base  # Reset to beginning
-alembic upgrade head    # Apply all migrations
-```
-
-### Service Issues
-
-1. Check service logs for errors:
-```bash
-journalctl -u automagik -n 50 --no-pager
-```
-
-2. Verify environment configuration:
-```bash
-sudo systemctl cat automagik
+# View task output
+automagik tasks output <task-id>
 ```
 
 ## Development
@@ -189,21 +111,38 @@ sudo systemctl cat automagik
 ### Running Tests
 
 ```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
 pytest
 ```
 
-### Database Migrations
+### Code Formatting
 
-1. Create a new migration:
 ```bash
-alembic revision -m "description of changes"
+# Format code
+black .
+isort .
+
+# Check style
+flake8
 ```
 
-2. Apply migrations:
+### Type Checking
+
 ```bash
-alembic upgrade head
+mypy .
 ```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License - see the LICENSE file for details.

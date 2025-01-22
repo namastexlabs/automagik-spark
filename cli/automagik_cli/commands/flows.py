@@ -1,12 +1,12 @@
 import click
 import json
 from tabulate import tabulate
-from sqlalchemy import select
-from ..services.models import FlowDB
-from ..db import get_db_session
-from ..flow_sync import get_remote_flows, get_flow_details, sync_flow
-import os
 from dotenv import load_dotenv
+import os
+
+from core.flows import FlowManager
+from core.database import get_db_session
+from core.database.models import FlowDB
 
 @click.group()
 def flows():
@@ -36,9 +36,13 @@ def sync():
             click.echo("Please check your .env file or environment variables")
             return
         
+        # Initialize flow manager
+        db_session = get_db_session()
+        flow_manager = FlowManager(db_session, api_url, api_key)
+        
         # Get remote flows
         click.echo("\nFetching flows from Langflow server...")
-        remote_flows = get_remote_flows(api_url, api_key)
+        remote_flows = flow_manager.get_available_flows()
         
         if not remote_flows:
             click.echo("\nNo flows found on the server or error occurred")
@@ -63,53 +67,67 @@ def sync():
         
         # Get detailed flow information
         click.echo(f"\nFetching details for flow {selected_flow['name']}...")
-        flow_details = get_flow_details(api_url, api_key, selected_flow['id'])
+        flow_details = flow_manager.get_flow_details(selected_flow['id'])
         
         if not flow_details:
             click.echo("Could not get flow details")
             return
             
         # Sync the flow to the database
-        db = get_db_session()
-        flow = sync_flow(db, flow_details, api_url, api_key)
-        
+        flow_id = flow_manager.sync_flow(flow_details)
+        if not flow_id:
+            click.echo("Failed to sync flow")
+            return
+            
         click.echo("\nFlow synced successfully!")
-        click.echo(f"Name: {flow.name}")
-        click.echo(f"Version: {flow.flow_version}")
-        click.echo(f"Source ID: {flow.source_id}")
-        if flow.folder_name:
-            click.echo(f"Folder Name: {flow.folder_name}")
-        if flow.input_component:
-            click.echo(f"Input Component: {flow.input_component}")
-        if flow.output_component:
-            click.echo(f"Output Component: {flow.output_component}")
+        click.echo(f"Flow ID: {flow_id}")
+        click.echo(f"Name: {flow_details.get('name', 'Unnamed')}")
+        
+        # Analyze components
+        components = flow_manager.analyze_flow_components(flow_details)
+        if components:
+            click.echo("\nFlow Components:")
+            for comp in components:
+                role = []
+                if comp['is_input']:
+                    role.append("Input")
+                if comp['is_output']:
+                    role.append("Output")
+                role_str = " & ".join(role) if role else "Processing"
+                
+                click.echo(f"- {comp['name']} ({role_str})")
+                if comp['tweakable_params']:
+                    click.echo(f"  Tweakable parameters: {', '.join(comp['tweakable_params'])}")
     
     except Exception as e:
         click.echo(f"\nError during sync: {str(e)}", err=True)
-        click.echo(f"Error type: {type(e)}")
 
 @flows.command()
 def list():
     """List all flows"""
-    db = get_db_session()
-    flows = db.execute(select(FlowDB)).scalars()
-    
-    rows = []
-    for flow in flows:
-        rows.append([
-            str(flow.id),
-            flow.name,
-            flow.description or "",
-            flow.folder_name or "No Folder",
-            "Yes" if flow.input_component else "No",
-            "Yes" if flow.output_component else "No",
-            flow.flow_version
-        ])
-    
-    if not rows:
-        click.echo("\nNo flows found in the database")
-        return
+    try:
+        db_session = get_db_session()
+        flow_manager = FlowManager(db_session)
         
-    headers = ['ID', 'Name', 'Description', 'Folder', 'Has Input', 'Has Output', 'Version']
-    click.echo("\nSynced Flows:")
-    click.echo(tabulate(rows, headers=headers, tablefmt="grid"))
+        flows = db_session.query(FlowDB).all()
+        
+        if not flows:
+            click.echo("No flows found")
+            return
+            
+        rows = []
+        for flow in flows:
+            rows.append([
+                str(flow.id),
+                flow.name,
+                flow.folder_name or '',
+                'Yes' if flow.input_component else 'No',
+                'Yes' if flow.output_component else 'No',
+                flow.flow_version
+            ])
+            
+        headers = ['ID', 'Name', 'Folder', 'Has Input', 'Has Output', 'Version']
+        click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
+        
+    except Exception as e:
+        click.echo(f"Error listing flows: {str(e)}", err=True)
