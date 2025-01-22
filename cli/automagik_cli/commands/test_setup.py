@@ -1,13 +1,13 @@
 import uuid
 import click
 from sqlalchemy.orm import Session
-from ..models import Task, FlowDB
-from ..db import engine
+from core.database.models import Task, FlowDB
+from core.database import get_db_session
 
 @click.command()
 def setup_test_tasks():
     """Create test tasks for development"""
-    session = Session(engine)
+    session = get_db_session()
     
     # Create a test flow
     flow = FlowDB(
