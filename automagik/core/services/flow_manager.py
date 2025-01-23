@@ -12,6 +12,7 @@ import logging
 import json
 
 from automagik.core.database.models import FlowDB, FlowComponent
+from automagik.core.database.session import get_db_session
 from .flow_analyzer import FlowAnalyzer
 from .flow_sync import FlowSync
 

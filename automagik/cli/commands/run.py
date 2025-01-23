@@ -115,19 +115,20 @@ def test(schedule_id):
         if schedule.flow_params:
             logger.info(f"Input: {schedule.flow_params.get('input')}")
             
-        async def run_test():
-            # Create task from schedule
-            task = await runner.create_task(
-                flow_id=schedule.flow_id,
-                input_data=schedule.flow_params
-            )
-            logger.info(f"\nCreated task {task.id}")
-            
-            # Run the task
-            await runner.run_task(task.id)
-            logger.info("\nTask completed")
-            
-        asyncio.run(run_test())
+        # Create task from schedule
+        task = runner.create_task(
+            flow_id=schedule.flow_id,
+            input_data=schedule.flow_params
+        )
+        logger.info(f"\nCreated task {task.id}")
+        
+        # Run the task
+        result = runner.run_task(task.id)
+        logger.info("\nTask completed")
+
+        # Show the result
+        logger.info(f"Test result: {result}")
+        click.echo(f"Test completed: {result}")
         
     except Exception as e:
         logger.error(f"Error testing schedule: {str(e)}", exc_info=True)

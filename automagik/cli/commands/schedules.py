@@ -11,7 +11,8 @@ from automagik.core.scheduler.exceptions import (
     SchedulerError,
     InvalidScheduleError,
     ScheduleNotFoundError,
-    FlowNotFoundError
+    FlowNotFoundError,
+    ComponentNotConfiguredError
 )
 from automagik.core.database.models import Schedule, FlowDB
 
@@ -28,12 +29,7 @@ def create():
         scheduler = SchedulerService(db_session)
         
         # Get flows with schedule count
-        flows = db_session.execute(text("""
-            SELECT f.*, COUNT(s.id) as schedule_count
-            FROM flows f
-            LEFT JOIN schedules s ON f.id = s.flow_id
-            GROUP BY f.id
-        """)).fetchall()
+        flows = db_session.query(FlowDB).all()
         
         if not flows:
             click.secho("No flows found", fg='red')
@@ -42,7 +38,8 @@ def create():
         # Show available flows
         click.secho("\nAvailable flows:", bold=True)
         for i, flow in enumerate(flows):
-            schedule_text = f"({flow.schedule_count} schedules)" if flow.schedule_count else "(no schedules)"
+            schedule_count = db_session.query(Schedule).filter(Schedule.flow_id == flow.id).count()
+            schedule_text = f"({schedule_count} schedules)" if schedule_count else "(no schedules)"
             click.echo(f"  {i}: {click.style(flow.name, fg='green')} {click.style(schedule_text, fg='blue')}")
             
         # Get flow selection
@@ -108,7 +105,7 @@ def create():
             click.echo(f"  Expression: {click.style(schedule_expr, fg='blue')}")
             click.echo(f"  Next Run: {click.style(str(schedule.next_run_at), fg='blue')}")
             if flow_params:
-                click.echo(f"  Input: {click.style(str(flow_params), fg='blue')}")
+                click.echo(f"  Flow Params: {click.style(str(flow_params), fg='blue')}")
                 
         except InvalidScheduleError as e:
             click.secho(f"\nInvalid schedule: {str(e)}", fg='red')
