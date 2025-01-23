@@ -2,6 +2,28 @@
 
 This document covers the AutoMagik REST API endpoints and usage.
 
+## API Documentation Interfaces
+
+AutoMagik provides API documentation in two formats:
+
+### Interactive Documentation
+
+- **Swagger UI** (`/docs`)
+  - Interactive API documentation
+  - Test endpoints directly in your browser
+  - View request/response examples
+  - Great for development and testing
+  - Available at: http://your-server:8000/docs
+
+### Reference Documentation
+
+- **ReDoc** (`/redoc`)
+  - Clean, organized documentation
+  - Mobile-responsive design
+  - Easy to read and navigate
+  - Perfect for API reference
+  - Available at: http://your-server:8000/redoc
+
 ## Authentication
 
 All API requests require an API key passed in the `X-API-Key` header:

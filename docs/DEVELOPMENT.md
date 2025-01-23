@@ -17,6 +17,9 @@ source .venv/bin/activate
 
 # Install development dependencies
 pip install -e ".[dev]"
+
+# Set up pre-commit hooks
+pre-commit install
 ```
 
 ### 2. Configure Environment
@@ -48,7 +51,9 @@ automagik/
 │   ├── api/           # FastAPI application
 │   ├── cli/           # CLI commands
 │   ├── core/          # Core business logic
-│   ├── db/            # Database models
+│   │   ├── services/   # Main services
+│   │   ├── database/   # Database models
+│   │   └── utils/      # Utilities
 │   └── utils/         # Utility functions
 ├── docs/              # Documentation
 ├── scripts/           # Helper scripts

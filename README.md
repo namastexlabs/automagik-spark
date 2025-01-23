@@ -100,11 +100,18 @@ automagik run test <flow-id>  # Test run a flow
 - **API Integration**: RESTful API for managing flows, schedules, and tasks
 - **Monitoring**: Track task status and view execution logs
 
-## API Documentation
+## Documentation
 
-Once the server is running, visit:
-- OpenAPI docs: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+### Guides and References
+- [Setup Guide](/docs/SETUP.md) - Detailed installation and configuration
+- [CLI Reference](/docs/CLI.md) - Command-line interface documentation
+- [Development Guide](/docs/DEVELOPMENT.md) - Contributing and development setup
+- [Architecture](/docs/ARCHITECTURE.md) - System design and components
+
+### API Documentation
+- [API Guide](/docs/API.md) - REST API overview and usage
+- Interactive API Explorer (Swagger UI): http://localhost:8000/docs
+- API Reference (ReDoc): http://localhost:8000/redoc
 
 ## CLI Reference
 
@@ -201,6 +208,7 @@ automagik schedules create \
 # Verify schedule was created
 automagik schedules list | grep $FLOW_ID
 ```
+
 
 3. **Test Flow Execution with Different Inputs**
 ```bash
