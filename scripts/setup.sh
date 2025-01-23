@@ -103,6 +103,18 @@ if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null ; then
     lsof -ti :8000 | xargs kill -9
 fi
 
+# Setup git hooks
+print_status "Setting up git hooks..."
+# Make git hooks executable
+chmod +x .githooks/pre-push
+chmod +x scripts/run_tests.sh
+# Configure git to use our hooks directory
+git config core.hooksPath .githooks
+
+# Install development dependencies
+print_status "Installing development dependencies..."
+pip install pytest pytest-cov
+
 # Install systemd service
 print_status "Installing systemd service..."
 cat > /etc/systemd/system/automagik.service << EOL

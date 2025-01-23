@@ -25,7 +25,31 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### 2. Configuration
+### 2. Development Setup
+
+For development, you'll need additional tools and configurations:
+
+```bash
+# Run the setup script (requires root)
+sudo ./scripts/setup.sh
+
+# This will:
+# - Install all dependencies (including dev dependencies)
+# - Set up git hooks for pre-push checks
+# - Configure logging
+# - Set up and start the service
+```
+
+The setup includes git hooks that run automated checks before pushing:
+- Pre-push hook runs all tests with coverage checks
+- Current minimum coverage threshold: 45%
+
+To run tests manually:
+```bash
+./scripts/run_tests.sh
+```
+
+### 3. Configuration
 
 Create a `.env` file in the root directory:
 
@@ -51,7 +75,7 @@ LANGFLOW_API_KEY=your-langflow-api-key
 CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 ```
 
-### 3. Database Setup
+### 4. Database Setup
 
 ```bash
 # Start PostgreSQL (if not running)
@@ -64,7 +88,7 @@ postgres=# CREATE DATABASE automagik_db OWNER your_user;
 postgres=# \q
 ```
 
-### 4. Running the Services
+### 5. Running the Services
 
 ```bash
 # Start Redis (if not running)
@@ -80,7 +104,7 @@ automagik run start
 celery -A automagik.core.celery_app worker --loglevel=info
 ```
 
-### 5. Testing the Setup
+### 6. Testing the Setup
 
 ```bash
 # Test the API
