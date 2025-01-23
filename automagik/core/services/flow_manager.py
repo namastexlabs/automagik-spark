@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 import uuid
 import logging
+import json
 
 from automagik.core.database.models import FlowDB, FlowComponent
 from .flow_analyzer import FlowAnalyzer
@@ -56,9 +57,23 @@ class FlowManager:
             if self.flow_sync and folder_id:
                 folder_name = self.flow_sync.get_folder_name(folder_id)
             
+            # Extract and parse the data field
+            data = {}
+            raw_data = flow_data.get("data", {})
+            if isinstance(raw_data, str):
+                try:
+                    data = json.loads(raw_data)
+                except json.JSONDecodeError:
+                    logger.error("Failed to parse flow data as JSON")
+                    data = {}
+            elif isinstance(raw_data, dict):
+                data = raw_data
+            
             # Analyze flow components
             components = []
-            for node in flow_data.get("data", {}).get("nodes", []):
+            input_component = None
+            output_component = None
+            for node in data.get("nodes", []):
                 is_input, is_output, tweakable_params = self.flow_analyzer.analyze_component(node)
                 
                 component_info = self.flow_analyzer.get_component_info(node)
@@ -70,10 +85,28 @@ class FlowManager:
                     "is_output": is_output,
                     "tweakable_params": tweakable_params
                 })
+                
+                if is_input:
+                    input_component = component_info["name"]
+                if is_output:
+                    output_component = component_info["name"]
             
             # Store flow data in database
-            # Note: Actual database operations would go here
-            # This is a placeholder for the database schema
+            flow = FlowDB(
+                id=uuid.UUID(flow_id),
+                name=name,
+                description=description,
+                data=data,
+                source="langflow",
+                source_id=flow_data.get("id"),
+                folder_id=folder_id,
+                folder_name=folder_name,
+                flow_version=1,
+                input_component=input_component,
+                output_component=output_component
+            )
+            self.db_session.add(flow)
+            self.db_session.commit()
             
             return flow_id
             
