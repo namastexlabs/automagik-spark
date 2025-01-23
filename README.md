@@ -116,6 +116,42 @@ automagik flows list  # List available flows
 automagik run test <flow-id>  # Test run a flow
 ```
 
+### 6. Scheduling Tasks
+
+AutoMagik supports three types of task scheduling:
+
+1. **Cron Schedules**: Run tasks on a recurring schedule using cron expressions
+   ```bash
+   # Run daily at 8 AM
+   automagik schedules create my-flow --type cron --expr "0 8 * * *" --input '{"key": "value"}'
+   ```
+
+2. **Interval Schedules**: Run tasks at fixed time intervals
+   ```bash
+   # Run every 30 minutes
+   automagik schedules create my-flow --type interval --expr "30m" --input '{"key": "value"}'
+   ```
+
+3. **One-Time Schedules**: Run tasks once at a specific date and time
+   ```bash
+   # Run once on January 24, 2025 at midnight UTC
+   automagik schedules create my-flow --type oneshot --expr "2025-01-24T00:00:00" --input '{"key": "value"}'
+   ```
+
+View and manage your schedules:
+```bash
+# List all schedules
+automagik schedules list
+
+# Filter by type
+automagik schedules list --type oneshot
+
+# Filter by status
+automagik schedules list --status active
+```
+
+For more details on scheduling, see the [CLI documentation](docs/CLI.md).
+
 ## Features
 
 - **Flow Management**: Sync and manage LangFlow workflows

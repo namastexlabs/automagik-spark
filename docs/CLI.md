@@ -67,9 +67,24 @@ automagik schedules create <flow-name>
 ```
 
 Options:
-- `--type {cron,interval}`: Schedule type
+- `--type {cron,interval,oneshot}`: Schedule type
+  - `cron`: Cron expression (e.g., "0 8 * * *" for daily at 8 AM)
+  - `interval`: Time interval (e.g., "30m", "1h", "1d")
+  - `oneshot`: One-time schedule using ISO format datetime (e.g., "2025-01-24T00:00:00")
 - `--expr EXPR`: Schedule expression
-- `--params JSON`: Flow parameters
+- `--input JSON`: Flow input parameters
+
+Examples:
+```bash
+# Create a daily schedule at 8 AM
+automagik schedules create my-flow --type cron --expr "0 8 * * *" --input '{"key": "value"}'
+
+# Create a schedule that runs every 30 minutes
+automagik schedules create my-flow --type interval --expr "30m" --input '{"key": "value"}'
+
+# Create a one-time schedule for a specific date and time
+automagik schedules create my-flow --type oneshot --expr "2025-01-24T00:00:00" --input '{"key": "value"}'
+```
 
 ### List Schedules
 ```bash
@@ -78,7 +93,8 @@ automagik schedules list
 
 Options:
 - `--flow-id ID`: Filter by flow
-- `--status STATUS`: Filter by status
+- `--status STATUS`: Filter by status (active, completed, error)
+- `--type TYPE`: Filter by schedule type (cron, interval, oneshot)
 
 ### Delete Schedule
 ```bash
@@ -124,7 +140,7 @@ Options:
 automagik schedules create "Daily Report" \
   --type cron \
   --expr "0 9 * * *" \
-  --params '{"input": "daily report"}'
+  --input '{"input": "daily report"}'
 ```
 
 2. View recent task failures:

@@ -54,8 +54,9 @@ class SchedulerService:
         Calculate the next run time based on schedule type and expression.
         
         Args:
-            schedule_type: Type of schedule ('interval' or 'cron')
-            schedule_expr: Schedule expression (e.g., '30m' for interval, '* * * * *' for cron)
+            schedule_type: Type of schedule ('interval', 'cron', or 'oneshot')
+            schedule_expr: Schedule expression (e.g., '30m' for interval, '* * * * *' for cron, 
+                         or ISO format datetime for oneshot)
             from_time: Optional base time for calculation
             
         Returns:
@@ -70,7 +71,20 @@ class SchedulerService:
             from_time = self.timezone.localize(from_time)
 
         try:
-            if schedule_type == 'interval':
+            if schedule_type == 'oneshot':
+                try:
+                    # Parse ISO format datetime
+                    run_time = datetime.fromisoformat(schedule_expr)
+                    # Localize if naive
+                    if run_time.tzinfo is None:
+                        run_time = self.timezone.localize(run_time)
+                    # Ensure the time is in the future
+                    if run_time <= from_time:
+                        raise InvalidScheduleError("One-time schedule must be in the future")
+                    return run_time
+                except ValueError as e:
+                    raise InvalidScheduleError(f"Invalid datetime format for one-time schedule. Use ISO format (e.g. 2025-01-24T00:00:00): {str(e)}")
+            elif schedule_type == 'interval':
                 # Parse interval expression (e.g., '30m', '1h', '1d')
                 value = int(schedule_expr[:-1])
                 unit = schedule_expr[-1].lower()
@@ -111,7 +125,7 @@ class SchedulerService:
         
         Args:
             flow_name: Name of the flow to schedule
-            schedule_type: Type of schedule ('interval' or 'cron')
+            schedule_type: Type of schedule ('interval', 'cron', or 'oneshot')
             schedule_expr: Schedule expression
             flow_params: Optional parameters to pass to the flow
             
@@ -249,24 +263,23 @@ class SchedulerService:
         Returns:
             List of schedules that should be executed
         """
-        now = self._get_current_time()
+        current_time = self._get_current_time()
         
-        try:
-            due_schedules = self.db_session.query(Schedule).filter(
-                and_(
-                    Schedule.status == 'active',
-                    Schedule.next_run_at <= now
-                )
-            ).all()
-            
-            if due_schedules:
-                logger.debug(f"Found {len(due_schedules)} due schedules")
-                for schedule in due_schedules:
-                    logger.debug(f"Schedule {schedule.id} due at {schedule.next_run_at}")
-            
-            return due_schedules
-        except Exception as e:
-            raise SchedulerError(f"Error fetching due schedules: {str(e)}")
+        # Get all active schedules that are due
+        schedules = self.db_session.query(Schedule).filter(
+            and_(
+                Schedule.status == 'active',
+                Schedule.next_run_at <= current_time
+            )
+        ).all()
+        
+        # For one-time schedules, mark them as completed after they are due
+        for schedule in schedules:
+            if schedule.schedule_type == 'oneshot':
+                schedule.status = 'completed'
+                self.db_session.commit()
+        
+        return schedules
 
     def update_schedule_next_run(self, schedule: Schedule) -> None:
         """
@@ -276,6 +289,14 @@ class SchedulerService:
             schedule: Schedule to update
         """
         try:
+            # One-time schedules don't get updated, they get completed
+            if schedule.schedule_type == 'oneshot':
+                schedule.status = 'completed'
+                self.db_session.commit()
+                logger.debug(f"Marked one-time schedule {schedule.id} as completed")
+                return
+
+            # For other schedule types, calculate next run
             next_run = self._calculate_next_run(
                 schedule.schedule_type,
                 schedule.schedule_expr,

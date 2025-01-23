@@ -15,6 +15,8 @@ from automagik.core.scheduler.exceptions import (
     ComponentNotConfiguredError
 )
 from automagik.core.database.models import Schedule, FlowDB
+import json
+import sys
 
 @click.group()
 def schedules():
@@ -22,12 +24,37 @@ def schedules():
     pass
 
 @schedules.command()
-def create():
+@click.option(
+    '--type',
+    type=click.Choice(['interval', 'cron', 'oneshot']),
+    required=True,
+    help='Type of schedule'
+)
+@click.option(
+    '--expr',
+    required=True,
+    help='Schedule expression. For interval: "30m", "1h", "1d". For cron: "* * * * *". For oneshot: ISO format datetime (e.g. "2025-01-24T00:00:00")'
+)
+@click.option(
+    '--input',
+    'input_json',
+    required=True,
+    help='JSON string of input parameters'
+)
+@click.pass_context
+def create(ctx, type: str, expr: str, input_json: str):
     """Create a new schedule for a flow"""
     try:
         db_session = get_db_session()
         scheduler = SchedulerService(db_session)
         
+        # Parse input JSON
+        try:
+            input_data = json.loads(input_json)
+        except json.JSONDecodeError as e:
+            click.secho(f"\nInvalid JSON input: {str(e)}", fg='red')
+            return
+            
         # Get flows with schedule count
         flows = db_session.query(FlowDB).all()
         
@@ -50,50 +77,13 @@ def create():
             
         selected_flow = flows[flow_idx]
         
-        # Show schedule types
-        click.secho("\nSchedule Type:", bold=True)
-        click.echo(f"  0: {click.style('Interval', fg='green')} (e.g., every 30 minutes)")
-        click.echo(f"  1: {click.style('Cron', fg='green')} (e.g., every day at 8 AM)")
-        
-        # Get schedule type
-        schedule_type_idx = click.prompt("\nSelect schedule type", type=int, prompt_suffix=' → ')
-        if schedule_type_idx not in [0, 1]:
-            click.secho("Invalid schedule type", fg='red')
-            return
-            
-        schedule_type = 'interval' if schedule_type_idx == 0 else 'cron'
-        
-        # Get schedule expression
-        if schedule_type == 'interval':
-            click.secho("\nInterval Examples:", bold=True)
-            click.echo("  5m  - Every 5 minutes")
-            click.echo("  30m - Every 30 minutes")
-            click.echo("  1h  - Every hour")
-            click.echo("  4h  - Every 4 hours")
-            click.echo("  1d  - Every day")
-            schedule_expr = click.prompt("\nEnter interval", prompt_suffix=' → ')
-        else:
-            click.secho("\nCron Examples:", bold=True)
-            click.echo("  */30 * * * * - Every 30 minutes")
-            click.echo("  0 * * * *   - Every hour")
-            click.echo("  0 8 * * *   - Every day at 8 AM")
-            click.echo("  0 8 * * 1-5 - Every weekday at 8 AM")
-            schedule_expr = click.prompt("\nEnter cron expression", prompt_suffix=' → ')
-            
-        # Get input value
-        if click.confirm("\nDo you want to set an input value?", prompt_suffix=' → '):
-            input_value = click.prompt("Enter input value", prompt_suffix=' → ')
-            flow_params = {"input": input_value}
-        else:
-            flow_params = {}
-            
+        # Create schedule
         try:
-            # Create schedule
             schedule = scheduler.create_schedule(
                 flow_name=selected_flow.name,
-                schedule_type=schedule_type,
-                schedule_expr=schedule_expr,
-                flow_params=flow_params
+                schedule_type=type,
+                schedule_expr=expr,
+                flow_params=input_data
             )
             
             # Show success message
@@ -101,11 +91,11 @@ def create():
             click.echo(f"\nDetails:")
             click.echo(f"  ID: {click.style(str(schedule.id), fg='blue')}")
             click.echo(f"  Flow: {click.style(selected_flow.name, fg='blue')}")
-            click.echo(f"  Type: {click.style(schedule_type, fg='blue')}")
-            click.echo(f"  Expression: {click.style(schedule_expr, fg='blue')}")
+            click.echo(f"  Type: {click.style(type, fg='blue')}")
+            click.echo(f"  Expression: {click.style(expr, fg='blue')}")
             click.echo(f"  Next Run: {click.style(str(schedule.next_run_at), fg='blue')}")
-            if flow_params:
-                click.echo(f"  Flow Params: {click.style(str(flow_params), fg='blue')}")
+            click.echo(f"  Status: {click.style(schedule.status, fg='blue')}")
+            click.echo(f"  Input: {click.style(str(input_data), fg='blue')}")
                 
         except InvalidScheduleError as e:
             click.secho(f"\nInvalid schedule: {str(e)}", fg='red')
