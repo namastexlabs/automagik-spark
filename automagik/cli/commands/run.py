@@ -6,11 +6,15 @@ from typing import Dict, Any
 import asyncio
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
 from automagik.core.services.task_runner import TaskRunner
 from automagik.core.scheduler.scheduler import SchedulerService
 from automagik.core.database.session import get_db_session
 from automagik.core.services.langflow_client import LangflowClient
 from automagik.core.logger import setup_logger
+
+# Load environment variables
+load_dotenv()
 
 logger = setup_logger()
 

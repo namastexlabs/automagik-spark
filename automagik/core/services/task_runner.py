@@ -1,72 +1,79 @@
+"""
+Task Runner Service
+
+This module provides functionality for managing and executing tasks.
+"""
+
 from datetime import datetime
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+import uuid
+from typing import Optional, Dict, Any, List
 import logging
 import json
+from sqlalchemy.orm import Session
 
-from automagik.core.database.models import Task, Log
-from automagik.core.database.session import engine
+from automagik.core.database.models import Task, Log, FlowDB
+from automagik.core.services.langflow_client import LangflowClient
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TaskRunner:
-    def __init__(self):
-        self.session = Session(engine)
+    def __init__(self, session: Session, langflow_client: LangflowClient):
+        """Initialize TaskRunner.
+        
+        Args:
+            session: SQLAlchemy database session
+            langflow_client: Client for interacting with LangFlow API
+        """
+        self.session = session
+        self.langflow_client = langflow_client
 
-    def get_pending_tasks(self) -> list[Task]:
-        """Fetch tasks that are pending execution"""
-        query = select(Task).where(
-            Task.status == 'pending'
-        ).order_by(Task.created_at)
-        return list(self.session.execute(query).scalars())
+    async def create_task(self, flow_id: uuid.UUID, input_data: Dict[str, Any] = None) -> Task:
+        """Create a new task for a flow."""
+        flow = self.session.query(FlowDB).filter(FlowDB.id == flow_id).first()
+        if not flow:
+            raise ValueError(f"Flow {flow_id} not found")
+        
+        task = Task(
+            flow_id=flow_id,
+            input_data=input_data or {},
+            status="pending",
+            tries=0,
+            max_retries=3
+        )
+        self.session.add(task)
+        self.session.commit()
+        return task
 
-    def execute_task(self, task: Task) -> bool:
-        """Execute a single task and handle its outcome"""
-        try:
-            # Update task status to running
-            task.status = 'running'
-            task.updated_at = datetime.utcnow()
-            self.session.commit()
+    def _extract_output_data(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract useful information from the LangFlow response."""
+        output_data = {
+            "session_id": response.get("session_id"),
+            "messages": [],
+            "artifacts": [],
+            "logs": []
+        }
+        
+        # Extract messages and outputs
+        for output in response.get("outputs", []):
+            for result in output.get("outputs", []):
+                # Get messages
+                messages = result.get("messages", [])
+                output_data["messages"].extend(messages)
+                
+                # Get artifacts
+                artifacts = result.get("artifacts", [])
+                output_data["artifacts"].extend(artifacts)
+                
+                # Get logs
+                logs = result.get("logs", [])
+                output_data["logs"].extend(logs)
+        
+        return output_data
 
-            # Log task start
-            self._log_task(task, 'info', f'Starting task execution. Attempt {task.tries + 1}/{task.max_retries}')
-
-            # TODO: Implement actual task execution logic here
-            # This is where you'll add the specific agent execution code
-            success = self._run_agent_task(task)
-
-            if success:
-                task.status = 'completed'
-                self._log_task(task, 'info', 'Task completed successfully')
-            else:
-                self._handle_failure(task)
-
-            task.updated_at = datetime.utcnow()
-            self.session.commit()
-            return success
-
-        except Exception as e:
-            logger.exception(f"Error executing task {task.id}")
-            self._log_task(task, 'error', f'Task execution failed: {str(e)}')
-            self._handle_failure(task)
-            return False
-
-    def _handle_failure(self, task: Task):
-        """Handle task failure and manage retries"""
-        task.tries += 1
-        if task.tries >= task.max_retries:
-            task.status = 'failed'
-            self._log_task(task, 'error', 'Task failed: Max retries exceeded')
-        else:
-            task.status = 'pending'
-            self._log_task(task, 'warning', f'Task failed: Will retry. Attempts remaining: {task.max_retries - task.tries}')
-
-    def _log_task(self, task: Task, level: str, message: str):
-        """Create a log entry for the task"""
+    def _log_message(self, task_id: uuid.UUID, level: str, message: str):
+        """Add a log message for a task."""
         log = Log(
-            task_id=task.id,
+            task_id=task_id,
             level=level,
             message=message,
             created_at=datetime.utcnow()
@@ -74,30 +81,52 @@ class TaskRunner:
         self.session.add(log)
         self.session.commit()
 
-    def _run_agent_task(self, task: Task) -> bool:
-        """Execute the specific agent task"""
-        # TODO: Implement the actual agent execution logic
-        # This is a placeholder that should be replaced with real implementation
-        logger.info(f"Executing agent task {task.id} for agent {task.agent_id}")
-        
-        # Simulate task execution
-        # In reality, this would interact with your agent system
-        return True
+    async def run_task(self, task_id: uuid.UUID) -> bool:
+        """Run a task."""
+        task = self.session.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            raise ValueError(f"Task {task_id} not found")
 
-    def run(self):
-        """Main loop to continuously process tasks"""
-        logger.info("Starting task runner")
-        while True:
-            try:
-                tasks = self.get_pending_tasks()
-                if not tasks:
-                    logger.debug("No pending tasks found")
-                    continue
+        try:
+            # Update task status
+            task.status = "running"
+            task.tries += 1
+            task.updated_at = datetime.utcnow()
+            self.session.commit()
+            
+            self._log_message(task.id, "info", f"Starting task execution (attempt {task.tries}/{task.max_retries})")
+            
+            # Run the flow
+            flow_response = await self.langflow_client.run_flow(
+                str(task.flow_id),
+                task.input_data
+            )
+            
+            # Process response
+            output_data = self._extract_output_data(flow_response)
+            task.output_data = output_data
+            task.status = "completed"
+            task.updated_at = datetime.utcnow()
+            
+            self._log_message(task.id, "info", "Task completed successfully")
+            
+            self.session.commit()
+            return True
+            
+        except Exception as e:
+            error_message = str(e)
+            self._log_message(task.id, "error", f"Task execution failed: {error_message}")
+            
+            # Handle retries
+            if task.tries < task.max_retries:
+                task.status = "pending"
+            else:
+                task.status = "failed"
+            
+            task.updated_at = datetime.utcnow()
+            self.session.commit()
+            return False
 
-                for task in tasks:
-                    self.execute_task(task)
-
-            except Exception as e:
-                logger.exception("Error in task runner main loop")
-
-            # TODO: Add appropriate sleep/delay here 
+    def get_task_logs(self, task_id: uuid.UUID) -> List[Log]:
+        """Get all logs for a task."""
+        return self.session.query(Log).filter(Log.task_id == task_id).order_by(Log.created_at).all()
