@@ -63,6 +63,7 @@ docs/api/
 !README.md
 !CONTRIBUTING.md
 !docs/*.md
+instructions/codebase.md 
 
 # Include only core Python files
 !automagik/core/**/*.py
