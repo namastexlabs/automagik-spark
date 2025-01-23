@@ -1,3 +1,4 @@
+"""Run tasks and schedules"""
 import click
 import os
 import sys
@@ -104,10 +105,15 @@ def test(schedule_id):
         scheduler = SchedulerService(db)
         
         # Get the schedule
-        schedule = scheduler.get_schedule(schedule_id)
+        try:
+            schedule = scheduler.get_schedule(schedule_id)
+        except ValueError as e:
+            logger.error(f"Error testing schedule: {str(e)}")
+            sys.exit(1)
+            
         if not schedule:
             logger.error(f"Schedule {schedule_id} not found")
-            return
+            sys.exit(1)
             
         logger.info(f"\nTesting schedule {schedule.id} for flow {schedule.flow.name}")
         logger.info(f"Type: {schedule.schedule_type}")
@@ -132,3 +138,4 @@ def test(schedule_id):
         
     except Exception as e:
         logger.error(f"Error testing schedule: {str(e)}", exc_info=True)
+        sys.exit(1)
