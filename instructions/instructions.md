@@ -14,14 +14,26 @@ AutoMagik is a powerful CLI tool designed to manage and schedule LangFlow workfl
 ```
 automagik/
 ├── api/                # FastAPI application
-├── cli/                # Click command-line interface
-├── core/               # Core business logic
+│   ├── dependencies.py # Dependency injection
+│   ├── security.py    # API security
+│   ├── schemas.py     # API schemas
+│   └── main.py        # FastAPI app
+├── cli/               # Click command-line interface
+│   ├── commands/      # Command implementations
+│   ├── models/        # CLI data models
+│   ├── services/      # CLI services
+│   └── utils/         # CLI utilities
+├── core/              # Core business logic
 │   ├── services/      # Main services
 │   │   ├── flow_manager.py
 │   │   ├── flow_analyzer.py
-│   │   └── flow_sync.py
+│   │   ├── flow_sync.py
+│   │   ├── langflow_client.py
+│   │   └── task_runner.py
 │   ├── database/      # Database models and sessions
 │   └── utils/         # Utility functions
+├── alembic/           # Database migrations
+├── scripts/           # Utility scripts
 ├── tests/             # Test suite
 └── docs/              # Documentation
 ```
@@ -48,17 +60,85 @@ automagik/
    - Validates API responses
    - Handles different response formats
 
-### Database Management (`core/database/`)
+4. **LangflowClient**: Dedicated API client
+   - Manages API authentication
+   - Handles API requests/responses
+   - Provides high-level API operations
+   - Implements retry and error handling
 
-1. **Models**:
-   - `FlowDB`: Flow metadata and configuration
-   - `FlowComponent`: Flow component information
-   - `Schedule`: Task scheduling information
+5. **TaskRunner**: Manages task execution
+   - Runs workflow tasks
+   - Handles task logging
+   - Manages task state
+   - Processes task input/output
 
-2. **Session Management**:
-   - SQLAlchemy session handling
-   - SQLite for testing
-   - PostgreSQL for production
+### API Components (`api/`)
+
+1. **FastAPI Application**:
+   - RESTful API endpoints
+   - OpenAPI documentation
+   - Request/response validation
+   - Error handling
+
+2. **Security**:
+   - API key authentication
+   - Role-based access control
+   - Request validation
+   - Security middleware
+
+3. **Dependencies**:
+   - Database session management
+   - Service injection
+   - Configuration management
+   - Logging setup
+
+### CLI Components (`cli/`)
+
+1. **Command Structure**:
+   - Flow management commands
+   - Task scheduling commands
+   - Monitoring commands
+   - Configuration commands
+
+2. **Services**:
+   - Scheduler service
+   - Flow sync service
+   - Task management
+   - Configuration management
+
+## Development Environment
+
+### Prerequisites
+- Python 3.8+
+- PostgreSQL
+- Redis (for task queue)
+- Docker (optional)
+
+### Environment Setup
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# Initialize database
+alembic upgrade head
+```
+
+### Docker Support
+```bash
+# Build and run with Docker
+docker-compose up -d
+
+# Run specific service
+docker-compose up api
+```
 
 ## Testing Strategy
 
@@ -72,6 +152,7 @@ automagik/
 - Tests individual components
 - Validates core functionality
 - Ensures data integrity
+- Uses pytest fixtures
 
 ## Development Resources
 
@@ -93,7 +174,7 @@ which python  # Should point to .venv/bin/python
 echo $AUTOMAGIK_LOG_LEVEL  # Should be DEBUG
 ```
 
-### Quick Development Commands
+## Quick Development Commands
 ```bash
 # Run tests with coverage
 pytest --cov=automagik -v | grep -v "no tests ran"

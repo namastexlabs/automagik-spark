@@ -1,165 +1,270 @@
 # Common Development Patterns
 
-## Development Environment
+## Flow Management
 
-### Virtual Environment
-Always use the virtual environment when working with AutoMagik:
-
+### Flow Synchronization
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+# Basic sync
+automagik flows sync
 
-# Deactivate when done
-deactivate
-```
-
-### Running Tests
-Common test patterns:
-
-```bash
-# Run all tests with coverage
-source .venv/bin/activate && pytest --cov=automagik
-
-# Run specific test file
-source .venv/bin/activate && pytest tests/test_integration.py -v
-
-# Run specific test class
-source .venv/bin/activate && pytest tests/test_integration.py::TestIntegration -v
-
-# Run specific test method
-source .venv/bin/activate && pytest tests/test_integration.py::TestIntegration::test_flow_sync -v
-
-# Run tests with debug logging
-AUTOMAGIK_LOG_LEVEL=DEBUG pytest tests/test_integration.py -v
-```
-
-### Database Operations
-Common database patterns:
-
-```bash
-# Reset test database
-source .venv/bin/activate && python -m automagik.core.database.reset_db
-
-# Run migrations
-source .venv/bin/activate && alembic upgrade head
-
-# Create new migration
-source .venv/bin/activate && alembic revision -m "description"
-```
-
-### Flow Management
-Common flow operations:
-
-```bash
-# Sync flows with debug logging
+# Sync with debug logging
 AUTOMAGIK_LOG_LEVEL=DEBUG automagik flows sync
 
-# List flows with JSON output
-automagik flows list --format json
+# Sync specific flow
+automagik flows sync --flow-id <id>
 
-# Test flow with specific input
-automagik flows test <flow-id> --input '{"key": "value"}'
+# Force sync (ignore cache)
+automagik flows sync --force
 ```
 
-### Schedule Management
-Common scheduling patterns:
-
+### Flow Analysis
 ```bash
-# Create schedule with retry policy
-automagik schedules create --flow-id <id> --cron "*/5 * * * *" --retries 3
+# Analyze flow structure
+automagik flows analyze <flow-id>
 
-# List active schedules
-automagik schedules list --status active
+# Export flow diagram
+automagik flows export-diagram <flow-id>
 
-# Pause all schedules
-automagik schedules pause-all
+# Validate flow
+automagik flows validate <flow-id>
+
+# List flow dependencies
+automagik flows deps <flow-id>
+```
+
+### Flow Testing
+```bash
+# Test with default input
+automagik flows test <flow-id>
+
+# Test with custom input
+automagik flows test <flow-id> --input '{"key": "value"}'
+
+# Test with debug output
+AUTOMAGIK_LOG_LEVEL=DEBUG automagik flows test <flow-id>
+
+# Test and save output
+automagik flows test <flow-id> --save-output output.json
+```
+
+## Task Management
+
+### Task Creation
+```bash
+# Create basic task
+automagik tasks create --flow-id <id>
+
+# Create with input
+automagik tasks create --flow-id <id> --input '{"key": "value"}'
+
+# Create with retries
+automagik tasks create --flow-id <id> --retries 3
+
+# Create with timeout
+automagik tasks create --flow-id <id> --timeout 300
 ```
 
 ### Task Monitoring
-Common monitoring patterns:
-
 ```bash
-# Watch task logs in real-time
+# View task status
+automagik tasks status <task-id>
+
+# Follow task logs
 automagik tasks logs <task-id> --follow
 
-# Get task status with full details
-automagik tasks status <task-id> --verbose
+# View task output
+automagik tasks output <task-id>
 
-# List failed tasks from last hour
-automagik tasks list --status failed --since 1h
+# List recent tasks
+automagik tasks list --limit 10
 ```
 
-## API Development
-
-### Testing API Endpoints
-Common API test patterns:
-
+### Task Management
 ```bash
-# Test with curl
+# Cancel task
+automagik tasks cancel <task-id>
+
+# Retry failed task
+automagik tasks retry <task-id>
+
+# Clean up old tasks
+automagik tasks cleanup --older-than 7d
+
+# Export task results
+automagik tasks export <task-id> --format json
+```
+
+## Schedule Management
+
+### Schedule Creation
+```bash
+# Create basic schedule
+automagik schedules create --flow-id <id> --cron "*/5 * * * *"
+
+# Create with retries
+automagik schedules create --flow-id <id> --cron "0 * * * *" --retries 3
+
+# Create with timeout
+automagik schedules create --flow-id <id> --cron "0 0 * * *" --timeout 600
+
+# Create with input
+automagik schedules create --flow-id <id> --cron "0 12 * * *" --input '{"key": "value"}'
+```
+
+### Schedule Management
+```bash
+# List schedules
+automagik schedules list
+
+# View schedule details
+automagik schedules get <schedule-id>
+
+# Pause schedule
+automagik schedules pause <schedule-id>
+
+# Resume schedule
+automagik schedules resume <schedule-id>
+```
+
+## API Usage
+
+### Authentication
+```bash
+# Set API key
+export AUTOMAGIK_API_KEY="your-api-key"
+
+# Test authentication
+curl -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/health
+
+# Refresh API key
+automagik api refresh-key
+```
+
+### Flow Operations
+```bash
+# List flows
 curl -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows
 
-# Test with httpie (more readable)
-http :8000/api/v1/flows X-API-Key:$AUTOMAGIK_API_KEY
+# Get flow details
+curl -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows/<flow-id>
 
-# Test with debug logging
-AUTOMAGIK_LOG_LEVEL=DEBUG uvicorn automagik.api.main:app --reload
+# Create task
+curl -X POST -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"key": "value"}}' \
+     http://localhost:8000/api/v1/flows/<flow-id>/tasks
 ```
 
-### API Documentation
-Access API docs:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Debugging
-
-### Common Debug Patterns
-
-1. Enable debug logging:
+### Task Operations
 ```bash
-export AUTOMAGIK_LOG_LEVEL=DEBUG
+# Get task status
+curl -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+     http://localhost:8000/api/v1/tasks/<task-id>
+
+# Get task logs
+curl -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+     http://localhost:8000/api/v1/tasks/<task-id>/logs
+
+# Cancel task
+curl -X POST -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+     http://localhost:8000/api/v1/tasks/<task-id>/cancel
 ```
-
-2. Use pdb in tests:
-```python
-breakpoint()  # Add this line where you want to break
-```
-
-3. Debug database queries:
-```bash
-export AUTOMAGIK_SQL_ECHO=true
-```
-
-### Log Locations
-
-- Application logs: `/var/log/automagik/app.log`
-- Task logs: `/var/log/automagik/tasks/`
-- API logs: `/var/log/automagik/api.log`
 
 ## Common Issues and Solutions
 
-1. **Flow Sync Fails**
+### Flow Sync Issues
+1. **API Connection Failed**
    ```bash
-   # Check LangFlow API connectivity
-   curl -v -H "X-API-Key: $LANGFLOW_API_KEY" $LANGFLOW_API_URL/health
+   # Check API health
+   curl -v http://localhost:8000/health
    
-   # Verify flow format
-   automagik flows inspect <flow-id> --format json
+   # Verify API key
+   curl -v -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/health
    ```
 
-2. **Schedule Not Running**
+2. **Flow Validation Failed**
    ```bash
-   # Check Celery worker
-   celery -A automagik.core.celery_app status
+   # Check flow structure
+   automagik flows validate <flow-id>
    
-   # Verify schedule
-   automagik schedules inspect <schedule-id>
+   # View flow details
+   automagik flows get <flow-id> --format json
    ```
 
-3. **Task Failures**
+### Task Execution Issues
+1. **Task Timeout**
    ```bash
-   # Get detailed error
-   automagik tasks logs <task-id> --error-only
+   # Check task logs
+   automagik tasks logs <task-id>
    
-   # Check component status
+   # View resource usage
+   automagik tasks stats <task-id>
+   ```
+
+2. **Task Failed**
+   ```bash
+   # View error details
+   automagik tasks logs <task-id> --level ERROR
+   
+   # Check flow status
    automagik flows validate <flow-id>
    ```
+
+### Schedule Issues
+1. **Schedule Not Running**
+   ```bash
+   # Check schedule status
+   automagik schedules get <schedule-id>
+   
+   # Verify cron expression
+   automagik schedules validate-cron "*/5 * * * *"
+   ```
+
+2. **Schedule Failed**
+   ```bash
+   # View schedule history
+   automagik schedules history <schedule-id>
+   
+   # Check schedule logs
+   automagik schedules logs <schedule-id>
+   ```
+
+## Performance Optimization
+
+### Database Optimization
+```bash
+# Analyze query performance
+AUTOMAGIK_SQL_ECHO=true automagik flows list
+
+# Clean up old data
+automagik cleanup --older-than 30d
+
+# Optimize database
+automagik db optimize
+```
+
+### Memory Usage
+```bash
+# Monitor memory usage
+mprof run automagik flows sync
+mprof plot
+
+# Clean up cache
+automagik cache clear
+```
+
+### API Performance
+```bash
+# Check API latency
+for i in {1..5}; do
+  curl -w "%{time_total}\n" -s -o /dev/null \
+    -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+    http://localhost:8000/api/v1/health
+done
+
+# Use batch operations
+curl -X POST -H "X-API-Key: $AUTOMAGIK_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"flow_ids": ["id1", "id2"]}' \
+     http://localhost:8000/api/v1/flows/batch/sync
+```

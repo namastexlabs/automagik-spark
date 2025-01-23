@@ -2,10 +2,29 @@
 
 ## Environment Setup
 
-Always ensure your environment is properly activated:
+### Prerequisites
 ```bash
-# Activate environment
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install -y python3.8-venv postgresql redis-server
+
+# Clone repository
+git clone https://github.com/yourusername/automagik.git
+cd automagik
+```
+
+### Virtual Environment
+Always use the virtual environment when working with AutoMagik:
+
+```bash
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
 source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 
 # Verify Python interpreter
 which python  # Should point to .venv/bin/python
@@ -14,13 +33,53 @@ which python  # Should point to .venv/bin/python
 pip list | grep automagik
 ```
 
-## Common Development Commands
+### Configuration
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit environment variables
+nano .env
+
+# Verify configuration
+source .env
+echo $AUTOMAGIK_LOG_LEVEL  # Should show configured level
+```
+
+## Development Tools
+
+### Database Management
+```bash
+# Initialize database
+alembic upgrade head
+
+# Create new migration
+alembic revision -m "description"
+
+# Reset test database
+python -m automagik.core.database.reset_db
+```
+
+### Docker Development
+```bash
+# Build and start all services
+docker-compose up -d
+
+# Build specific service
+docker-compose build api
+
+# View logs
+docker-compose logs -f api
+
+# Stop services
+docker-compose down
+```
 
 ### Testing
 
 ```bash
 # Run all tests with coverage and output in pretty format
-source .venv/bin/activate && pytest --cov=automagik -v | grep -v "no tests ran"
+pytest --cov=automagik -v | grep -v "no tests ran"
 
 # Run specific test with debug output
 AUTOMAGIK_LOG_LEVEL=DEBUG pytest tests/test_integration.py::TestIntegration::test_flow_sync -v
@@ -30,11 +89,17 @@ pytest --cov=automagik --cov-report=html
 
 # Watch tests (using ptw)
 ptw tests/ -- -v
+
+# Run specific test suite
+pytest tests/test_integration.py -v
 ```
 
 ### API Development
 
 ```bash
+# Start API in development mode
+uvicorn automagik.api.main:app --reload --log-level debug
+
 # Test API endpoints with formatted JSON output
 curl -s -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows | jq .
 
@@ -42,7 +107,7 @@ curl -s -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows | 
 curl -s -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows | jq '.[] | {id, name}'
 
 # Test flow sync with debug output
-curl -v -H "X-API-Key: $LANGFLOW_API_KEY" "http://192.168.112.132:80/api/v1/flows/" | jq .
+curl -v -H "X-API-Key: $LANGFLOW_API_KEY" "http://localhost:80/api/v1/flows/" | jq .
 
 # Monitor API logs in real-time
 tail -f /var/log/automagik/api.log | jq .
@@ -64,34 +129,47 @@ AUTOMAGIK_LOG_LEVEL=DEBUG automagik flows sync 2>&1 | tee flow-sync.log
 automagik flows analyze <flow-id> | jq '.components'
 ```
 
-### Database Operations
+### Task Management
 
 ```bash
-# Export query results to JSON
-source .venv/bin/activate && python -c "
-from automagik.core.database import get_session
-session = get_session()
-result = session.execute('SELECT * FROM flows').fetchall()
-import json
-print(json.dumps([dict(r) for r in result], default=str))
-" | jq .
+# Create new task
+automagik tasks create --flow-id <id> --input '{"key": "value"}'
 
-# Monitor database queries
-AUTOMAGIK_SQL_ECHO=true automagik flows list
+# List recent tasks
+automagik tasks list --limit 10
 
-# Backup database
-pg_dump $DATABASE_URL > backup.sql
+# View task logs
+automagik tasks logs <task-id> --follow
+
+# Cancel running task
+automagik tasks cancel <task-id>
 ```
 
-## Debugging Tips
+### Schedule Management
+
+```bash
+# Create schedule with retry policy
+automagik schedules create --flow-id <id> --cron "*/5 * * * *" --retries 3
+
+# List active schedules
+automagik schedules list --status active
+
+# Pause specific schedule
+automagik schedules pause <schedule-id>
+
+# Resume schedule
+automagik schedules resume <schedule-id>
+```
+
+## Debugging
 
 ### Using Python Debugger
 
 ```python
-# Add this in your code
-import pdb; pdb.set_trace()
-# Or
+# Add breakpoint in code
 breakpoint()
+# Or
+import pdb; pdb.set_trace()
 
 # Common pdb commands:
 # n (next line)
@@ -112,160 +190,64 @@ grep -i error /var/log/automagik/app.log | jq .
 
 # Search for specific flow ID in logs
 grep "flow-id" /var/log/automagik/app.log | jq 'select(.flow_id == "your-flow-id")'
+
+# Monitor task logs
+tail -f /var/log/automagik/tasks/*.log
 ```
 
-### Network Debugging
+### Performance Profiling
 
 ```bash
-# Test LangFlow API connectivity
-curl -v -H "X-API-Key: $LANGFLOW_API_KEY" http://192.168.112.132:80/health
+# Install profiling tools
+pip install memory_profiler line_profiler
 
-# Monitor API requests
-sudo tcpdump -i any -n -A "port 8000" | grep -A 10 "POST /api"
-
-# Check API latency
-for i in {1..5}; do 
-  curl -w "%{time_total}\n" -s -o /dev/null -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/health
-done
-```
-
-### Memory Profiling
-
-```bash
-# Run with memory profiling
+# Profile memory usage
 mprof run automagik flows sync
-mprof plot  # View memory usage graph
+mprof plot
 
-# Profile specific test
-mprof run pytest tests/test_integration.py::TestIntegration::test_flow_sync
+# Profile specific function
+@profile
+def your_function():
+    pass
+
+# Run with line profiler
+kernprof -l -v script.py
 ```
 
-## LLM-Friendly Documentation
+## Best Practices
 
-### Using ai-digest
+1. **Code Style**
+   - Follow PEP 8 guidelines
+   - Use type hints
+   - Write docstrings for all functions
+   - Keep functions focused and small
 
-`ai-digest` is a tool that creates LLM-friendly documentation of your codebase. It's particularly useful when you want to:
-- Generate comprehensive codebase summaries
-- Create context for LLM-based code analysis
-- Document code for AI pair programming
+2. **Testing**
+   - Write tests for new features
+   - Maintain high coverage
+   - Use appropriate fixtures
+   - Mock external dependencies
 
-```bash
-# Install ai-digest
-npm install -g ai-digest
+3. **Git Workflow**
+   - Create feature branches
+   - Write descriptive commit messages
+   - Keep commits focused
+   - Rebase before merging
 
-# Generate codebase documentation
-npx ai-digest
+4. **Documentation**
+   - Update docs with code changes
+   - Include examples
+   - Document configuration
+   - Explain breaking changes
 
-# The output will be in codebase.md
-```
+5. **Error Handling**
+   - Use custom exceptions
+   - Log errors appropriately
+   - Provide helpful error messages
+   - Handle edge cases
 
-### Configuring ai-digest
-
-Create `.aidigestignore` to customize what files to include/exclude:
-```bash
-# Exclude specific directories
-docker/
-postgres_data/
-redis_data/
-
-# Exclude file types
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info
-
-# Include only specific files
-!automagik/core/**/*.py
-!automagik/cli/**/*.py
-!automagik/api/**/*.py
-```
-
-### Best Practices
-
-1. Run before major changes:
-```bash
-# Generate baseline documentation
-npx ai-digest > codebase-baseline.md
-```
-
-2. Run after implementing features:
-```bash
-# Generate updated documentation
-npx ai-digest > codebase-updated.md
-
-# Compare changes
-diff codebase-baseline.md codebase-updated.md
-```
-
-3. Include in documentation workflow:
-```bash
-# Update all documentation
-source .venv/bin/activate
-pytest --doctest-modules
-sphinx-build -b html docs/ docs/_build/html
-npx ai-digest
-```
-
-## Environment Variables
-
-Create a `.env.debug` file for debugging:
-```bash
-AUTOMAGIK_LOG_LEVEL=DEBUG
-AUTOMAGIK_SQL_ECHO=true
-PYTHONBREAKPOINT=ipdb.set_trace  # Use ipdb instead of pdb
-```
-
-Then source it when needed:
-```bash
-source .env.debug && automagik flows sync
-```
-
-## Git Workflow
-
-```bash
-# Check changed files
-git status -s
-
-# View recent changes
-git log --oneline --graph | head -n 10
-
-# Search in codebase
-git grep -n "flow_sync"
-
-# Show file history
-git log -p automagik/core/services/flow_manager.py
-```
-
-## Performance Tips
-
-1. Use `jq` for JSON parsing:
-```bash
-# Instead of
-automagik flows list
-
-# Use
-automagik flows list --format json | jq '.[] | {id, name, status}'
-```
-
-2. Use grep for filtering:
-```bash
-# Instead of
-pytest tests/
-
-# Use
-pytest tests/ | grep -v "no tests ran"
-```
-
-3. Use tee for logging:
-```bash
-# Log command output while viewing it
-automagik flows sync 2>&1 | tee sync.log
-```
-
-4. Use watch for monitoring:
-```bash
-# Monitor flow status
-watch -n 5 'automagik flows list --format json | jq ".[] | {id, status}"'
-```
+6. **Security**
+   - Never commit secrets
+   - Use environment variables
+   - Validate input data
+   - Follow security best practices
