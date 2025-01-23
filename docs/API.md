@@ -24,6 +24,7 @@ AutoMagik provides API documentation in two formats:
   - Perfect for API reference
   - Available at: http://your-server:8000/redoc
 
+
 ## Authentication
 
 All API requests require an API key passed in the `X-API-Key` header:

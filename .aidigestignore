@@ -44,3 +44,33 @@ redis_data/
 
 # windsurf rules
 .windsurfrules
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+
+# Documentation artifacts
+docs/_build/
+docs/api/
+*.md
+!README.md
+!CONTRIBUTING.md
+!docs/*.md
+
+# Include only core Python files
+!automagik/core/**/*.py
+!automagik/cli/**/*.py
+!automagik/api/**/*.py
+!tests/**/*.py
+
+# Large files and binaries
+*.pkl
+*.h5
+*.bin
+*.model
+*.tar.gz
+*.zip

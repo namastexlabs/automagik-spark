@@ -2,188 +2,121 @@
 
 AutoMagik is a powerful CLI tool designed to manage and schedule LangFlow workflows. It provides a seamless interface for syncing, scheduling, and monitoring workflow executions.
 
+## Getting Started
+
+1. Read [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) for practical development tips and patterns
+2. Check [COMMON_PATTERNS.md](COMMON_PATTERNS.md) for common use cases and solutions
+3. Set up your development environment following [/docs/DEVELOPMENT.md](/docs/DEVELOPMENT.md)
+4. Review the architecture in [/docs/ARCHITECTURE.md](/docs/ARCHITECTURE.md)
+
 ## Project Structure
 
 ```
 automagik/
-├── cli/                    # CLI implementation
-│   └── automagik_cli/
-│       ├── commands/      # CLI command modules
-│       │   ├── flows.py
-│       │   ├── schedules.py
-│       │   └── tasks.py
-│       └── cli.py         # Main CLI entry point
-├── core/                  # Core business logic
-│   ├── flows/            # Flow management
+├── api/                # FastAPI application
+├── cli/                # Click command-line interface
+├── core/               # Core business logic
+│   ├── services/      # Main services
+│   │   ├── flow_manager.py
 │   │   ├── flow_analyzer.py
-│   │   ├── flow_sync.py
-│   │   └── flow_manager.py
-│   ├── database/         # Database management
-│   │   ├── models.py
-│   │   ├── session.py
-│   │   └── base.py
-│   └── scheduler/        # Task scheduling
-│       ├── scheduler.py
-│       ├── task_runner.py
-│       └── exceptions.py
-└── tests/                # Test suite
+│   │   └── flow_sync.py
+│   ├── database/      # Database models and sessions
+│   └── utils/         # Utility functions
+├── tests/             # Test suite
+└── docs/              # Documentation
 ```
 
 ## Core Components
 
-### Flow Management (`core/flows/`)
+### Flow Management (`core/services/`)
 
 1. **FlowManager**: Main interface for flow operations
    - Syncs flows with LangFlow server
    - Manages flow metadata and components
    - Handles flow versioning
+   - Supports both string and dict data formats
 
 2. **FlowAnalyzer**: Analyzes flow structure
    - Identifies input/output components
    - Maps component dependencies
    - Validates flow configurations
+   - Extracts tweakable parameters
 
 3. **FlowSync**: Handles LangFlow API communication
    - Fetches available flows
    - Retrieves flow details
    - Validates API responses
+   - Handles different response formats
 
 ### Database Management (`core/database/`)
 
 1. **Models**:
    - `FlowDB`: Flow metadata and configuration
    - `FlowComponent`: Flow component information
-   - `Task`: Task execution records
-   - `Log`: Execution logs
    - `Schedule`: Task scheduling information
 
 2. **Session Management**:
-   - Handles database connections
-   - Manages transactions
-   - Provides connection pooling
+   - SQLAlchemy session handling
+   - SQLite for testing
+   - PostgreSQL for production
 
-### Task Scheduler (`core/scheduler/`)
+## Testing Strategy
 
-1. **SchedulerService**:
-   - Manages task scheduling
-   - Handles cron and interval schedules
-   - Maintains schedule state
+### Integration Tests
+- Uses SQLite for ephemeral testing
+- Mocks LangFlow API responses
+- Tests flow sync and schedule creation
+- Verifies database operations
 
-2. **TaskRunner**:
-   - Executes flow tasks
-   - Manages task lifecycle
-   - Handles retries and failures
+### Unit Tests
+- Tests individual components
+- Validates core functionality
+- Ensures data integrity
 
-## CLI Interface
+## Development Resources
 
-The CLI provides three main command groups:
+### Command Line Tools
+- `jq`: Essential for JSON parsing and API testing
+- `curl`: Testing HTTP endpoints
+- `watch`: Monitoring status changes
+- `grep`: Filtering and searching
+- `tee`: Logging while viewing output
 
-1. **Flows**:
-   ```bash
-   automagik flows sync    # Sync flows from LangFlow
-   automagik flows list    # List available flows
-   ```
+### Environment Setup
+```bash
+# Activate environment and set debug mode
+source .venv/bin/activate
+source .env.debug  # See DEVELOPMENT_WORKFLOW.md for contents
 
-2. **Schedules**:
-   ```bash
-   automagik schedules create  # Create new schedule
-   automagik schedules list    # List schedules
-   automagik schedules delete  # Delete schedule
-   ```
+# Verify setup
+which python  # Should point to .venv/bin/python
+echo $AUTOMAGIK_LOG_LEVEL  # Should be DEBUG
+```
 
-3. **Tasks**:
-   ```bash
-   automagik tasks list    # List tasks
-   automagik tasks logs    # View task logs
-   automagik tasks output  # View task output
-   ```
+### Quick Development Commands
+```bash
+# Run tests with coverage
+pytest --cov=automagik -v | grep -v "no tests ran"
 
-## Environment Configuration
+# Test API with formatted output
+curl -s -H "X-API-Key: $AUTOMAGIK_API_KEY" http://localhost:8000/api/v1/flows | jq .
 
-Required environment variables:
-- `LANGFLOW_API_URL`: LangFlow server URL
-- `LANGFLOW_API_KEY`: API authentication key
-- `DATABASE_URL`: Database connection string
-- `TIMEZONE`: Local timezone (default: UTC)
+# Monitor flow status
+watch -n 5 'automagik flows list --format json | jq ".[] | {id, status}"'
+```
 
-## Error Handling
+## Common Development Tasks
 
-Custom exceptions are defined in respective modules:
-- `core.flows.exceptions`: Flow-related errors
-- `core.scheduler.exceptions`: Scheduling errors
-- `core.database.exceptions`: Database errors
-
-## Development Guidelines
-
-1. **Code Organization**:
-   - Business logic belongs in `core/`
-   - CLI commands should be thin wrappers around core components
-   - Keep database models in `core/database/models.py`
-
-2. **Error Handling**:
-   - Use custom exceptions for specific error cases
-   - Provide meaningful error messages
-   - Log errors appropriately
-
-3. **Testing**:
-   - Write unit tests for core components
-   - Use mocks for external services
-   - Test CLI commands independently
-
-4. **Documentation**:
-   - Document all public interfaces
-   - Include usage examples
-   - Keep API documentation up-to-date
-
-## Security Considerations
-
-1. **API Keys**:
-   - Never log API keys
-   - Store sensitive data in environment variables
-   - Validate API key before operations
-
-2. **Database**:
-   - Use connection pooling
-   - Implement proper transaction management
-   - Sanitize all user inputs
-
-3. **Task Execution**:
-   - Implement proper isolation
-   - Handle timeouts
-   - Limit resource usage
-
-## Future Improvements
-
-1. **API Development**:
-   - REST API interface
-   - WebSocket support for real-time updates
-   - API authentication
-
-2. **Monitoring**:
-   - Prometheus metrics
-   - Health checks
-   - Performance monitoring
-
-3. **Enhanced Features**:
-   - Flow versioning
-   - Flow templates
-   - Advanced scheduling options
+See [COMMON_PATTERNS.md](COMMON_PATTERNS.md) for detailed examples of:
+- Running tests
+- Managing the development environment
+- Debugging issues
+- API testing
+- Database operations
+- Flow management
+- Schedule management
+- Task monitoring
 
 ## Troubleshooting
 
-Common issues and solutions:
-
-1. **Database Connectivity**:
-   - Verify DATABASE_URL format
-   - Check database permissions
-   - Ensure proper SSL configuration
-
-2. **LangFlow API**:
-   - Validate API URL format
-   - Check API key permissions
-   - Verify network connectivity
-
-3. **Task Execution**:
-   - Check task logs
-   - Verify flow configuration
-   - Ensure required components are available
+For common issues and solutions, refer to the "Common Issues and Solutions" section in [COMMON_PATTERNS.md](COMMON_PATTERNS.md).
