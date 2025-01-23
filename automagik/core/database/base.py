@@ -1,7 +1,9 @@
 """
-SQLAlchemy Base Configuration Module
+Database Base Module
+
+This module defines the base class for all database models.
 """
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()

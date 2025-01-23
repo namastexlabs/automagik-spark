@@ -14,6 +14,8 @@ import logging
 import sys
 import traceback
 import uvicorn
+from sqlalchemy import text
+from uuid import UUID
 
 from automagik.core.database.session import get_db_session
 from automagik.core.database.models import FlowDB, Schedule, Task, Log
@@ -81,17 +83,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Health check endpoint
-@app.get("/health", response_model=schemas.HealthResponse)
-async def health_check():
-    """Health check endpoint"""
+@app.get("/health")
+def health_check():
+    """Check service health including database connection."""
     try:
         # Test database connection
-        db = next(get_db_session())
-        db.execute("SELECT 1")
+        with get_db_session() as db:
+            # Try a simple query
+            db.execute(text("SELECT 1"))
+            
+        # Test Redis connection if used
+        # redis_client.ping()
         
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         logger.error("Health check failed:", exc_info=True)
@@ -110,26 +116,7 @@ async def list_flows(
     try:
         logger.info("Fetching all flows")
         flows = db.query(FlowDB).all()
-        flow_responses = []
-        
-        for flow in flows:
-            try:
-                flow_responses.append(schemas.FlowResponse(
-                    id=str(flow.id),
-                    name=flow.name,
-                    description=flow.description,
-                    source=flow.source,
-                    source_id=flow.source_id,
-                    data=flow.data,
-                    created_at=flow.created_at,
-                    updated_at=flow.updated_at,
-                    tags=[]  # Add tags if implemented
-                ))
-            except Exception as e:
-                logger.error(f"Error processing flow {flow.id}: {str(e)}")
-                # Continue processing other flows
-                continue
-                
+        flow_responses = [schemas.FlowResponse.from_db(flow) for flow in flows]
         logger.info(f"Successfully fetched {len(flow_responses)} flows")
         return {"flows": flow_responses}
         
@@ -155,22 +142,30 @@ async def get_flow(
     """Get flow details"""
     try:
         logger.info(f"Fetching flow {flow_id}")
-        flow = db.query(FlowDB).filter(FlowDB.id == flow_id).first()
+        try:
+            flow_uuid = UUID(flow_id)
+        except ValueError:
+            logger.error(f"Invalid UUID format for flow_id: {flow_id}")
+            raise HTTPException(status_code=422, detail="Invalid UUID format")
+            
+        flow = db.query(FlowDB).filter(FlowDB.id == flow_uuid).first()
         if not flow:
             logger.error(f"Flow {flow_id} not found")
             raise HTTPException(status_code=404, detail="Flow not found")
         
         logger.info(f"Successfully fetched flow {flow_id}")
-        return flow
+        return schemas.FlowResponse.from_db(flow)
         
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
-        logger.error(f"Database error while fetching flow {flow_id}: {e}")
+        logger.error(f"Database error while fetching flow {flow_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Database error occurred while fetching flow"
         )
     except Exception as e:
-        logger.error(f"Unexpected error while fetching flow {flow_id}: {e}")
+        logger.error(f"Unexpected error while fetching flow {flow_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(e)}"
@@ -179,20 +174,16 @@ async def get_flow(
 # Schedule endpoints
 @app.get("/schedules", response_model=schemas.ScheduleList)
 async def list_schedules(
-    flow_id: Optional[str] = None,
     api_key: str = Security(get_api_key),
     db: Session = Depends(get_db_session)
 ):
-    """List all schedules, optionally filtered by flow"""
+    """List all schedules"""
     try:
         logger.info("Fetching all schedules")
-        query = db.query(Schedule)
-        if flow_id:
-            query = query.filter(Schedule.flow_id == flow_id)
-        
-        schedules = query.all()
-        logger.info(f"Successfully fetched {len(schedules)} schedules")
-        return {"schedules": schedules}
+        schedules = db.query(Schedule).all()
+        schedule_responses = [schemas.ScheduleResponse.from_db(schedule) for schedule in schedules]
+        logger.info(f"Successfully fetched {len(schedule_responses)} schedules")
+        return {"schedules": schedule_responses}
         
     except SQLAlchemyError as e:
         logger.error("Database error while fetching schedules:", exc_info=True)
@@ -216,22 +207,30 @@ async def get_schedule(
     """Get schedule details"""
     try:
         logger.info(f"Fetching schedule {schedule_id}")
-        schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+        try:
+            schedule_uuid = UUID(schedule_id)
+        except ValueError:
+            logger.error(f"Invalid UUID format for schedule_id: {schedule_id}")
+            raise HTTPException(status_code=422, detail="Invalid UUID format")
+            
+        schedule = db.query(Schedule).filter(Schedule.id == schedule_uuid).first()
         if not schedule:
             logger.error(f"Schedule {schedule_id} not found")
             raise HTTPException(status_code=404, detail="Schedule not found")
         
         logger.info(f"Successfully fetched schedule {schedule_id}")
-        return schedule
+        return schemas.ScheduleResponse.from_db(schedule)
         
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
-        logger.error(f"Database error while fetching schedule {schedule_id}: {e}")
+        logger.error(f"Database error while fetching schedule {schedule_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Database error occurred while fetching schedule"
         )
     except Exception as e:
-        logger.error(f"Unexpected error while fetching schedule {schedule_id}: {e}")
+        logger.error(f"Unexpected error while fetching schedule {schedule_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(e)}"
@@ -240,24 +239,16 @@ async def get_schedule(
 # Task endpoints
 @app.get("/tasks", response_model=schemas.TaskList)
 async def list_tasks(
-    flow_id: Optional[str] = None,
-    status: Optional[str] = None,
-    limit: int = Query(default=50, ge=1, le=100),
     api_key: str = Security(get_api_key),
     db: Session = Depends(get_db_session)
 ):
-    """List tasks with optional filters"""
+    """List all tasks"""
     try:
-        logger.info("Fetching tasks")
-        query = db.query(Task)
-        if flow_id:
-            query = query.filter(Task.flow_id == flow_id)
-        if status:
-            query = query.filter(Task.status == status)
-        
-        tasks = query.limit(limit).all()
-        logger.info(f"Successfully fetched {len(tasks)} tasks")
-        return {"tasks": tasks}
+        logger.info("Fetching all tasks")
+        tasks = db.query(Task).all()
+        task_responses = [schemas.TaskResponse.from_db(task) for task in tasks]
+        logger.info(f"Successfully fetched {len(task_responses)} tasks")
+        return {"tasks": task_responses}
         
     except SQLAlchemyError as e:
         logger.error("Database error while fetching tasks:", exc_info=True)
@@ -278,25 +269,33 @@ async def get_task(
     api_key: str = Security(get_api_key),
     db: Session = Depends(get_db_session)
 ):
-    """Get task details including logs and output"""
+    """Get task details"""
     try:
         logger.info(f"Fetching task {task_id}")
-        task = db.query(Task).filter(Task.id == task_id).first()
+        try:
+            task_uuid = UUID(task_id)
+        except ValueError:
+            logger.error(f"Invalid UUID format for task_id: {task_id}")
+            raise HTTPException(status_code=422, detail="Invalid UUID format")
+            
+        task = db.query(Task).filter(Task.id == task_uuid).first()
         if not task:
             logger.error(f"Task {task_id} not found")
             raise HTTPException(status_code=404, detail="Task not found")
         
         logger.info(f"Successfully fetched task {task_id}")
-        return task
+        return schemas.TaskResponse.from_db(task)
         
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
-        logger.error(f"Database error while fetching task {task_id}: {e}")
+        logger.error(f"Database error while fetching task {task_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Database error occurred while fetching task"
         )
     except Exception as e:
-        logger.error(f"Unexpected error while fetching task {task_id}: {e}")
+        logger.error(f"Unexpected error while fetching task {task_id}:", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(e)}"
