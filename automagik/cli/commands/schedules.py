@@ -24,43 +24,73 @@ def schedules():
     pass
 
 @schedules.command()
+@click.argument('flow_name', required=False)
 @click.option(
     '--type',
     type=click.Choice(['interval', 'cron', 'oneshot']),
-    required=True,
     help='Type of schedule'
 )
 @click.option(
     '--expr',
-    required=True,
     help='Schedule expression. For interval: "30m", "1h", "1d". For cron: "* * * * *". For oneshot: ISO format datetime (e.g. "2025-01-24T00:00:00")'
 )
 @click.option(
     '--input',
     'input_json',
-    required=True,
     help='JSON string of input parameters'
 )
 @click.pass_context
-def create(ctx, type: str, expr: str, input_json: str):
+def create(ctx, flow_name: Optional[str], type: Optional[str], expr: Optional[str], input_json: Optional[str]):
     """Create a new schedule for a flow"""
     try:
         db_session = get_db_session()
         scheduler = SchedulerService(db_session)
         
-        # Parse input JSON
-        try:
-            input_data = json.loads(input_json)
-        except json.JSONDecodeError as e:
-            click.secho(f"\nInvalid JSON input: {str(e)}", fg='red')
+        # Non-interactive mode
+        if flow_name and type and expr and input_json:
+            try:
+                input_data = json.loads(input_json)
+            except json.JSONDecodeError as e:
+                click.secho(f"Invalid JSON input: {str(e)}", fg='red', err=True)
+                ctx.exit(1)
+                
+            try:
+                schedule = scheduler.create_schedule(
+                    flow_name=flow_name,
+                    schedule_type=type,
+                    schedule_expr=expr,
+                    flow_params=input_data
+                )
+                
+                click.secho("Created schedule successfully!", fg='green')
+                click.echo(f"ID: {schedule.id}")
+                click.echo(f"Flow: {flow_name}")
+                click.echo(f"Type: {type}")
+                click.echo(f"Expression: {expr}")
+                click.echo(f"Next Run: {schedule.next_run_at}")
+                click.echo(f"Status: {schedule.status}")
+                
+            except (InvalidScheduleError, FlowNotFoundError) as e:
+                click.secho(str(e), fg='red', err=True)
+                ctx.exit(1)
             return
+
+        # Interactive mode
+        # Parse input JSON if provided
+        input_data = {}
+        if input_json:
+            try:
+                input_data = json.loads(input_json)
+            except json.JSONDecodeError as e:
+                click.secho(f"\nInvalid JSON input: {str(e)}", fg='red', err=True)
+                ctx.exit(1)
             
         # Get flows with schedule count
         flows = db_session.query(FlowDB).all()
         
         if not flows:
-            click.secho("No flows found", fg='red')
-            return
+            click.secho("No flows found", fg='red', err=True)
+            ctx.exit(1)
             
         # Show available flows
         click.secho("\nAvailable flows:", bold=True)
@@ -72,13 +102,56 @@ def create(ctx, type: str, expr: str, input_json: str):
         # Get flow selection
         flow_idx = click.prompt("\nSelect a flow", type=int, prompt_suffix=' → ')
         if flow_idx < 0 or flow_idx >= len(flows):
-            click.secho("Invalid flow index", fg='red')
-            return
+            click.secho("Invalid flow index", fg='red', err=True)
+            ctx.exit(1)
             
         selected_flow = flows[flow_idx]
         
-        # Create schedule
+        # Show schedule types if not provided
+        if not type:
+            click.secho("\nSchedule Type:", bold=True)
+            click.echo(f"  0: {click.style('Interval', fg='green')} (e.g., every 30 minutes)")
+            click.echo(f"  1: {click.style('Cron', fg='green')} (e.g., every day at 8 AM)")
+            click.echo(f"  2: {click.style('One-time', fg='green')} (e.g., run once at specific time)")
+            
+            schedule_type_idx = click.prompt("\nSelect schedule type", type=int, prompt_suffix=' → ')
+            if schedule_type_idx not in [0, 1, 2]:
+                click.secho("Invalid schedule type", fg='red', err=True)
+                ctx.exit(1)
+                
+            type = ['interval', 'cron', 'oneshot'][schedule_type_idx]
+        
+        # Get schedule expression if not provided
+        if not expr:
+            if type == 'interval':
+                click.secho("\nInterval Examples:", bold=True)
+                click.echo("  5m  - Every 5 minutes")
+                click.echo("  30m - Every 30 minutes")
+                click.echo("  1h  - Every hour")
+                click.echo("  4h  - Every 4 hours")
+                click.echo("  1d  - Every day")
+                expr = click.prompt("\nEnter interval", prompt_suffix=' → ')
+            elif type == 'cron':
+                click.secho("\nCron Examples:", bold=True)
+                click.echo("  */30 * * * * - Every 30 minutes")
+                click.echo("  0 * * * *   - Every hour")
+                click.echo("  0 8 * * *   - Every day at 8 AM")
+                click.echo("  0 8 * * 1-5 - Every weekday at 8 AM")
+                expr = click.prompt("\nEnter cron expression", prompt_suffix=' → ')
+            else:  # oneshot
+                click.secho("\nOne-time Schedule Examples:", bold=True)
+                click.echo("  2025-01-24T00:00:00 - Run at midnight on January 24, 2025")
+                click.echo("  2025-02-15T08:30:00 - Run at 8:30 AM on February 15, 2025")
+                expr = click.prompt("\nEnter datetime (ISO format)", prompt_suffix=' → ')
+            
+        # Get input value if not provided
+        if not input_data:
+            if click.confirm("\nDo you want to set an input value?", prompt_suffix=' → '):
+                input_value = click.prompt("Enter input value", prompt_suffix=' → ')
+                input_data = {"input": input_value}
+        
         try:
+            # Create schedule
             schedule = scheduler.create_schedule(
                 flow_name=selected_flow.name,
                 schedule_type=type,
@@ -97,21 +170,18 @@ def create(ctx, type: str, expr: str, input_json: str):
             click.echo(f"  Status: {click.style(schedule.status, fg='blue')}")
             click.echo(f"  Input: {click.style(str(input_data), fg='blue')}")
                 
-        except InvalidScheduleError as e:
-            click.secho(f"\nInvalid schedule: {str(e)}", fg='red')
-        except FlowNotFoundError as e:
-            click.secho(f"\nFlow not found: {str(e)}", fg='red')
-        except ComponentNotConfiguredError as e:
-            click.secho(f"\nComponent not configured: {str(e)}", fg='red')
-        except SchedulerError as e:
-            click.secho(f"\nScheduler error: {str(e)}", fg='red')
+        except (InvalidScheduleError, FlowNotFoundError) as e:
+            click.secho(f"\nInvalid schedule: {str(e)}", fg='red', err=True)
+            ctx.exit(1)
             
     except Exception as e:
-        click.secho(f"\nError creating schedule: {str(e)}", fg='red')
+        click.secho(f"Error creating schedule: {str(e)}", fg='red', err=True)
+        ctx.exit(1)
 
 @schedules.command()
 @click.argument('schedule_id')
-def delete(schedule_id: str):
+@click.pass_context
+def delete(ctx, schedule_id: str):
     """Delete a schedule"""
     try:
         db_session = get_db_session()
@@ -120,46 +190,56 @@ def delete(schedule_id: str):
         try:
             schedule_uuid = uuid.UUID(schedule_id)
         except ValueError:
-            click.secho("Invalid schedule ID format", fg='red')
-            return
+            click.secho("Invalid schedule ID format", fg='red', err=True)
+            ctx.exit(1)
             
-        if scheduler.delete_schedule(schedule_uuid):
+        try:
+            scheduler.delete_schedule(schedule_uuid)
             click.secho("Schedule deleted successfully", fg='green')
-        else:
-            click.secho("Schedule not found", fg='red')
+        except ScheduleNotFoundError:
+            click.secho("Schedule not found", fg='red', err=True)
+            ctx.exit(1)
             
     except Exception as e:
-        click.secho(f"Error deleting schedule: {str(e)}", fg='red')
+        click.secho(f"Error deleting schedule: {str(e)}", fg='red', err=True)
+        ctx.exit(1)
 
 @schedules.command()
-@click.option('--flow', help='Filter schedules by flow name')
-@click.option('--status', help='Filter schedules by status (active/paused)')
-def list(flow: Optional[str] = None, status: Optional[str] = None):
+@click.option('--type', type=click.Choice(['interval', 'cron', 'oneshot']), help='Filter by schedule type')
+@click.option('--status', type=click.Choice(['active', 'completed', 'failed']), help='Filter by schedule status')
+@click.pass_context
+def list(ctx, type: Optional[str], status: Optional[str]):
     """List all schedules"""
     try:
         db_session = get_db_session()
         scheduler = SchedulerService(db_session)
         
-        schedules = scheduler.list_schedules(flow_name=flow, status=status)
-        
-        if not schedules:
-            click.echo("No schedules found")
-            return
+        try:
+            schedules = scheduler.get_schedules(schedule_type=type, status=status)
             
-        rows = []
-        for schedule in schedules:
-            next_run = schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run_at else 'N/A'
-            rows.append([
-                str(schedule.id),
-                schedule.flow.name,
-                schedule.schedule_type,
-                schedule.schedule_expr,
-                schedule.status,
-                next_run
-            ])
+            if not schedules:
+                click.secho("No schedules found", fg='yellow')
+                return
+                
+            # Format schedules into table
+            headers = ['ID', 'Flow', 'Type', 'Expression', 'Status', 'Next Run']
+            rows = []
+            for schedule in schedules:
+                rows.append([
+                    str(schedule.id),
+                    schedule.flow.name if schedule.flow else 'Unknown',
+                    schedule.schedule_type,
+                    schedule.schedule_expr,
+                    schedule.status,
+                    schedule.next_run_at
+                ])
+                
+            click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
             
-        headers = ['ID', 'Flow', 'Type', 'Expression', 'Status', 'Next Run']
-        click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
-        
+        except Exception as e:
+            click.secho(f"Error listing schedules: {str(e)}", fg='red', err=True)
+            ctx.exit(1)
+            
     except Exception as e:
-        click.secho(f"Error listing schedules: {str(e)}", fg='red')
+        click.secho(f"Error listing schedules: {str(e)}", fg='red', err=True)
+        ctx.exit(1)
