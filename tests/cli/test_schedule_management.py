@@ -81,10 +81,8 @@ class TestScheduleManagement:
             def __init__(self, *args, **kwargs):
                 self.db_session = mock_db_session
 
-            def get_schedules(self, schedule_type=None, status=None):
+            def list_schedules(self, flow_name=None, status=None):
                 schedules = [interval_schedule, cron_schedule, oneshot_schedule]
-                if schedule_type:
-                    schedules = [s for s in schedules if s.schedule_type == schedule_type]
                 if status:
                     schedules = [s for s in schedules if s.status == status]
                 return schedules
@@ -120,7 +118,7 @@ class TestScheduleManagement:
             def __init__(self, *args, **kwargs):
                 self.db_session = mock_db_session
 
-            def get_schedules(self, schedule_type=None, status=None):
+            def list_schedules(self, flow_name=None, status=None):
                 return []
 
         monkeypatch.setattr('automagik.cli.commands.schedules.SchedulerService', MockSchedulerService)

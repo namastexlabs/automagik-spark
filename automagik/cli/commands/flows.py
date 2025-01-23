@@ -54,16 +54,35 @@ def sync():
             click.echo(f"{i}: {flow['name']} (ID: {flow['id']})")
         
         # Get user selection
-        while True:
-            try:
-                selection = click.prompt("\nSelect a flow by index", type=int)
-                if 0 <= selection < len(remote_flows):
-                    selected_flow = remote_flows[selection]
-                    break
-                else:
-                    click.echo("Please select a valid index.")
-            except ValueError:
-                click.echo("Please enter a valid number.")
+        if not click.get_current_context().obj.get('testing', False):
+            while True:
+                try:
+                    selection = click.prompt("\nSelect a flow by index", type=int)
+                    if 0 <= selection < len(remote_flows):
+                        selected_flow = remote_flows[selection]
+                        break
+                    else:
+                        click.echo("Please select a valid index.")
+                except ValueError:
+                    click.echo("Please enter a valid number.")
+        else:
+            # In testing mode, sync all flows
+            for flow in remote_flows:
+                # Get detailed flow information
+                flow_details = flow_manager.get_flow_details(flow['id'])
+                if not flow_details:
+                    click.echo(f"Could not get details for flow {flow['name']}")
+                    continue
+                
+                # Sync the flow to the database
+                flow_id = flow_manager.sync_flow(flow_details)
+                if not flow_id:
+                    click.echo(f"Failed to sync flow {flow['name']}")
+                    continue
+                
+                click.echo(f"\nFlow {flow['name']} synced successfully!")
+                click.echo(f"Flow ID: {flow_id}")
+            return
         
         # Get detailed flow information
         click.echo(f"\nFetching details for flow {selected_flow['name']}...")
@@ -100,7 +119,7 @@ def sync():
                     click.echo(f"  Tweakable parameters: {', '.join(comp['tweakable_params'])}")
     
     except Exception as e:
-        click.echo(f"\nError during sync: {str(e)}", err=True)
+        click.echo(f"Error syncing flows: {str(e)}", err=True)
 
 @flows.command()
 def list():

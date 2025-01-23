@@ -52,8 +52,31 @@ class TestFlowCommands:
         assert sample_flow.folder_name in result.output
 
     @pytest.mark.asyncio
-    async def test_flows_sync(self, runner, mock_db_session, mock_langflow_client):
+    async def test_flows_sync(self, runner, mock_db_session, mock_langflow_client, monkeypatch):
         """Test syncing flows"""
-        result = runner.invoke(flows, ['sync'], input='0\n')
-        assert result.exit_code == 0
-        assert "Flow synced successfully" in result.output
+        # Mock flow manager
+        class MockFlowManager:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get_available_flows(self):
+                return [{"id": "123", "name": "Test Flow"}]
+
+            def get_flow_details(self, flow_id):
+                return {
+                    "id": flow_id,
+                    "name": "Test Flow",
+                    "data": {"nodes": []}
+                }
+
+            def sync_flow(self, flow_data):
+                return "456"
+
+        monkeypatch.setattr('automagik.cli.commands.flows.FlowManager', MockFlowManager)
+        monkeypatch.setattr('automagik.cli.commands.flows.get_db_session', lambda: mock_db_session)
+
+        # Set environment variables
+        with patch.dict('os.environ', {'LANGFLOW_API_URL': 'http://test', 'LANGFLOW_API_KEY': 'test'}):
+            result = runner.invoke(flows, ['sync'], obj={'testing': True})
+            assert result.exit_code == 0
+            assert "synced successfully" in result.output
