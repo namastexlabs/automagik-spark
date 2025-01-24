@@ -1,0 +1,622 @@
+{
+  "id": "5d54938c-5c2b-43e6-9cf2-72a9db2ab90e",
+  "data": {
+    "nodes": [
+      {
+        "id": "ChatInput-PBSQV",
+        "type": "genericNode",
+        "position": {
+          "x": 36.5,
+          "y": 120
+        },
+        "data": {
+          "node": {
+            "template": {
+              "_type": "Component",
+              "files": {
+                "trace_as_metadata": true,
+                "file_path": "",
+                "fileTypes": [
+                  "txt",
+                  "md",
+                  "mdx",
+                  "csv",
+                  "json",
+                  "yaml",
+                  "yml",
+                  "xml",
+                  "html",
+                  "htm",
+                  "pdf",
+                  "docx",
+                  "py",
+                  "sh",
+                  "sql",
+                  "js",
+                  "ts",
+                  "tsx",
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "bmp",
+                  "image"
+                ],
+                "list": true,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "files",
+                "value": "",
+                "display_name": "Files",
+                "advanced": true,
+                "dynamic": false,
+                "info": "Files to be sent with the message.",
+                "title_case": false,
+                "type": "file",
+                "_input_type": "FileInput"
+              },
+              "background_color": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "background_color",
+                "value": "",
+                "display_name": "Background Color",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The background color of the icon.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "chat_icon": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "chat_icon",
+                "value": "",
+                "display_name": "Icon",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The icon of the message.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "code": {
+                "type": "code",
+                "required": true,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": true,
+                "value": "from langflow.base.data.utils import IMG_FILE_TYPES, TEXT_FILE_TYPES\nfrom langflow.base.io.chat import ChatComponent\nfrom langflow.inputs import BoolInput\nfrom langflow.io import DropdownInput, FileInput, MessageTextInput, MultilineInput, Output\nfrom langflow.schema.message import Message\nfrom langflow.utils.constants import MESSAGE_SENDER_AI, MESSAGE_SENDER_NAME_USER, MESSAGE_SENDER_USER\n\n\nclass ChatInput(ChatComponent):\n    display_name = \"Chat Input\"\n    description = \"Get chat inputs from the Playground.\"\n    icon = \"MessagesSquare\"\n    name = \"ChatInput\"\n\n    inputs = [\n        MultilineInput(\n            name=\"input_value\",\n            display_name=\"Text\",\n            value=\"\",\n            info=\"Message to be passed as input.\",\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_USER,\n            info=\"Type of sender.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_USER,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        FileInput(\n            name=\"files\",\n            display_name=\"Files\",\n            file_types=TEXT_FILE_TYPES + IMG_FILE_TYPES,\n            info=\"Files to be sent with the message.\",\n            advanced=True,\n            is_list=True,\n        ),\n        MessageTextInput(\n            name=\"background_color\",\n            display_name=\"Background Color\",\n            info=\"The background color of the icon.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"chat_icon\",\n            display_name=\"Icon\",\n            info=\"The icon of the message.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"text_color\",\n            display_name=\"Text Color\",\n            info=\"The text color of the name\",\n            advanced=True,\n        ),\n    ]\n    outputs = [\n        Output(display_name=\"Message\", name=\"message\", method=\"message_response\"),\n    ]\n\n    def message_response(self) -> Message:\n        _background_color = self.background_color\n        _text_color = self.text_color\n        _icon = self.chat_icon\n        message = Message(\n            text=self.input_value,\n            sender=self.sender,\n            sender_name=self.sender_name,\n            session_id=self.session_id,\n            files=self.files,\n            properties={\"background_color\": _background_color, \"text_color\": _text_color, \"icon\": _icon},\n        )\n        if self.session_id and isinstance(message, Message) and self.should_store_message:\n            stored_message = self.send_message(\n                message,\n            )\n            self.message.value = stored_message\n            message = stored_message\n\n        self.status = message\n        return message\n",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "code",
+                "advanced": true,
+                "dynamic": true,
+                "info": "",
+                "load_from_db": false,
+                "title_case": false
+              },
+              "input_value": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "multiline": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "input_value",
+                "value": "",
+                "display_name": "Text",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Message to be passed as input.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MultilineInput"
+              },
+              "sender": {
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "combobox": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "sender",
+                "value": "User",
+                "display_name": "Sender Type",
+                "advanced": true,
+                "dynamic": false,
+                "info": "Type of sender.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "DropdownInput"
+              },
+              "sender_name": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "sender_name",
+                "value": "User",
+                "display_name": "Sender Name",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "session_id": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "session_id",
+                "value": "",
+                "display_name": "Session ID",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "should_store_message": {
+                "trace_as_metadata": true,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "should_store_message",
+                "value": true,
+                "display_name": "Store Messages",
+                "advanced": true,
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "title_case": false,
+                "type": "bool",
+                "_input_type": "BoolInput"
+              },
+              "text_color": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "text_color",
+                "value": "",
+                "display_name": "Text Color",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The text color of the name",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              }
+            },
+            "description": "Get chat inputs from the Playground.",
+            "icon": "MessagesSquare",
+            "base_classes": [
+              "Message"
+            ],
+            "display_name": "Chat Input",
+            "documentation": "",
+            "custom_fields": {},
+            "output_types": [],
+            "pinned": false,
+            "conditional_paths": [],
+            "frozen": false,
+            "outputs": [
+              {
+                "types": [
+                  "Message"
+                ],
+                "selected": "Message",
+                "name": "message",
+                "display_name": "Message",
+                "method": "message_response",
+                "value": "__UNDEFINED__",
+                "cache": true
+              }
+            ],
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "files",
+              "background_color",
+              "chat_icon",
+              "text_color"
+            ],
+            "beta": false,
+            "legacy": false,
+            "edited": false,
+            "metadata": {},
+            "tool_mode": false,
+            "category": "inputs",
+            "key": "ChatInput",
+            "score": 0.0020353564437605998
+          },
+          "type": "ChatInput",
+          "id": "ChatInput-PBSQV"
+        },
+        "selected": false,
+        "width": 320,
+        "height": 231,
+        "dragging": false,
+        "positionAbsolute": {
+          "x": 36.5,
+          "y": 120
+        }
+      },
+      {
+        "id": "ChatOutput-WHzRB",
+        "type": "genericNode",
+        "position": {
+          "x": 578.5,
+          "y": 97
+        },
+        "data": {
+          "node": {
+            "template": {
+              "_type": "Component",
+              "background_color": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "background_color",
+                "value": "",
+                "display_name": "Background Color",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The background color of the icon.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "chat_icon": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "chat_icon",
+                "value": "",
+                "display_name": "Icon",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The icon of the message.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "code": {
+                "type": "code",
+                "required": true,
+                "placeholder": "",
+                "list": false,
+                "show": true,
+                "multiline": true,
+                "value": "from langflow.base.io.chat import ChatComponent\nfrom langflow.inputs import BoolInput\nfrom langflow.io import DropdownInput, MessageInput, MessageTextInput, Output\nfrom langflow.schema.message import Message\nfrom langflow.schema.properties import Source\nfrom langflow.utils.constants import MESSAGE_SENDER_AI, MESSAGE_SENDER_NAME_AI, MESSAGE_SENDER_USER\n\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    description = \"Display a chat message in the Playground.\"\n    icon = \"MessagesSquare\"\n    name = \"ChatOutput\"\n\n    inputs = [\n        MessageInput(\n            name=\"input_value\",\n            display_name=\"Text\",\n            info=\"Message to be passed as output.\",\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_AI,\n            advanced=True,\n            info=\"Type of sender.\",\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_AI,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"data_template\",\n            display_name=\"Data Template\",\n            value=\"{text}\",\n            advanced=True,\n            info=\"Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.\",\n        ),\n        MessageTextInput(\n            name=\"background_color\",\n            display_name=\"Background Color\",\n            info=\"The background color of the icon.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"chat_icon\",\n            display_name=\"Icon\",\n            info=\"The icon of the message.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"text_color\",\n            display_name=\"Text Color\",\n            info=\"The text color of the name\",\n            advanced=True,\n        ),\n    ]\n    outputs = [\n        Output(\n            display_name=\"Message\",\n            name=\"message\",\n            method=\"message_response\",\n        ),\n    ]\n\n    def _build_source(self, _id: str | None, display_name: str | None, source: str | None) -> Source:\n        source_dict = {}\n        if _id:\n            source_dict[\"id\"] = _id\n        if display_name:\n            source_dict[\"display_name\"] = display_name\n        if source:\n            source_dict[\"source\"] = source\n        return Source(**source_dict)\n\n    def message_response(self) -> Message:\n        _source, _icon, _display_name, _source_id = self.get_properties_from_source_component()\n        _background_color = self.background_color\n        _text_color = self.text_color\n        if self.chat_icon:\n            _icon = self.chat_icon\n        message = self.input_value if isinstance(self.input_value, Message) else Message(text=self.input_value)\n        message.sender = self.sender\n        message.sender_name = self.sender_name\n        message.session_id = self.session_id\n        message.flow_id = self.graph.flow_id if hasattr(self, \"graph\") else None\n        message.properties.source = self._build_source(_source_id, _display_name, _source)\n        message.properties.icon = _icon\n        message.properties.background_color = _background_color\n        message.properties.text_color = _text_color\n        if self.session_id and isinstance(message, Message) and self.should_store_message:\n            stored_message = self.send_message(\n                message,\n            )\n            self.message.value = stored_message\n            message = stored_message\n\n        self.status = message\n        return message\n",
+                "fileTypes": [],
+                "file_path": "",
+                "password": false,
+                "name": "code",
+                "advanced": true,
+                "dynamic": true,
+                "info": "",
+                "load_from_db": false,
+                "title_case": false
+              },
+              "data_template": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "data_template",
+                "value": "{text}",
+                "display_name": "Data Template",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "input_value": {
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "input_value",
+                "value": "",
+                "display_name": "Text",
+                "advanced": false,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Message to be passed as output.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageInput"
+              },
+              "sender": {
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "combobox": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "sender",
+                "value": "Machine",
+                "display_name": "Sender Type",
+                "advanced": true,
+                "dynamic": false,
+                "info": "Type of sender.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "DropdownInput"
+              },
+              "sender_name": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "sender_name",
+                "value": "AI",
+                "display_name": "Sender Name",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "session_id": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "session_id",
+                "value": "",
+                "display_name": "Session ID",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              },
+              "should_store_message": {
+                "trace_as_metadata": true,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "should_store_message",
+                "value": true,
+                "display_name": "Store Messages",
+                "advanced": true,
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "title_case": false,
+                "type": "bool",
+                "_input_type": "BoolInput"
+              },
+              "text_color": {
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "load_from_db": false,
+                "list": false,
+                "required": false,
+                "placeholder": "",
+                "show": true,
+                "name": "text_color",
+                "value": "",
+                "display_name": "Text Color",
+                "advanced": true,
+                "input_types": [
+                  "Message"
+                ],
+                "dynamic": false,
+                "info": "The text color of the name",
+                "title_case": false,
+                "type": "str",
+                "_input_type": "MessageTextInput"
+              }
+            },
+            "description": "Display a chat message in the Playground.",
+            "icon": "MessagesSquare",
+            "base_classes": [
+              "Message"
+            ],
+            "display_name": "Chat Output",
+            "documentation": "",
+            "custom_fields": {},
+            "output_types": [],
+            "pinned": false,
+            "conditional_paths": [],
+            "frozen": false,
+            "outputs": [
+              {
+                "types": [
+                  "Message"
+                ],
+                "selected": "Message",
+                "name": "message",
+                "display_name": "Message",
+                "method": "message_response",
+                "value": "__UNDEFINED__",
+                "cache": true
+              }
+            ],
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "data_template",
+              "background_color",
+              "chat_icon",
+              "text_color"
+            ],
+            "beta": false,
+            "legacy": false,
+            "edited": false,
+            "metadata": {},
+            "tool_mode": false,
+            "category": "outputs",
+            "key": "ChatOutput",
+            "score": 0.007568328950209746
+          },
+          "type": "ChatOutput",
+          "id": "ChatOutput-WHzRB"
+        },
+        "selected": false,
+        "width": 320,
+        "height": 232,
+        "positionAbsolute": {
+          "x": 578.5,
+          "y": 97
+        },
+        "dragging": false
+      }
+    ],
+    "edges": [
+      {
+        "source": "ChatInput-PBSQV",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-PBSQVœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "ChatOutput-WHzRB",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-WHzRBœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "data": {
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "ChatOutput-WHzRB",
+            "inputTypes": [
+              "Message"
+            ],
+            "type": "str"
+          },
+          "sourceHandle": {
+            "dataType": "ChatInput",
+            "id": "ChatInput-PBSQV",
+            "name": "message",
+            "output_types": [
+              "Message"
+            ]
+          }
+        },
+        "id": "reactflow__edge-ChatInput-PBSQV{œdataTypeœ:œChatInputœ,œidœ:œChatInput-PBSQVœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}-ChatOutput-WHzRB{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-WHzRBœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "className": "",
+        "selected": false
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "description": "Connect the Dots, Craft Language.",
+  "name": "AUTOMAGIK_CHECK",
+  "last_tested_version": "1.1.1",
+  "endpoint_name": null,
+  "is_component": false
+}

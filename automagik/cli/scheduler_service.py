@@ -52,20 +52,29 @@ class SchedulerService:
             # Use croniter to calculate next run time
             cron = croniter(schedule_expr, from_time)
             next_time = cron.get_next(datetime)
-            return self.timezone.localize(next_time)
+            if next_time.tzinfo is None:
+                next_time = self.timezone.localize(next_time)
+            return next_time
+        elif schedule_type == 'oneshot':
+            # Parse ISO format datetime
+            try:
+                next_time = datetime.fromisoformat(schedule_expr)
+                if next_time.tzinfo is None:
+                    next_time = self.timezone.localize(next_time)
+                if next_time < from_time:
+                    raise ValueError("Oneshot schedule time must be in the future")
+                return next_time
+            except ValueError as e:
+                raise ValueError(f"Invalid oneshot datetime format: {e}")
         else:
             raise ValueError(f"Unsupported schedule type: {schedule_type}")
 
-    def create_schedule(self, flow_name: str, schedule_type: str, schedule_expr: str, flow_params: dict = None) -> Schedule:
+    def create_schedule(self, flow_id: uuid.UUID, schedule_type: str, schedule_expr: str, flow_params: dict = None) -> Schedule:
         """Create a new schedule for a flow."""
         # Get the flow
-        flow = self.db_session.query(FlowDB).filter(FlowDB.name == flow_name).first()
+        flow = self.db_session.query(FlowDB).filter(FlowDB.id == flow_id).first()
         if not flow:
-            raise ValueError(f"Flow with name {flow_name} not found")
-
-        # Verify flow has input component
-        if not flow.input_component:
-            raise ValueError(f"Flow {flow_name} does not have an input component configured")
+            raise ValueError(f"Flow with ID {flow_id} not found")
 
         # Create schedule
         next_run = self._calculate_next_run(schedule_type, schedule_expr)
@@ -123,31 +132,43 @@ class SchedulerService:
         
         return due_schedules
 
-    def update_schedule_next_run(self, schedule):
+    def update_schedule_next_run(self, schedule: Schedule):
         """Update the next run time for a schedule"""
-        now = datetime.utcnow()
-        
-        if schedule.schedule_type == 'cron':
-            # For cron schedules, calculate next run using croniter
-            cron = croniter(schedule.schedule_expr, now)
-            next_run = cron.get_next(datetime)
-        else:
-            # For interval schedules, add the interval to now
-            # TODO: Implement interval scheduling
-            next_run = now
-        
-        schedule.last_run = now
+        next_run = self._calculate_next_run(
+            schedule.schedule_type,
+            schedule.schedule_expr,
+            from_time=self._get_current_time()
+        )
         schedule.next_run_at = next_run
         self.db_session.commit()
 
-    def create_task_from_schedule(self, schedule):
+    def create_task(self, schedule: Schedule) -> Task:
         """Create a task from a schedule"""
         task = Task(
             flow_id=schedule.flow_id,
-            name=f"Scheduled task for {schedule.flow.name}",
-            description=f"Task created from schedule {schedule.id}",
-            parameters=schedule.flow_params
+            status='pending',
+            input_data=schedule.flow_params
         )
         self.db_session.add(task)
         self.db_session.commit()
         return task
+
+    def log_task_start(self, task: Task):
+        """Log task start"""
+        task.status = 'running'
+        task.started_at = self._get_current_time()
+        self.db_session.commit()
+
+    def log_task_completion(self, task: Task, output_data: dict):
+        """Log task completion"""
+        task.status = 'completed'
+        task.completed_at = self._get_current_time()
+        task.output_data = output_data
+        self.db_session.commit()
+
+    def log_task_error(self, task: Task, error: str):
+        """Log task error"""
+        task.status = 'failed'
+        task.completed_at = self._get_current_time()
+        task.error = error
+        self.db_session.commit()
