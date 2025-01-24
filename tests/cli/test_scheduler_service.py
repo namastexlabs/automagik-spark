@@ -78,7 +78,10 @@ def test_create_schedule(scheduler, db_session):
     assert schedule.schedule_type == 'interval'
     assert schedule.schedule_expr == '30m'
     assert schedule.flow_params == {'test': 'value'}
-    assert schedule.next_run_at > scheduler._get_current_time()
+    # Convert both to UTC for comparison
+    current_time = scheduler._get_current_time().astimezone(pytz.UTC)
+    next_run = schedule.next_run_at.astimezone(pytz.UTC)
+    assert next_run > current_time
 
 def test_get_due_schedules(scheduler, db_session):
     flow_id = uuid.uuid4()
@@ -127,18 +130,24 @@ def test_update_schedule_next_run(scheduler, db_session):
         source='langflow',
         source_id='test-source-id'
     )
+    # Initialize schedule with a valid next_run_at
+    initial_time = scheduler._get_current_time()
     schedule = Schedule(
         id=uuid.uuid4(),
         flow_id=flow_id,
         schedule_type='interval',
-        schedule_expr='30m'
+        schedule_expr='30m',
+        next_run_at=initial_time
     )
     db_session.add_all([flow, schedule])
     db_session.commit()
     
     old_next_run = schedule.next_run_at
     scheduler.update_schedule_next_run(schedule)
-    assert schedule.next_run_at > old_next_run
+    # Convert both to UTC for comparison
+    old_time = old_next_run.astimezone(pytz.UTC)
+    new_time = schedule.next_run_at.astimezone(pytz.UTC)
+    assert new_time > old_time
 
 def test_create_task(scheduler, db_session):
     flow_id = uuid.uuid4()

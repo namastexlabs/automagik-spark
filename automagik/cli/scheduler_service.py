@@ -19,12 +19,12 @@ class SchedulerService:
 
     def _get_current_time(self) -> datetime:
         """Get current time in local timezone."""
-        return datetime.now(self.timezone)
+        return datetime.now(self.timezone).astimezone()  # Ensure it's timezone-aware
 
     def _calculate_next_run(self, schedule_type: str, schedule_expr: str, from_time=None) -> datetime:
         """Calculate the next run time based on schedule type and expression."""
         if from_time is None:
-            from_time = self._get_current_time()
+            from_time = self._get_current_time().astimezone()  # Ensure it's timezone-aware
         else:
             # Ensure from_time has timezone
             if from_time.tzinfo is None:
@@ -78,6 +78,8 @@ class SchedulerService:
 
         # Create schedule
         next_run = self._calculate_next_run(schedule_type, schedule_expr)
+        if next_run is None or next_run.tzinfo is None:
+            raise ValueError("Next run time must be a valid timezone-aware datetime")
         schedule = Schedule(
             flow_id=flow.id,
             schedule_type=schedule_type,
@@ -137,7 +139,7 @@ class SchedulerService:
         next_run = self._calculate_next_run(
             schedule.schedule_type,
             schedule.schedule_expr,
-            from_time=self._get_current_time()
+            from_time=self._get_current_time().astimezone()  # Ensure it's timezone-aware
         )
         schedule.next_run_at = next_run
         self.db_session.commit()
