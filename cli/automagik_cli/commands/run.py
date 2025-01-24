@@ -3,11 +3,11 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from core.services import task_runner
+from core.scheduler import task_runner
 from core.scheduler import SchedulerService
 from core.database import get_db_session
-from core.services.langflow_client import LangflowClient
-from core.logger import setup_logger
+from core.flows.flow_sync import FlowSync
+from ..logger import setup_logger
 
 logger = setup_logger()
 
@@ -35,7 +35,10 @@ def start(daemon, log_level):
     logger.debug(f"Environment variables: {dict(os.environ)}")
     
     db = get_db_session()
-    langflow_client = LangflowClient()
+    langflow_client = FlowSync(
+        api_url=os.getenv('LANGFLOW_API_URL', 'http://localhost:7860'),
+        api_key=os.getenv('LANGFLOW_API_KEY', '')
+    )
     runner = task_runner.TaskRunner(db, langflow_client)
     scheduler = SchedulerService(db)
     
@@ -92,7 +95,10 @@ def test(schedule_id):
     """Test run a schedule immediately"""
     try:
         db = get_db_session()
-        langflow_client = LangflowClient()
+        langflow_client = FlowSync(
+            api_url=os.getenv('LANGFLOW_API_URL', 'http://localhost:7860'),
+            api_key=os.getenv('LANGFLOW_API_KEY', '')
+        )
         runner = task_runner.TaskRunner(db, langflow_client)
         scheduler = SchedulerService(db)
         

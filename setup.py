@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="automagik",
     version="0.1.0",
-    packages=find_packages(include=['automagik_cli*', 'core*']),
+    packages=find_packages(include=['cli.automagik_cli*', 'core*']),
     package_data={
         'automagik_cli': ['templates/*'],
     },
@@ -35,7 +35,7 @@ setup(
     },
     entry_points='''
         [console_scripts]
-        automagik=automagik_cli.cli:cli
+        automagik=cli.automagik_cli.cli:cli
     ''',
     python_requires='>=3.9',
 )
