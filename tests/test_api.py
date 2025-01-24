@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 import uuid
+import os
 
 from automagik.api.main import app
 from automagik.core.database.models import FlowDB, Schedule, Task
@@ -10,7 +11,7 @@ from automagik.core.database.session import get_db_session
 client = TestClient(app)
 
 # Test data
-TEST_API_KEY = "namastex-888"
+TEST_API_KEY = os.environ.get("AUTOMAGIK_API_KEY", "namastex-888")
 HEADERS = {"X-API-Key": TEST_API_KEY}
 
 # Sample data for testing

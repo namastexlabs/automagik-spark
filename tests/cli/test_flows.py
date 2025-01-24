@@ -45,11 +45,13 @@ class TestFlowCommands:
         sample_flow.id = uuid.UUID("9b6b04c3-64d0-4a02-a3ef-a9ae126b733d")
         mock_db_session.query.return_value.all.return_value = [sample_flow]
 
-        result = runner.invoke(flows, ['list'])
-        assert result.exit_code == 0
-        assert str(sample_flow.id) in result.output
-        assert sample_flow.name in result.output
-        assert sample_flow.folder_name in result.output
+        with patch('automagik.cli.commands.flows.get_db_session') as mock_get_session:
+            mock_get_session.return_value = mock_db_session
+            result = runner.invoke(flows, ['list'])
+            assert result.exit_code == 0
+            assert str(sample_flow.id) in result.output
+            assert sample_flow.name in result.output
+            assert sample_flow.folder_name in result.output
 
     @pytest.mark.asyncio
     async def test_flows_sync(self, runner, mock_db_session, mock_langflow_client, monkeypatch):
