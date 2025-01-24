@@ -11,7 +11,7 @@ import logging
 import json
 from sqlalchemy.orm import Session
 
-from automagik.core.database.models import Task, Log, FlowDB
+from automagik.core.database.models import Task, TaskLog, FlowDB
 from automagik.core.services.langflow_client import LangflowClient
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class TaskRunner:
 
     def _log_message(self, task_id: uuid.UUID, level: str, message: str):
         """Add a log message for a task."""
-        log = Log(
+        log = TaskLog(
             task_id=task_id,
             level=level,
             message=message,
@@ -127,6 +127,6 @@ class TaskRunner:
             self.session.commit()
             return False
 
-    def get_task_logs(self, task_id: uuid.UUID) -> List[Log]:
+    def get_task_logs(self, task_id: uuid.UUID) -> List[TaskLog]:
         """Get all logs for a task."""
-        return self.session.query(Log).filter(Log.task_id == task_id).order_by(Log.created_at).all()
+        return self.session.query(TaskLog).filter(TaskLog.task_id == task_id).order_by(TaskLog.created_at).all()

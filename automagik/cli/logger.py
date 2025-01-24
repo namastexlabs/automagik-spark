@@ -27,7 +27,7 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 def setup_logger(name='automagik', level=logging.INFO):
-    """Setup and return a logger with colored output"""
+    """Setup and return a logger with colored output and file logging."""
     logger = logging.getLogger(name)
     logger.setLevel(level)
     
@@ -37,9 +37,19 @@ def setup_logger(name='automagik', level=logging.INFO):
     # Create console handler with colored formatter
     ch = logging.StreamHandler()
     ch.setLevel(level)
-    
     formatter = ColoredFormatter('%(levelname)s %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
+
+    # Create file handler for logging to a file
+    try:
+        fh = logging.FileHandler('automagik.log')
+        fh.setLevel(level)
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        fh.setFormatter(file_formatter)
+        logger.addHandler(fh)
+        logger.info("File logging initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize file logging: {e}")
     
     return logger

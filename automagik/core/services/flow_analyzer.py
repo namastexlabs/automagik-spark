@@ -5,7 +5,9 @@ This module provides functionality for analyzing LangFlow components and their p
 """
 
 from typing import Dict, Any, Tuple, List
+import logging
 
+logger = logging.getLogger(__name__)
 
 class FlowAnalyzer:
     @staticmethod
@@ -22,6 +24,7 @@ class FlowAnalyzer:
             - is_output (bool): Whether the component is an output component
             - tweakable_params (List[str]): List of parameters that can be modified
         """
+        logger.debug(f"Analyzing component node: {node}")
         is_input = False
         is_output = False
         tweakable_params = []

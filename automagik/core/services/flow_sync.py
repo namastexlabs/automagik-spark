@@ -5,14 +5,25 @@ This module handles synchronization with the LangFlow server, including fetching
 and their details.
 """
 
-import httpx
-from typing import List, Dict, Any, Optional
 import logging
+import re
+import json
+from typing import Dict, List, Any, Optional
+import httpx
+import asyncio
+from datetime import datetime
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from ..models import Flow, Base
+from sqlalchemy import text
+import uuid
+import os
 
 logger = logging.getLogger(__name__)
 
 class FlowSync:
-    def __init__(self, api_url: str, api_key: str):
+    """Class for syncing flows between LangFlow and the database."""
+    def __init__(self, api_url: Optional[str] = None, api_key: Optional[str] = None):
         """
         Initialize FlowSync with API credentials.
         
@@ -20,108 +31,324 @@ class FlowSync:
             api_url: Base URL for the LangFlow API
             api_key: API key for authentication
         """
-        self.api_url = self._normalize_api_url(api_url)
-        self.api_key = api_key
+        self.api_url = api_url or os.getenv("LANGFLOW_API_URL")
+        self.api_key = api_key or os.getenv("LANGFLOW_API_KEY")
+
+        if not self.api_url or not self.api_key:
+            logger.error("Missing required environment variables")
+            return
+
+        # Set up headers for API requests
         self.headers = {
-            "x-api-key": api_key,
-            "accept": "application/json"
+            "accept": "application/json",
+            "x-api-key": self.api_key,
         }
 
-    def _normalize_api_url(self, url: str) -> str:
-        """Ensure URL has the correct API version prefix."""
-        url = url.rstrip('/')
-        if not url.endswith('/api/v1'):
-            url = f"{url}/api/v1"
-        return url
+        logger.debug(f"Initialized FlowSync with API URL: {self.api_url}")
 
-    def get_remote_flows(self) -> List[Dict[str, Any]]:
+    async def get_remote_flows(self) -> List[Dict[str, Any]]:
         """
         Fetch flows from LangFlow server.
         
         Returns:
             List of flow dictionaries
         """
-        params = {
-            "remove_example_flows": "false",
-            "components_only": "false",
-            "get_all": "true",
-            "header_flows": "false",
-            "page": "1",
-            "size": "50"
-        }
+        url = f"{self.api_url}/api/v1/flows/"
+        logger.debug(f"Fetching flows from: {url}")
         
         try:
-            with httpx.Client(verify=False) as client:
-                url = f"{self.api_url}/flows/"
-                response = client.get(url, headers=self.headers, params=params)
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.get(url, headers=self.headers)
+                response.raise_for_status()
                 
                 if response.status_code == 401:
                     logger.error("Invalid API key or unauthorized access")
                     return []
-                elif response.status_code == 404:
-                    logger.error("API endpoint not found. Please check the API URL")
-                    return []
-                    
-                response.raise_for_status()
-                data = response.json()
                 
-                if not data:
-                    logger.info("No flows found on the server")
+                data = response.json()
+                if not isinstance(data, list):
+                    logger.error(f"Expected list of flows, got {type(data)}")
                     return []
-                    
-                return data
+                
+                # Filter out template flows
+                filtered_data = [
+                    flow for flow in data 
+                    if not flow.get("is_template", False)
+                ]
+                
+                return filtered_data
                 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP Error: {str(e)}")
-            if hasattr(e, 'response'):
-                logger.error(f"Status code: {e.response.status_code}")
-                logger.error(f"Response: {e.response.text}")
+            logger.error(f"HTTP Error fetching flows: {str(e)}")
             return []
         except Exception as e:
             logger.error(f"Error fetching flows: {str(e)}")
             return []
 
-    def get_flow_details(self, flow_id: str) -> Dict[str, Any]:
-        """
-        Fetch detailed information about a specific flow.
-        
-        Args:
-            flow_id: ID of the flow to fetch
-            
-        Returns:
-            Flow details dictionary
-        """
-        try:
-            with httpx.Client(verify=False) as client:
-                url = f"{self.api_url}/flows/{flow_id}"
-                response = client.get(url, headers=self.headers)
-                response.raise_for_status()
-                return response.json()
-        except Exception as e:
-            logger.error(f"Error fetching flow details: {str(e)}")
-            return {}
+    async def get_flow_details(self, flow_id: str) -> Optional[Dict[str, Any]]:
+        """Get details of a flow from the server.
 
-    def get_folder_name(self, folder_id: str) -> Optional[str]:
+        Args:
+            flow_id (str): ID of the flow to get details for.
+
+        Returns:
+            Optional[Dict[str, Any]]: Flow details if successful, None otherwise.
         """
-        Fetch folder name from the API.
+        try:
+            # Get flow details
+            url = f"{self.api_url}/api/v1/flows/{flow_id}"
+            logger.debug(f"Fetching flow details from: {url}")
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.get(url, headers=self.headers)
+                response.raise_for_status()
+                flow_details = response.json()
+
+                # Handle string data by attempting to parse it
+                if isinstance(flow_details, str):
+                    try:
+                        flow_details = json.loads(flow_details)
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse flow details as JSON: {flow_details}")
+                        return None
+
+                # Ensure data is a dictionary
+                if not isinstance(flow_details, dict):
+                    logger.error(f"Expected dictionary for flow details, got {type(flow_details)}")
+                    return None
+
+                # Skip template flows
+                if flow_details.get("is_template", False):
+                    logger.info(f"Skipping template flow: {flow_details.get('name')}")
+                    return None
+
+                # Ensure required fields are present
+                required_fields = ["id", "name", "data"]
+                if not all(field in flow_details for field in required_fields):
+                    logger.error(f"Flow {flow_id} missing required fields")
+                    return None
+
+                # Log successful flow details retrieval
+                logger.info(f"Successfully retrieved details for flow: {flow_details.get('name', 'Unknown flow')}")
+                return flow_details
+
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP Error fetching flow details: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching flow details: {e}")
+            return None
+
+    async def create_flow(self, name: str, data: Dict[str, Any]) -> Optional[str]:
+        """
+        Create a new flow on the LangFlow server.
         
         Args:
-            folder_id: ID of the folder
+            name: Name of the flow
+            data: Flow configuration data
             
         Returns:
-            Folder name if found, None otherwise
+            Flow ID if successful, None otherwise
         """
-        if not folder_id:
-            return None
-            
-        url = f"{self.api_url}/folders/{folder_id}"
+        url = f"{self.api_url}/api/v1/flows/"
+        logger.debug(f"Creating flow '{name}' at: {url}")
         
         try:
-            with httpx.Client(verify=False) as client:
-                response = client.get(url, headers=self.headers)
+            payload = {
+                "name": name,
+                "data": data
+            }
+            
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.post(url, headers=self.headers, json=payload)
+                
+                if response.status_code == 401:
+                    logger.error("Invalid API key or unauthorized access")
+                    return None
+                
                 response.raise_for_status()
-                folder_data = response.json()
-                return folder_data.get('name')
-        except Exception as e:
-            logger.error(f"Error fetching folder name: {str(e)}")
+                result = response.json()
+                return result.get("id")
+                
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP Error creating flow: {str(e)}")
             return None
+        except Exception as e:
+            logger.error(f"Error creating flow: {str(e)}")
+            return None
+
+    async def update_flow(self, flow_id: str, data: Dict[str, Any]) -> bool:
+        """
+        Update a flow with new data.
+        
+        Args:
+            flow_id: ID of the flow to update
+            data: New data for the flow
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # Update flow with echo flow data
+        flow_data = data.get("data", {})
+        updated_data = {
+            "name": data.get("name", ""),
+            "description": data.get("description", ""),
+            "data": {
+                "nodes": flow_data.get("nodes", []),
+                "edges": flow_data.get("edges", [])
+            },
+            "last_tested_version": data.get("last_tested_version", "1.0.0")
+        }
+        
+        url = f"{self.api_url}/api/v1/flows/{flow_id}"
+        logger.debug(f"Updating flow {flow_id} at: {url}")
+        
+        logger.debug(f"Flow update data: {json.dumps(updated_data, indent=2)}")
+        
+        try:
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.patch(url, headers=self.headers, json=updated_data)
+                
+                if response.status_code == 401:
+                    logger.error("Invalid API key or unauthorized access")
+                    return False
+                elif response.status_code == 404:
+                    logger.error(f"Flow {flow_id} not found")
+                    return False
+                elif response.status_code == 500:
+                    logger.error(f"Server error updating flow. Response: {response.text}")
+                    logger.debug(f"Server error updating flow. Request data: {json.dumps(updated_data, indent=2)}")
+                    return False
+                
+                response.raise_for_status()
+                return True
+                
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP Error updating flow: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Error updating flow: {str(e)}")
+            return False
+
+    async def get_folder_name(self, flow_name: str) -> str:
+        """
+        Get a sanitized folder name from a flow name.
+        
+        Args:
+            flow_name: Name of the flow
+            
+        Returns:
+            Sanitized folder name
+        """
+        # Replace spaces and special characters with underscores
+        folder_name = "".join(c if c.isalnum() else "_" for c in flow_name)
+        # Remove consecutive underscores
+        while "__" in folder_name:
+            folder_name = folder_name.replace("__", "_")
+        # Remove leading/trailing underscores
+        folder_name = folder_name.strip("_")
+        # Convert to lowercase for consistency
+        return folder_name.lower()
+
+    async def run_flow(self, flow_id: str, inputs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Run a flow with the given inputs.
+        
+        Args:
+            flow_id: ID of the flow to run
+            inputs: Input data for the flow
+            
+        Returns:
+            Flow execution results if successful, None otherwise
+        """
+        url = f"{self.api_url}/api/v1/run/advanced/{flow_id}"
+        logger.debug(f"Running flow {flow_id} at: {url}")
+        
+        # Format inputs according to advanced API schema
+        request_data = {
+            "inputs": {
+                "ChatInput-PBSQV": {
+                    "input_value": inputs.get("input_value", ""),
+                    "should_store_message": True,
+                    "sender": "user",
+                    "sender_name": "User",
+                    "session_id": "",
+                    "files": [],
+                    "background_color": "",
+                    "chat_icon": "",
+                    "text_color": ""
+                }
+            },
+            "stream": False
+        }
+        
+        logger.debug(f"Flow inputs: {json.dumps(request_data, indent=2)}")
+        
+        try:
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.post(url, headers=self.headers, json=request_data)
+                
+                if response.status_code == 401:
+                    logger.error("Invalid API key or unauthorized access")
+                    return None
+                elif response.status_code == 404:
+                    logger.error(f"Flow {flow_id} not found")
+                    return None
+                elif response.status_code == 500:
+                    logger.error(f"Server error running flow. Response: {response.text}")
+                    return None
+                
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extract the output from the response
+                if result.get("outputs"):
+                    # Return the first output's value
+                    return {"result": result["outputs"][0].get("value", "")}
+                return result
+                
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP Error running flow: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error running flow: {str(e)}")
+            return None
+
+    async def sync_flow(self, flow_id: str) -> bool:
+        """
+        Sync a specific flow with the database.
+        
+        Args:
+            flow_id: ID of the flow to sync
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get flow details from LangFlow
+            flow_data = await self.get_flow_details(flow_id)
+            if not flow_data:
+                logger.error(f"Could not get details for flow {flow_id}")
+                return False
+            
+            async with self.async_session() as session:
+                # Create flow object
+                flow = Flow(
+                    id=uuid.UUID(flow_id),
+                    name=flow_data.get("name", "Unnamed Flow"),
+                    description=flow_data.get("description", ""),
+                    data=flow_data.get("data", {}),
+                    folder_id=flow_data.get("folder_id"),
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                
+                # Add flow to database
+                session.add(flow)
+                await session.commit()
+                
+                logger.info(f"Successfully synced flow {flow.name} ({flow.id})")
+                return True
+            
+        except Exception as e:
+            logger.error(f"Error syncing flow {flow_id}: {e}")
+            return False

@@ -1,10 +1,10 @@
 import click
-from alembic.config import Config
-from alembic import command
 import os
 import sys
 from sqlalchemy import inspect
 from automagik.core.database.session import engine
+import asyncio
+from automagik.core.services.flow_manager import FlowManager
 
 @click.group()
 def db():
@@ -13,40 +13,58 @@ def db():
 
 @db.command()
 @click.option('--force', is_flag=True, help='Force reinitialization even if tables exist')
-def init(force):
+def init_alembic(force):
     """Initialize the database with all tables"""
     try:
         # Get the absolute path to alembic.ini in root directory
-        alembic_ini = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'alembic.ini')
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        alembic_ini = os.path.join(root_dir, 'alembic.ini')
         
         if not os.path.exists(alembic_ini):
-            click.echo(f"Error: Could not find alembic.ini at {alembic_ini}")
+            click.echo("Error: alembic.ini not found in project root")
             sys.exit(1)
-
-        # Check if tables already exist
-        inspector = inspect(engine)
-        existing_tables = inspector.get_table_names()
-        required_tables = ['flow_components', 'flows', 'tasks', 'logs', 'schedules']
-        tables_exist = all(table in existing_tables for table in required_tables)
-
-        if tables_exist and not force:
-            click.echo("Database is already initialized! Use --force to reinitialize if needed.")
-            sys.exit(0)
             
-        # Create Alembic configuration
-        alembic_cfg = Config(alembic_ini)
+        # Check if tables exist
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
         
-        try:
-            # Run all migrations
-            command.upgrade(alembic_cfg, "head")
-            click.echo("Database initialized successfully!")
-        except Exception as e:
-            if 'already exists' in str(e) and not force:
-                click.echo("Database is already initialized! Use --force to reinitialize if needed.")
-                sys.exit(0)
-            else:
-                raise e
-                
+        if tables and not force:
+            click.echo("Tables already exist. Use --force to reinitialize")
+            sys.exit(1)
+            
+        # Run alembic upgrade
+        os.environ['PYTHONPATH'] = root_dir
+        result = os.system(f'cd {root_dir} && alembic upgrade head')
+        
+        if result == 0:
+            click.echo("Successfully initialized database")
+        else:
+            click.echo("Error running alembic migrations")
+            sys.exit(1)
+            
     except Exception as e:
         click.echo(f"Error initializing database: {str(e)}")
         sys.exit(1)
+
+@db.command()
+def init():
+    """Initialize the database."""
+    try:
+        # Get event loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        # Initialize FlowManager
+        flow_manager = FlowManager()
+        
+        # Initialize database
+        if loop.run_until_complete(flow_manager.init_db()):
+            print("Successfully initialized database")
+        else:
+            print("Failed to initialize database")
+            
+    except Exception as e:
+        print(f"Error initializing database: {e}")

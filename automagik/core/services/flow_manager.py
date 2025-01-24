@@ -5,130 +5,148 @@ This module provides the main interface for managing flows, combining functional
 from flow_analyzer and flow_sync.
 """
 
-from typing import Dict, Any, List, Optional, Tuple
-from sqlalchemy.orm import Session
-import uuid
 import logging
 import json
+import uuid
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+import os
 
-from automagik.core.database.models import FlowDB, FlowComponent
-from automagik.core.database.session import get_db_session
-from .flow_analyzer import FlowAnalyzer
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
+
+from ..database.models import FlowDB as Flow, FlowComponent, Task, Schedule, TaskLog as Log, Base
 from .flow_sync import FlowSync
+from .flow_analyzer import FlowAnalyzer
 
 logger = logging.getLogger(__name__)
 
 class FlowManager:
-    def __init__(self, db_session: Session, langflow_api_url: str = None, langflow_api_key: str = None):
-        """
-        Initialize FlowManager with database session and optional API credentials.
-        
-        Args:
-            db_session: SQLAlchemy database session
-            langflow_api_url: Optional URL for LangFlow API
-            langflow_api_key: Optional API key for authentication
-        """
-        self.db_session = db_session
-        self.flow_sync = None
-        if langflow_api_url and langflow_api_key:
-            self.flow_sync = FlowSync(langflow_api_url, langflow_api_key)
-        self.flow_analyzer = FlowAnalyzer()
+    """Flow manager class."""
 
-    def sync_flow(self, flow_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Sync a flow to the local database and analyze its components.
+    def __init__(
+        self,
+        langflow_api_url: Optional[str] = None,
+        langflow_api_key: Optional[str] = None,
+        db_url: Optional[str] = None,
+    ):
+        """Initialize FlowManager."""
+        self.flow_sync = FlowSync(langflow_api_url, langflow_api_key)
+        self.flow_analyzer = FlowAnalyzer()
+        self.db_url = db_url or os.getenv("DATABASE_URL")
         
-        Args:
-            flow_data: Flow data from LangFlow
+        if not self.db_url:
+            logger.error("No database URL provided")
+            self.engine = None
+            self.session_maker = None
+            return
             
-        Returns:
-            ID of the synced flow if successful, None otherwise
-        """
         try:
-            # Generate a new UUID for the flow
-            flow_id = str(uuid.uuid4())
+            logger.debug(f"Raw DATABASE_URL from environment: {self.db_url}")
             
-            # Extract basic flow information
-            name = flow_data.get("name", "Unnamed Flow")
-            description = flow_data.get("description", "")
-            folder_id = flow_data.get("folder_id")
+            # Convert SQLite URL to async format if needed
+            if self.db_url.startswith("sqlite"):
+                self.db_url = self.db_url.replace("sqlite", "sqlite+aiosqlite", 1)
             
-            # Get folder name if available
-            folder_name = None
-            if self.flow_sync and folder_id:
-                folder_name = self.flow_sync.get_folder_name(folder_id)
+            # Convert PostgreSQL URL to async format if needed
+            elif self.db_url.startswith("postgresql"):
+                self.db_url = self.db_url.replace("postgresql", "postgresql+asyncpg", 1)
             
-            # Extract and parse the data field
-            data = {}
-            raw_data = flow_data.get("data", {})
-            if isinstance(raw_data, str):
-                try:
-                    data = json.loads(raw_data)
-                except json.JSONDecodeError:
-                    logger.error("Failed to parse flow data as JSON")
-                    data = {}
-            elif isinstance(raw_data, dict):
-                data = raw_data
+            logger.info(f"Using {self.db_url.split('://')[0]} database at {self.db_url}")
             
-            # Analyze flow components
-            components = []
-            input_component = None
-            output_component = None
-            for node in data.get("nodes", []):
-                is_input, is_output, tweakable_params = self.flow_analyzer.analyze_component(node)
-                
-                component_info = self.flow_analyzer.get_component_info(node)
-                components.append({
-                    "node_id": component_info["id"],
-                    "name": component_info["name"],
-                    "type": component_info["type"],
-                    "is_input": is_input,
-                    "is_output": is_output,
-                    "tweakable_params": tweakable_params
-                })
-                
-                if is_input:
-                    input_component = component_info["name"]
-                if is_output:
-                    output_component = component_info["name"]
-            
-            # Store flow data in database
-            flow = FlowDB(
-                id=uuid.UUID(flow_id),
-                name=name,
-                description=description,
-                data=data,
-                source="langflow",
-                source_id=flow_data.get("id"),
-                folder_id=folder_id,
-                folder_name=folder_name,
-                flow_version=1,
-                input_component=input_component,
-                output_component=output_component
+            # Create engine and session maker
+            self.engine = create_async_engine(self.db_url)
+            self.session_maker = sessionmaker(
+                self.engine, class_=AsyncSession, expire_on_commit=False
             )
-            self.db_session.add(flow)
-            self.db_session.commit()
-            
-            return flow_id
             
         except Exception as e:
-            logger.error(f"Error syncing flow: {str(e)}")
-            return None
+            logger.error(f"Error initializing database connection: {e}")
+            self.engine = None
+            self.session_maker = None
 
-    def get_available_flows(self) -> List[Dict[str, Any]]:
-        """
-        Get list of available flows from LangFlow server.
-        
+    async def __aenter__(self):
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context."""
+        if self.engine:
+            await self.engine.dispose()
+
+    async def sync_flow(self, flow_details: Dict[str, Any]) -> bool:
+        """Sync a flow to the database."""
+        try:
+            # Create flow record
+            flow = Flow(
+                id=flow_details["id"],
+                name=flow_details["name"],
+                data=flow_details.get("data", {}),
+                input_component=flow_details.get("input_component"),
+                output_component=flow_details.get("output_component")
+            )
+
+            async with self.session_maker() as session:
+                # Check if flow exists
+                existing_flow = await session.get(Flow, flow.id)
+                if existing_flow:
+                    # Update existing flow
+                    existing_flow.name = flow.name
+                    existing_flow.data = flow.data
+                    existing_flow.input_component = flow.input_component
+                    existing_flow.output_component = flow.output_component
+                    existing_flow.updated_at = datetime.now()
+                else:
+                    session.add(flow)
+                
+                await session.commit()
+                logger.info(f"Successfully synced flow: {flow.name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Error syncing flow: {e}")
+            return False
+
+    async def get_available_flows(self) -> List[Dict[str, Any]]:
+        """Get available flows from the server.
+
         Returns:
-            List of flow dictionaries
+            List[Dict[str, Any]]: List of available flows.
         """
-        if not self.flow_sync:
-            logger.error("LangFlow API credentials not configured")
-            return []
-        
-        return self.flow_sync.get_remote_flows()
+        try:
+            remote_flows = await self.flow_sync.get_remote_flows()
+            if not remote_flows:
+                return []
 
-    def get_flow_details(self, flow_id: str) -> Dict[str, Any]:
+            # Filter out example flows based on their names and descriptions
+            example_names = {
+                "Blog Writer", "Sequential Tasks Agents", "Memory Chatbot",
+                "Custom Component Generator", "Document Q&A", "SaaS Pricing",
+                "SEO Keyword Generator", "Travel Planning Agents", "Simple Agent",
+                "Basic Prompting", "Prompt Chaining", "Research Agent",
+                "Image Sentiment Analysis", "Vector Store RAG",
+                "Instagram Copywriter", "Market Research", "Twitter Thread Generator"
+            }
+            
+            available_flows = []
+            for flow in remote_flows:
+                # Skip flows without required fields
+                if not all(field in flow for field in ["id", "name", "folder_id"]):
+                    continue
+                    
+                # Skip example flows
+                if flow["name"] in example_names:
+                    continue
+                    
+                available_flows.append(flow)
+
+            return available_flows
+        except Exception as e:
+            logger.error(f"Error getting available flows: {e}")
+            return []
+
+    async def get_flow_details(self, flow_id: str) -> Dict[str, Any]:
         """
         Get detailed information about a specific flow.
         
@@ -142,28 +160,50 @@ class FlowManager:
             logger.error("LangFlow API credentials not configured")
             return {}
         
-        return self.flow_sync.get_flow_details(flow_id)
+        flow_details = await self.flow_sync.get_flow_details(flow_id)
+        logger.debug(f"Flow details response: {json.dumps(flow_details, indent=2)}")
+        return flow_details
 
-    def analyze_flow_components(self, flow_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Analyze all components in a flow.
-        
-        Args:
-            flow_data: Flow data from LangFlow
+    async def analyze_flow_components(self, flow_data: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Analyze flow components and return a list of components with their IDs."""
+        try:
+            components = []
+            nodes = flow_data.get("data", {}).get("nodes", [])
             
-        Returns:
-            List of component information dictionaries
+            for node in nodes:
+                component = {
+                    "component_id": node.get("id"),
+                    "name": node.get("data", {}).get("node", {}).get("display_name", "Unknown")
+                }
+                components.append(component)
+            
+            return components
+            
+        except Exception as e:
+            logger.error(f"Error analyzing flow components: {e}")
+            return []
+
+    async def init_db(self) -> bool:
+        """Initialize the database."""
+        try:
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Successfully created database tables")
+            return True
+        except Exception as e:
+            logger.error(f"Error initializing database: {e}")
+            return False
+
+    async def clear_database(self) -> bool:
         """
-        components = []
-        for node in flow_data.get("data", {}).get("nodes", []):
-            is_input, is_output, tweakable_params = self.flow_analyzer.analyze_component(node)
-            component_info = self.flow_analyzer.get_component_info(node)
-            components.append({
-                "id": component_info["id"],
-                "name": component_info["name"],
-                "type": component_info["type"],
-                "is_input": is_input,
-                "is_output": is_output,
-                "tweakable_params": tweakable_params
-            })
-        return components
+        Clear all data from the database.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.flow_sync:
+            logger.error("FlowSync not initialized")
+            return False
+            
+        return await self.flow_sync.clear_database()

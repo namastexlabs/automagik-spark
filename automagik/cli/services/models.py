@@ -37,7 +37,7 @@ class FlowComponent(Base):
     component_id = Column(String, nullable=False)  # e.g., "CustomComponent-88JDQ"
     type = Column(String, nullable=False)  # e.g., "genericNode"
     template = Column(JSON)  # Component parameters
-    tweakable_params = Column(ARRAY(String))  # List of parameters that can be tweaked
+    tweakable_params = Column(JSON)  # List of parameters that can be tweaked
     is_input = Column(Boolean, default=False)
     is_output = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

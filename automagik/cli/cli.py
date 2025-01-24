@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
 import click
+import asyncio
 from dotenv import load_dotenv
 import os
 import sys
-import logging
-import subprocess
+import pwd
 import grp
 
 from automagik.core.logger import get_logger
-from automagik.cli.commands.run import run
 from automagik.cli.commands.flows import flows
+from automagik.cli.commands.run import run
 from automagik.cli.commands.tasks import tasks
 from automagik.cli.commands.schedules import schedules
 from automagik.cli.commands.db import db
@@ -19,23 +19,17 @@ from automagik.cli.commands.db import db
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-def set_log_level(ctx, param, value):
-    if value:
-        logger = get_logger(level=value.upper())
-        logger.debug(f"Log level set to {value.upper()}")
-    return value
+logger = get_logger(__name__)
 
 # CLI Commands
 @click.group()
-@click.option('--log-level', type=click.Choice(['debug', 'info', 'warning', 'error'], case_sensitive=False), 
-              callback=set_log_level, help='Set the logging level')
-def cli(log_level):
-    """AutoMagik CLI - Unified command-line interface for AutoMagik"""
+def cli():
+    """Automagik CLI"""
     pass
 
 # Register commands
-cli.add_command(run)
 cli.add_command(flows)
+cli.add_command(run)
 cli.add_command(tasks)
 cli.add_command(schedules)
 cli.add_command(db)
@@ -125,5 +119,18 @@ def install_service():
         click.echo(f"Error installing service: {str(e)}", err=True)
         return
 
+def main():
+    """Main entry point for the CLI."""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(cli())
+    finally:
+        loop.close()
+
 if __name__ == '__main__':
-    cli()
+    main()

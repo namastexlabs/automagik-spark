@@ -20,7 +20,7 @@ class FlowComponent(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
+    flow_id = Column(String, ForeignKey('flows.id'), nullable=False)
     component_id = Column(String, nullable=False)  # e.g., "CustomComponent-88JDQ"
     type = Column(String, nullable=False)  # e.g., "genericNode"
     template = Column(JSON)  # Component parameters
@@ -35,93 +35,66 @@ class FlowComponent(Base):
 
 
 class FlowDB(Base):
-    """
-    Represents a flow, which is a collection of components and their connections.
-    """
-    __tablename__ = "flows"
-    __table_args__ = {'extend_existing': True}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    """Flow model."""
+    __tablename__ = 'flows'
+
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    description = Column(String)
-    data = Column(JSON)  # Full flow data including connections
-    source = Column(String, nullable=False)  # e.g., 'langflow'
-    source_id = Column(String, nullable=False)  # Original ID in the source system
-    flow_version = Column(Integer, default=1)
-    input_component = Column(String)  # ID of the input component
-    output_component = Column(String)  # ID of the output component
-    is_component = Column(Boolean, default=False)
-    folder_id = Column(String)  # ID of the folder in source system
-    folder_name = Column(String)  # Name of the folder in source system
-    icon = Column(String)
-    icon_bg_color = Column(String)
-    gradient = Column(String)
-    liked = Column(Boolean, default=False)
-    tags = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    components = relationship("FlowComponent", back_populates="flow", cascade="all, delete-orphan")
-    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan")
+    data = Column(JSON, nullable=False)
+    input_component = Column(String, nullable=False)
+    output_component = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
     schedules = relationship("Schedule", back_populates="flow", cascade="all, delete-orphan")
-
-
-class Task(Base):
-    """
-    Represents a task, which is an execution instance of a flow.
-    """
-    __tablename__ = "tasks"
-    __table_args__ = {'extend_existing': True}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
-    status = Column(String, nullable=False, default='pending')  # pending, running, completed, failed
-    input_data = Column(JSON, default={})
-    output_data = Column(JSON, default={})
-    tries = Column(Integer, default=0)
-    max_retries = Column(Integer, default=3)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    flow = relationship("FlowDB", back_populates="tasks")
-    logs = relationship("Log", back_populates="task", cascade="all, delete-orphan")
-
-
-class Log(Base):
-    """
-    Represents a log entry associated with a task execution.
-    """
-    __tablename__ = "logs"
-    __table_args__ = {'extend_existing': True}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id = Column(UUID(as_uuid=True), ForeignKey('tasks.id'), nullable=False)
-    level = Column(String, nullable=False)  # debug, info, warning, error
-    message = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    task = relationship("Task", back_populates="logs")
+    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan")
+    components = relationship("FlowComponent", back_populates="flow", cascade="all, delete-orphan")
 
 
 class Schedule(Base):
-    """
-    Represents a schedule for automated flow execution.
-    """
-    __tablename__ = "schedules"
-    __table_args__ = {'extend_existing': True}
-    
+    """Schedule model."""
+    __tablename__ = 'schedules'
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey('flows.id'), nullable=False)
-    schedule_type = Column(String, nullable=False)  # 'interval' or 'cron'
-    schedule_expr = Column(String, nullable=False)  # '30m' for interval, '0 * * * *' for cron
-    flow_params = Column(JSON, default={})  # Parameters to pass to the flow
-    status = Column(String, default='active')  # active, paused, deleted
-    next_run_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
+    flow_id = Column(String, ForeignKey('flows.id'), nullable=False)
+    schedule_type = Column(String, nullable=False)  # interval, cron, oneshot
+    schedule_expr = Column(String, nullable=False)  # e.g., "5m", "* * * * *", "2025-01-01T00:00:00"
+    flow_params = Column(JSON)  # Optional parameters to pass to the flow
+    status = Column(String, default='active')  # active, paused, completed
+    next_run_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
     flow = relationship("FlowDB", back_populates="schedules")
+
+
+class Task(Base):
+    """Task model."""
+    __tablename__ = 'tasks'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    flow_id = Column(String, ForeignKey('flows.id'), nullable=False)
+    status = Column(String, nullable=False)  # pending, running, completed, failed
+    input_data = Column(JSON)
+    result = Column(JSON)
+    error = Column(String)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+    flow = relationship("FlowDB", back_populates="tasks")
+    logs = relationship("TaskLog", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskLog(Base):
+    """Task log model."""
+    __tablename__ = 'logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(UUID(as_uuid=True), ForeignKey('tasks.id'), nullable=False)
+    level = Column(String, nullable=False)  # info, warning, error
+    message = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    task = relationship("Task", back_populates="logs")

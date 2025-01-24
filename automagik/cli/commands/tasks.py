@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import desc
 
 from automagik.core.database.session import get_db_session
-from automagik.core.database.models import Task, FlowDB, Log
+from automagik.core.database.models import Task, FlowDB, TaskLog
 from automagik.core.scheduler import TaskRunner
 from automagik.core.scheduler.exceptions import TaskExecutionError
 

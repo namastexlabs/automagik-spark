@@ -5,8 +5,8 @@ import uuid
 from tabulate import tabulate
 from sqlalchemy import text
 
-from automagik.core.scheduler.scheduler import SchedulerService
-from automagik.core.database.session import get_db_session
+from automagik.cli.scheduler_service import SchedulerService
+from automagik.cli.db import get_db_session
 from automagik.core.scheduler.exceptions import (
     SchedulerError,
     InvalidScheduleError,
@@ -45,7 +45,7 @@ def create(flow_id: str, type: str, expr: str, input_json: str):
         # Try to get flow by ID first, then by name
         try:
             flow_uuid = uuid.UUID(flow_id)
-            flow = db_session.query(FlowDB).filter(FlowDB.id == flow_uuid).first()
+            flow = db_session.query(FlowDB).filter(FlowDB.id == flow_id).first()
         except ValueError:
             flow = db_session.query(FlowDB).filter(FlowDB.name == flow_id).first()
 
@@ -56,7 +56,7 @@ def create(flow_id: str, type: str, expr: str, input_json: str):
         # Create schedule
         try:
             schedule = scheduler_service.create_schedule(
-                flow_name=flow.name,
+                flow_id=flow.id,
                 schedule_type=type,
                 schedule_expr=expr,
                 flow_params=input_data
@@ -75,6 +75,9 @@ def create(flow_id: str, type: str, expr: str, input_json: str):
         except InvalidScheduleError as e:
             click.echo(f"Invalid schedule: {str(e)}", err=True)
             click.get_current_context().exit(1)
+
+        finally:
+            db_session.close()
 
     except Exception as e:
         click.echo(f"Error creating schedule: {str(e)}", err=True)

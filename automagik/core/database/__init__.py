@@ -1,11 +1,12 @@
 """
 Database Package
 
-This package handles all database-related functionality including models and session management.
+This package provides database models and utilities for the application.
 """
 
 from .session import get_db_session
-from .models import Base, FlowDB, FlowComponent, Task, Log, Schedule
+from .base import Base
+from .models import FlowDB, FlowComponent, Task, TaskLog, Schedule
 
 __all__ = [
     'get_db_session',
@@ -13,6 +14,6 @@ __all__ = [
     'FlowDB',
     'FlowComponent',
     'Task',
-    'Log',
+    'TaskLog',
     'Schedule'
 ]

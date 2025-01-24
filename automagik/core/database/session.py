@@ -5,7 +5,7 @@ This module handles database connection and session management.
 """
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from .base import Base
 import logging
@@ -32,9 +32,10 @@ database_url = os.getenv('DATABASE_URL')
 logger.debug(f"Raw DATABASE_URL from environment: {database_url}")
 
 if database_url and ('postgresql://' in database_url or 'postgresql+psycopg2://' in database_url):
-    # Use the provided PostgreSQL URL
-    db_url = database_url
-    logger.info(f"Using PostgreSQL database at {database_url}")
+    # Convert to asyncpg URL
+    db_url = database_url.replace('postgresql://', 'postgresql+asyncpg://')
+    db_url = db_url.replace('postgresql+psycopg2://', 'postgresql+asyncpg://')
+    logger.info(f"Using PostgreSQL database ")
 else:
     # Default to SQLite if no PostgreSQL URL is provided
     db_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -44,17 +45,24 @@ else:
     os.makedirs(db_dir, exist_ok=True)
     
     # Create database URL with absolute path
-    db_url = f'sqlite:///{os.path.abspath(db_path)}'
+    db_url = f'sqlite+aiosqlite:///{os.path.abspath(db_path)}'
     logger.warning(f"No valid PostgreSQL URL found in DATABASE_URL environment variable. Falling back to SQLite at {db_path}")
 
-# Create engine with echo for debugging
-engine = create_engine(
+# Create async engine with echo for debugging
+engine = create_async_engine(
     db_url,
     echo=os.getenv('AUTOMAGIK_DEBUG') == '1',
-    pool_pre_ping=True  # Enable automatic reconnection
+    future=True
 )
 
-def get_db_session():
+# Create async session factory
+Session = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+async def get_db_session() -> AsyncSession:
     """
     Create and return a new database session.
     
@@ -64,18 +72,17 @@ def get_db_session():
     3. Create and return a new session
     
     Returns:
-        SQLAlchemy Session object
+        SQLAlchemy AsyncSession object
     """
     try:
         # Create all tables if they don't exist
-        Base.metadata.create_all(bind=engine)
-        
-        # Create session factory
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         
         # Create and return new session
-        return SessionLocal()
+        session = Session()
+        return session
         
     except Exception as e:
-        logger.error(f"Error creating database session: {str(e)}")
+        logger.error(f"Error creating database session: {e}")
         raise

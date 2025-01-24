@@ -12,7 +12,8 @@ import os
 import logging
 from croniter import croniter
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Schedule, FlowDB, Task
 from .exceptions import (
@@ -35,17 +36,17 @@ class SchedulerService:
     - Creating tasks from schedules
     """
     
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: AsyncSession):
         """
         Initialize the scheduler service.
         
         Args:
-            db_session: SQLAlchemy database session
+            db_session: SQLAlchemy asynchronous database session
         """
         self.db_session = db_session
         self.timezone = pytz.timezone(os.getenv('TIMEZONE', 'UTC'))
 
-    def _get_current_time(self) -> datetime:
+    async def _get_current_time(self) -> datetime:
         """Get current time in configured timezone."""
         return datetime.now(self.timezone)
 
@@ -113,7 +114,7 @@ class SchedulerService:
         except Exception as e:
             raise InvalidScheduleError(f"Error calculating next run: {str(e)}")
 
-    def create_schedule(
+    async def create_schedule(
         self,
         flow_name: str,
         schedule_type: str,
@@ -137,46 +138,39 @@ class SchedulerService:
             ComponentNotConfiguredError: If flow components aren't configured
             InvalidScheduleError: If schedule configuration is invalid
         """
-        # Validate flow
-        flow = self.db_session.query(FlowDB).filter(FlowDB.name == flow_name).first()
-        if not flow:
-            raise FlowNotFoundError(f"Flow '{flow_name}' not found")
+        # Get flow
+        stmt = text("SELECT * FROM flows WHERE name = :name")
+        result = await self.db_session.execute(stmt, {"name": flow_name})
+        flow = result.first()
 
-        if not flow.input_component:
-            raise ComponentNotConfiguredError(
-                f"Flow '{flow_name}' does not have an input component configured"
-            )
+        if not flow:
+            raise FlowNotFoundError(f"Flow not found: {flow_name}")
 
         # Calculate next run time
-        try:
-            next_run = self._calculate_next_run(schedule_type, schedule_expr)
-        except InvalidScheduleError as e:
-            raise InvalidScheduleError(f"Invalid schedule for flow '{flow_name}': {str(e)}")
+        next_run = self._calculate_next_run(schedule_type, schedule_expr)
 
         # Create schedule
         schedule = Schedule(
+            id=uuid.uuid4(),
             flow_id=flow.id,
             schedule_type=schedule_type,
             schedule_expr=schedule_expr,
-            flow_params=flow_params or {},
+            flow_params=flow_params,
             next_run_at=next_run,
             status='active'
         )
-        
-        try:
-            self.db_session.add(schedule)
-            self.db_session.commit()
-            logger.info(f"Created schedule for flow '{flow_name}', next run at {next_run}")
-            return schedule
-        except Exception as e:
-            self.db_session.rollback()
-            raise SchedulerError(f"Error creating schedule: {str(e)}")
 
-    def get_schedule(self, schedule_id: uuid.UUID) -> Optional[Schedule]:
+        self.db_session.add(schedule)
+        await self.db_session.commit()
+        await self.db_session.refresh(schedule)
+
+        return schedule
+
+    async def get_schedule(self, schedule_id: uuid.UUID) -> Optional[Schedule]:
         """Get a schedule by ID."""
-        return self.db_session.query(Schedule).filter(Schedule.id == schedule_id).first()
+        return await self.db_session.get(Schedule, schedule_id)
 
-    def list_schedules(
+    async def list_schedules(
         self,
         flow_name: Optional[str] = None,
         status: Optional[str] = None
@@ -199,9 +193,9 @@ class SchedulerService:
         if status:
             query = query.filter(Schedule.status == status)
         
-        return query.all()
+        return await query.all()
 
-    def update_schedule(
+    async def update_schedule(
         self,
         schedule_id: uuid.UUID,
         status: Optional[str] = None,
@@ -218,7 +212,7 @@ class SchedulerService:
         Returns:
             Updated schedule or None if not found
         """
-        schedule = self.get_schedule(schedule_id)
+        schedule = await self.get_schedule(schedule_id)
         if not schedule:
             return None
 
@@ -228,13 +222,13 @@ class SchedulerService:
             schedule.flow_params = flow_params
 
         try:
-            self.db_session.commit()
+            await self.db_session.commit()
             return schedule
         except Exception as e:
-            self.db_session.rollback()
+            await self.db_session.rollback()
             raise SchedulerError(f"Error updating schedule: {str(e)}")
 
-    def delete_schedule(self, schedule_id: uuid.UUID) -> bool:
+    async def delete_schedule(self, schedule_id: uuid.UUID) -> bool:
         """
         Delete a schedule.
         
@@ -244,74 +238,55 @@ class SchedulerService:
         Returns:
             True if deleted, False if not found
         """
-        schedule = self.get_schedule(schedule_id)
+        schedule = await self.get_schedule(schedule_id)
         if not schedule:
             return False
 
         try:
-            self.db_session.delete(schedule)
-            self.db_session.commit()
+            await self.db_session.delete(schedule)
+            await self.db_session.commit()
             return True
         except Exception as e:
-            self.db_session.rollback()
+            await self.db_session.rollback()
             raise SchedulerError(f"Error deleting schedule: {str(e)}")
 
-    def get_due_schedules(self) -> List[Schedule]:
+    async def get_due_schedules(self) -> List[Schedule]:
         """
         Get all active schedules that are due to run.
         
         Returns:
             List of schedules that should be executed
         """
-        current_time = self._get_current_time()
+        current_time = await self._get_current_time()
         
         # Get all active schedules that are due
-        schedules = self.db_session.query(Schedule).filter(
-            and_(
-                Schedule.status == 'active',
-                Schedule.next_run_at <= current_time
-            )
-        ).all()
-        
-        # For one-time schedules, mark them as completed after they are due
-        for schedule in schedules:
-            if schedule.schedule_type == 'oneshot':
-                schedule.status = 'completed'
-                self.db_session.commit()
+        stmt = text("""
+            SELECT * FROM schedules 
+            WHERE status = 'active' 
+            AND next_run_at <= :current_time
+        """)
+        result = await self.db_session.execute(stmt, {"current_time": current_time})
+        schedules = result.fetchall()
         
         return schedules
 
-    def update_schedule_next_run(self, schedule: Schedule) -> None:
+    async def update_schedule_next_run(self, schedule: Schedule):
         """
         Update the next run time for a schedule.
         
         Args:
             schedule: Schedule to update
         """
-        try:
-            # One-time schedules don't get updated, they get completed
-            if schedule.schedule_type == 'oneshot':
-                schedule.status = 'completed'
-                self.db_session.commit()
-                logger.debug(f"Marked one-time schedule {schedule.id} as completed")
-                return
+        next_run = self._calculate_next_run(
+            schedule.schedule_type,
+            schedule.schedule_expr,
+            from_time=await self._get_current_time()
+        )
+        
+        schedule.next_run_at = next_run
+        await self.db_session.commit()
 
-            # For other schedule types, calculate next run
-            next_run = self._calculate_next_run(
-                schedule.schedule_type,
-                schedule.schedule_expr,
-                self._get_current_time()
-            )
-            
-            schedule.next_run_at = next_run
-            self.db_session.commit()
-            
-            logger.debug(f"Updated schedule {schedule.id} next run to {next_run}")
-        except Exception as e:
-            self.db_session.rollback()
-            raise SchedulerError(f"Error updating schedule next run: {str(e)}")
-
-    def create_task_from_schedule(self, schedule: Schedule) -> Task:
+    async def create_task_from_schedule(self, schedule: Schedule) -> Task:
         """
         Create a task from a schedule.
         
@@ -326,17 +301,18 @@ class SchedulerService:
         """
         try:
             task = Task(
+                id=uuid.uuid4(),
                 flow_id=schedule.flow_id,
+                status='pending',
                 input_data=schedule.flow_params,
-                status="pending"
+                created_at=await self._get_current_time()
             )
             
             self.db_session.add(task)
-            self.db_session.commit()
+            await self.db_session.commit()
+            await self.db_session.refresh(task)
             
-            logger.info(f"Created task {task.id} from schedule {schedule.id}")
             return task
             
         except Exception as e:
-            self.db_session.rollback()
-            raise SchedulerError(f"Error creating task from schedule: {str(e)}")
+            raise SchedulerError(f"Failed to create task from schedule: {str(e)}")

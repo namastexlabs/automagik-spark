@@ -55,7 +55,7 @@ def start(daemon, log_level):
         while True:
             try:
                 # Get due schedules
-                due_schedules = scheduler.get_due_schedules()
+                due_schedules = await scheduler.get_due_schedules()
                 if due_schedules:
                     logger.info(f"Found {len(due_schedules)} due schedules")
                     
@@ -79,7 +79,7 @@ def start(daemon, log_level):
                         schedule.schedule_expr
                     )
                     schedule.next_run_at = next_run
-                    db.commit()
+                    await db.commit()
                     logger.info(f"Next run scheduled for: {next_run}")
                     
             except Exception as e:

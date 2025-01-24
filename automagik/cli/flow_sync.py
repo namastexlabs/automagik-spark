@@ -6,11 +6,16 @@ from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 import json
+import logging
+
+# Set up logging configuration
+logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger('automagik').setLevel(logging.DEBUG)
+logging.getLogger('automagik.core.services').setLevel(logging.DEBUG)
+logger = setup_logger(level=logging.DEBUG)
 
 from automagik.core.database.models import FlowDB, FlowComponent
 from automagik.core.logger import setup_logger
-
-logger = setup_logger()
 
 # Load environment variables
 load_dotenv()
@@ -83,16 +88,11 @@ async def get_remote_flows(langflow_api_url: str, langflow_api_key: str) -> List
         async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
             url = f"{api_url}/flows/"
             response = await client.get(url, headers=headers, params=params)
-            
-            if response.status_code == 401:
-                logger.error("Invalid API key or unauthorized access")
-                return []
-            elif response.status_code == 404:
-                logger.error("API endpoint not found. Please check the API URL")
-                return []
-                
+            logger.debug(f"API response status: {response.status_code}")  # Log the response status
+            logger.debug(f"API response content: {response.text}")  # Log the raw response text
             response.raise_for_status()
             data = response.json()
+            logger.debug(f"Parsed flow data: {data}")  # Log the parsed JSON data
             
             if not data:
                 logger.warning("No flows found on the server")
@@ -182,8 +182,11 @@ async def get_folder_name(langflow_api_url: str, langflow_api_key: str, folder_i
 
 def select_components(flow_data: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], List[Dict[str, Any]]]:
     """Analyze and let user select input and output components."""
+    logger.debug(f"Flow data for component selection: {flow_data}")
     nodes = flow_data.get("data", {}).get("nodes", [])
+    logger.debug(f"Nodes found: {nodes}")
     if not nodes:
+        logger.warning("No nodes found in flow data")
         return None, None, []
     
     # First analyze all components
@@ -254,6 +257,7 @@ async def sync_flow(db_session: Session, flow_data: Dict[str, Any], langflow_api
     source_id = uuid.UUID(str(flow_data["id"]))  # Convert string to UUID
     
     logger.info(f"\nSyncing flow: {flow_data['name']} (ID: {source_id})")
+    logger.debug(f"Flow data received: {flow_data}")
     
     # Try to get folder name if we have API access
     folder_name = None
@@ -264,8 +268,11 @@ async def sync_flow(db_session: Session, flow_data: Dict[str, Any], langflow_api
         # If we don't have API access but have a folder_id, use a default name
         folder_name = "Test Folder" if flow_data.get('folder_id') else None
     
+    logger.debug(f"Flow data before component selection: {flow_data}")
+    
     # Let user select input/output components and analyze all components
     input_component, output_component, analyzed_nodes = select_components(flow_data)
+    logger.debug(f"Input component: {input_component}, Output component: {output_component}, Analyzed nodes: {analyzed_nodes}")
     
     flow_dict = {
         "id": source_id,  # Now using UUID object

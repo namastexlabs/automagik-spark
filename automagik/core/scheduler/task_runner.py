@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 import uuid
 
 from sqlalchemy.orm import Session
-from ..database.models import Task, Log, FlowDB
+from ..database.models import Task, TaskLog, FlowDB
 from .exceptions import TaskExecutionError, FlowNotFoundError, ComponentNotConfiguredError
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class TaskRunner:
             message: Log message
         """
         try:
-            log = Log(
+            log = TaskLog(
                 task_id=task_id,
                 level=level,
                 message=message
