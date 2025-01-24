@@ -19,20 +19,16 @@ print_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
 }
 
-# Function to check if a command exists
-check_command() {
-    if ! command -v $1 &> /dev/null; then
-        print_error "$1 is not installed. Please install it first."
-        exit 1
-    fi
-}
-
-# Function to check if a service is running
-check_service() {
-    if ! systemctl is-active --quiet $1; then
-        print_error "$1 is not running. Please start it first."
-        exit 1
-    fi
+# Function to prompt yes/no questions
+prompt_yes_no() {
+    while true; do
+        read -p "$1 [y/N] " yn
+        case $yn in
+            [Yy]* ) return 0;;
+            [Nn]* | "" ) return 1;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
 }
 
 # Check if script is run as root
@@ -43,17 +39,46 @@ fi
 
 print_status "Starting AutoMagik setup..."
 
-# Check prerequisites
-print_status "Checking prerequisites..."
-check_command python3
-check_command pip3
-check_command postgresql
-check_command redis-server
+# Install basic system dependencies
+print_status "Installing basic system dependencies..."
+apt-get update
+apt-get install -y python3-venv python3-pip lsof curl
 
-# Check PostgreSQL and Redis services
-print_status "Checking required services..."
-check_service postgresql
-check_service redis-server
+# Optional PostgreSQL installation
+if prompt_yes_no "Do you want to install PostgreSQL locally?"; then
+    print_status "Installing PostgreSQL..."
+    apt-get install -y postgresql postgresql-contrib
+    
+    # Start PostgreSQL service
+    print_status "Starting PostgreSQL service..."
+    systemctl start postgresql
+    
+    # Wait for service to be ready
+    print_status "Waiting for PostgreSQL to be ready..."
+    sleep 5
+    
+    # Check if PostgreSQL is running
+    print_status "Checking PostgreSQL service..."
+    if ! systemctl is-active --quiet postgresql; then
+        print_error "PostgreSQL failed to start"
+        exit 1
+    fi
+    
+    # Configure PostgreSQL
+    print_status "Configuring PostgreSQL..."
+    # Create database user if it doesn't exist
+    su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname = 'automagik'\"" | grep -q 1 || \
+        su - postgres -c "psql -c \"CREATE USER automagik WITH PASSWORD 'automagik';\""
+    
+    # Create database if it doesn't exist
+    su - postgres -c "psql -lqt | cut -d \| -f 1 | grep -qw automagik" || \
+        su - postgres -c "psql -c \"CREATE DATABASE automagik OWNER automagik;\""
+    
+    # Grant privileges
+    su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE automagik TO automagik;\""
+else
+    print_warning "Skipping PostgreSQL installation. Make sure DATABASE_URL in .env points to your existing database."
+fi
 
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
@@ -120,8 +145,8 @@ print_status "Installing systemd service..."
 cat > /etc/systemd/system/automagik.service << EOL
 [Unit]
 Description=AutoMagik Service
-After=network.target postgresql.service redis.service
-Requires=postgresql.service redis.service
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
