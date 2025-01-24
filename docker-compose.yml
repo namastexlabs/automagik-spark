@@ -68,7 +68,7 @@ services:
       - "7860:7860"
     environment:
       - LANGFLOW_DATABASE_URL=postgresql://langflow:langflow@langflow-db:5432/langflow
-      - LANGFLOW_AUTO_LOGIN=false
+      - LANGFLOW_AUTO_LOGIN=true
       - LANGFLOW_CONFIG_DIR=/data/langflow
     volumes:
       - langflow-data:/data

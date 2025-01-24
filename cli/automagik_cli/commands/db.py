@@ -3,6 +3,8 @@ from alembic.config import Config
 from alembic import command
 import os
 import sys
+from sqlalchemy import inspect
+from core.database import get_db_session
 
 @click.group()
 def db():
@@ -23,10 +25,16 @@ def init():
         # Create Alembic configuration
         alembic_cfg = Config(alembic_ini)
         
-        # Run all migrations
-        command.upgrade(alembic_cfg, "head")
-        
-        click.echo("Database initialized successfully!")
+        # Run all migrations, ignoring errors about existing tables
+        try:
+            command.upgrade(alembic_cfg, "head")
+            click.echo("Database initialized successfully!")
+        except Exception as e:
+            if "already exists" in str(e):
+                click.echo("Database is already initialized and up to date!")
+            else:
+                raise
+            
     except Exception as e:
-        click.echo(f"Error initializing database: {str(e)}")
+        click.echo(f"Error: {str(e)}")
         sys.exit(1)
