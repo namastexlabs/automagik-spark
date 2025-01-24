@@ -1,37 +1,89 @@
-version: '3.8'
+name: automagik
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    restart: always
+  # Automagik's PostgreSQL
+  automagik-db:
+    image: postgres:16
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: automagik
+      POSTGRES_PASSWORD: automagik
+      POSTGRES_DB: automagik
     ports:
       - "5432:5432"
+    volumes:
+      - automagik-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U automagik"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # LangFlow's PostgreSQL
+  langflow-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: langflow
+      POSTGRES_PASSWORD: langflow
+      POSTGRES_DB: langflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - langflow-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis service
+  # Note: You may see a warning about vm.overcommit_memory=1 not being set.
+  # This setting cannot be changed from within a container as it's not namespaced.
+  # If you need Redis persistence or replication, set this on the host system:
+  #   sudo sysctl vm.overcommit_memory=1
   redis:
-    image: redis:7-alpine
-    restart: always
+    image: redis:7
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  langflow-init:
+    image: busybox
+    command: sh -c "mkdir -p /data/langflow && chown -R 1000:1000 /data/langflow"
+    volumes:
+      - langflow-data:/data
+
+  langflow:
+    image: langflowai/langflow:latest
+    pull_policy: always
+    user: "1000:1000"
+    ports:
+      - "7860:7860"
+    environment:
+      - LANGFLOW_DATABASE_URL=postgresql://langflow:langflow@langflow-db:5432/langflow
+      - LANGFLOW_AUTO_LOGIN=true
+      - LANGFLOW_CONFIG_DIR=/data/langflow
+    volumes:
+      - langflow-data:/data
+    depends_on:
+      langflow-init:
+        condition: service_completed_successfully
+      langflow-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      automagik-db:
+        condition: service_healthy
+
 volumes:
-  postgres_data:
+  automagik-postgres:
+  langflow-postgres:
+  langflow-data:
   redis_data:
