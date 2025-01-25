@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 import signal
 import sys
 import uuid
+import re
 
 from ...core.flows import FlowManager
 from ...core.database.session import get_session
@@ -38,13 +39,13 @@ async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
         task.started_at = datetime.now(timezone.utc)
         await flow_manager.session.commit()
         
-        # Run flow
-        logger.info(f"Running flow {flow.name} for task {task.id}")
-        result = await flow_manager.run_flow(str(flow.id), task.input_data)
+        # Run flow using source_id for API call
+        logger.info(f"Running flow {flow.name} (source_id: {flow.source_id}) for task {task.id}")
+        result = await flow_manager.run_flow(flow.source_id, task.input_data)
         
         # Update task status
         task.status = 'completed' if result else 'failed'
-        task.completed_at = datetime.now(timezone.utc)
+        task.finished_at = datetime.now(timezone.utc)
         task.output_data = result
         await flow_manager.session.commit()
         
@@ -52,7 +53,35 @@ async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
         
     except Exception as e:
         logger.error(f"Failed to run flow: {str(e)}")
+        task.status = 'failed'
+        task.error = str(e)
+        task.finished_at = datetime.now(timezone.utc)
+        await flow_manager.session.commit()
         return False
+
+def parse_interval(interval_str: str) -> timedelta:
+    """Parse interval string into timedelta.
+    
+    Supports formats:
+    - Xm (minutes)
+    - Xh (hours)
+    - Xd (days)
+    """
+    match = re.match(r'^(\d+)([mhd])$', interval_str)
+    if not match:
+        raise ValueError(f"Invalid interval format: {interval_str}")
+    
+    value = int(match.group(1))
+    unit = match.group(2)
+    
+    if unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'd':
+        return timedelta(days=value)
+    else:
+        raise ValueError(f"Invalid interval unit: {unit}")
 
 async def process_schedules(flow_manager: FlowManager):
     """Process due schedules."""
@@ -93,7 +122,6 @@ async def process_schedules(flow_manager: FlowManager):
             task = Task(
                 id=uuid.uuid4(),
                 flow_id=schedule.flow_id,
-                schedule_id=schedule.id,
                 status='pending',
                 input_data=schedule.flow_params,
                 created_at=now
@@ -102,33 +130,24 @@ async def process_schedules(flow_manager: FlowManager):
             await session.commit()
             await session.refresh(task)
             
-            logger.info(f"Created task {task.id} for schedule {schedule.id}")
+            # Run task
+            await run_flow(flow_manager, task)
             
-            # Run the flow
-            success = await run_flow(flow_manager, task)
-            
-            if success:
-                # Update next run time
-                if schedule.schedule_type == 'interval':
-                    next_run = now + timedelta(minutes=int(schedule.schedule_expr))
-                    logger.info(f"Updated next run time for schedule {schedule.id} to {next_run}")
-                else:
-                    # TODO: Implement cron schedule calculation
-                    next_run = now + timedelta(minutes=1)
-                    logger.info(f"Updated next run time for schedule {schedule.id} to {next_run}")
-                    
-                await flow_manager.update_schedule_next_run(schedule.id, next_run)
-            else:
-                logger.error(f"Failed to run schedule {schedule.id}")
+            # Update next run time
+            if schedule.schedule_type == 'interval':
+                try:
+                    delta = parse_interval(schedule.schedule_expr)
+                    schedule.next_run_at = now + delta
+                    await session.commit()
+                except ValueError as e:
+                    logger.error(f"Invalid interval: {e}")
+                    continue
 
 async def worker_loop():
     """Worker loop."""
     logger.info("Starting worker...")
-    
     while True:
         try:
-            logger.info("Starting worker loop")
-            
             # Get fresh session for each iteration
             async with get_session() as session:
                 flow_manager = FlowManager(session)

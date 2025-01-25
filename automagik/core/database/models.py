@@ -2,13 +2,18 @@
 Database models for the application.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
 from sqlalchemy.orm import relationship
 
 from automagik.core.database.base import Base
+
+
+def utcnow():
+    """Return current UTC datetime with timezone."""
+    return datetime.now(timezone.utc)
 
 
 class Flow(Base):
@@ -40,8 +45,8 @@ class Flow(Base):
     tags = Column(JSON)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
     tasks = relationship("Task", back_populates="flow")
@@ -67,8 +72,8 @@ class FlowComponent(Base):
     is_output = Column(Boolean, default=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
     flow = relationship("Flow", back_populates="components")
@@ -90,13 +95,13 @@ class Task(Base):
     # Retry info
     tries = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
-    next_retry_at = Column(DateTime)
+    next_retry_at = Column(DateTime(timezone=True))
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    started_at = Column(DateTime)
-    finished_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
 
     # Relationships
     flow = relationship("Flow", back_populates="tasks")
@@ -110,15 +115,14 @@ class TaskLog(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False)
     
-    # Log info
-    level = Column(String(20), nullable=False)  # debug, info, warning, error
+    level = Column(String(20), nullable=False)
     message = Column(Text, nullable=False)
-    component_id = Column(String(255))  # Which component generated this log
-    data = Column(JSON)  # Additional log data/context
+    component_id = Column(String(255))
+    data = Column(JSON)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    
     # Relationships
     task = relationship("Task", back_populates="logs")
 
@@ -131,17 +135,17 @@ class Schedule(Base):
     flow_id = Column(UUID(as_uuid=True), ForeignKey("flows.id"), nullable=False)
     
     # Schedule info
-    schedule_type = Column(String(50), nullable=False)  # cron, interval, etc.
-    schedule_expr = Column(String(255), nullable=False)  # Cron expression or interval
+    schedule_type = Column(String(50), nullable=False)  # interval, cron
+    schedule_expr = Column(String(255), nullable=False)  # "5m", "1h", "0 8 * * *"
     flow_params = Column(JSON)  # Parameters to pass to flow
-    status = Column(String(50), nullable=False, default="active")
     
-    # Next run tracking
-    next_run_at = Column(DateTime)
+    # Status
+    status = Column(String(50), nullable=False, default="active")  # active, paused
+    next_run_at = Column(DateTime(timezone=True))
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    
     # Relationships
     flow = relationship("Flow", back_populates="schedules")

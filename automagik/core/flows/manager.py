@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -475,24 +475,59 @@ class FlowManager:
         return list(result.scalars().unique().all())
 
     async def delete_flow(self, flow_id: str) -> bool:
-        """Delete a flow from LangFlow.
+        """Delete a flow from local database.
         
         Args:
-            flow_id: ID of the flow to delete
+            flow_id: ID of the flow to delete (can be full UUID or truncated)
             
         Returns:
-            True if flow was deleted successfully, False otherwise
+            True if flow was deleted successfully from local database
         """
-        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
-            response = await client.delete(f"/flows/{flow_id}")
-            response.raise_for_status()
+            # Try exact match first (for full UUID)
+            try:
+                uuid_obj = UUID(flow_id)
+                exact_match = True
+            except ValueError:
+                exact_match = False
+            
+            # Build query based on match type
+            query = select(Flow).options(
+                joinedload(Flow.components),
+                joinedload(Flow.schedules),
+                joinedload(Flow.tasks)
+            )
+            
+            if exact_match:
+                query = query.where(Flow.id == uuid_obj)
+            else:
+                query = query.where(cast(Flow.id, String).like(f"{flow_id}%"))
+            
+            # Execute query
+            result = await self.session.execute(query)
+            flow = result.unique().scalar_one_or_none()
+            
+            if not flow:
+                logger.error(f"Flow {flow_id} not found in local database")
+                return False
+            
+            # Delete all related objects first
+            for component in flow.components:
+                await self.session.delete(component)
+            for schedule in flow.schedules:
+                await self.session.delete(schedule)
+            for task in flow.tasks:
+                await self.session.delete(task)
+            
+            # Now delete the flow
+            await self.session.delete(flow)
+            await self.session.commit()
             return True
-        except httpx.HTTPError as e:
-            logger.error(f"Failed to delete flow {flow_id}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error deleting flow: {e}")
+            await self.session.rollback()
             return False
-        finally:
-            await client.aclose()
 
     async def delete_schedule(self, schedule_id: UUID) -> bool:
         """Delete a schedule.
