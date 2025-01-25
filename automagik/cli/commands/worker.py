@@ -7,6 +7,9 @@ Provides CLI commands for running the worker that executes scheduled flows.
 import asyncio
 import click
 import logging
+import os
+from pathlib import Path
+import psutil
 from datetime import datetime, timezone, timedelta
 import signal
 import sys
@@ -19,12 +22,44 @@ from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
 from ...core.database.models import Task, TaskLog
 
+def configure_logging():
+    """Configure logging based on environment variables."""
+    log_path = os.getenv('AUTOMAGIK_WORKER_LOG')
+    if not log_path:
+        # Default to ~/.automagik/logs/worker.log
+        log_path = os.path.expanduser("~/.automagik/logs/worker.log")
+    
+    # Ensure log directory exists
+    log_dir = os.path.dirname(log_path)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Reset root logger
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
+    # Configure root logger
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # File handler
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setFormatter(formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    logging.root.setLevel(logging.INFO)
+    logging.root.addHandler(file_handler)
+    logging.root.addHandler(console_handler)
+    
+    return log_path
+
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+log_path = configure_logging()
 logger = logging.getLogger(__name__)
 
 async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
@@ -245,15 +280,178 @@ async def worker_loop():
             
         await asyncio.sleep(10)
 
+def get_pid_file():
+    """Get the path to the worker PID file."""
+    pid_dir = os.path.expanduser("~/.automagik")
+    os.makedirs(pid_dir, exist_ok=True)
+    return os.path.join(pid_dir, "worker.pid")
+
+def write_pid():
+    """Write the current process ID to the PID file."""
+    pid_dir = os.path.expanduser("~/.automagik")
+    os.makedirs(pid_dir, exist_ok=True)
+    pid_file = os.path.join(pid_dir, "worker.pid")
+    logger.info(f"Writing PID {os.getpid()} to {pid_file}")
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+
+def read_pid():
+    """Read the worker process ID from the PID file."""
+    pid_file = os.path.expanduser("~/.automagik/worker.pid")
+    logger.debug(f"Reading PID from {pid_file}")
+    try:
+        with open(pid_file, "r") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+
+def is_worker_running():
+    """Check if the worker process is running."""
+    pid = read_pid()
+    if pid is None:
+        return False
+    
+    try:
+        # Check if process exists and is our worker
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        # Process doesn't exist
+        logger.debug(f"Process {pid} not found, cleaning up PID file")
+        try:
+            os.unlink(os.path.expanduser("~/.automagik/worker.pid"))
+        except FileNotFoundError:
+            pass
+        return False
+    except PermissionError:
+        # Process exists but we don't have permission to send signal
+        return True
+
+def stop_worker():
+    """Stop the worker process."""
+    pid_file = os.path.expanduser("~/.automagik/worker.pid")
+    if not os.path.exists(pid_file):
+        logger.info("No worker process found")
+        return
+        
+    try:
+        with open(pid_file, 'r') as f:
+            pid = int(f.read().strip())
+            
+        # Try to terminate process
+        process = psutil.Process(pid)
+        if process.is_running() and process.name() == "python":
+            process.terminate()
+            try:
+                process.wait(timeout=10)  # Wait up to 10 seconds
+            except psutil.TimeoutExpired:
+                process.kill()  # Force kill if it doesn't terminate
+            logger.info("Worker process stopped")
+        else:
+            logger.info("Worker process not running")
+            
+        os.remove(pid_file)
+            
+    except (ProcessLookupError, psutil.NoSuchProcess):
+        logger.info("Worker process not found")
+        os.remove(pid_file)
+    except Exception as e:
+        logger.error(f"Error stopping worker: {e}")
+
 def handle_signal(signum, frame):
     """Handle termination signals."""
     logger.info("Received termination signal. Shutting down...")
     sys.exit(0)
 
-@click.command()
-def worker():
+def daemonize():
+    """Daemonize the current process."""
+    try:
+        # First fork (detaches from parent)
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)  # Parent process exits
+    except OSError as err:
+        logger.error(f'First fork failed: {err}')
+        sys.exit(1)
+    
+    # Decouple from parent environment
+    os.chdir('/')  # Change working directory
+    os.umask(0)
+    os.setsid()
+    
+    # Second fork (relinquish session leadership)
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)  # Parent process exits
+    except OSError as err:
+        logger.error(f'Second fork failed: {err}')
+        sys.exit(1)
+    
+    # Close all open file descriptors
+    for fd in range(0, 1024):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    
+    # Redirect standard file descriptors
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
+    with open(os.devnull, 'r') as f:
+        os.dup2(f.fileno(), sys.stdin.fileno())
+    with open(os.devnull, 'a+') as f:
+        os.dup2(f.fileno(), sys.stdout.fileno())
+    with open(os.devnull, 'a+') as f:
+        os.dup2(f.fileno(), sys.stderr.fileno())
+
+@click.group(name='worker')
+def worker_group():
+    """Manage the worker process."""
+    pass
+
+@worker_group.command(name='start')
+def start_worker():
     """Start the worker process."""
+    if is_worker_running():
+        click.echo("Worker is already running")
+        return
+        
+    click.echo("Starting worker process...")
+    
+    # Write PID file
+    write_pid()
+    
+    # Setup signal handlers
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     
+    # Configure logging
+    log_path = configure_logging()
+    logger.info(f"Worker logs will be written to {log_path}")
+    
+    # Run the worker loop
     asyncio.run(worker_loop())
+
+@worker_group.command(name='stop')
+def stop_worker_command():
+    """Stop the worker process."""
+    if not is_worker_running():
+        click.echo("No worker process is running")
+        return
+        
+    click.echo("Stopping worker process...")
+    stop_worker()
+    click.echo("Worker process stopped")
+
+@worker_group.command(name='status')
+def worker_status():
+    """Check if the worker process is running."""
+    if is_worker_running():
+        click.echo("Worker process is running")
+    else:
+        click.echo("Worker process is not running")
+
+if __name__ == "__main__":
+    worker_group()

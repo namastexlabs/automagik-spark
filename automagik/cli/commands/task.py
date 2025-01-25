@@ -19,7 +19,8 @@ from uuid import uuid4
 from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from tabulate import tabulate
+from rich.console import Console
+from rich.table import Table
 
 from ...core.flows import FlowManager
 from ...core.database import get_session, Task, Flow
@@ -73,51 +74,45 @@ async def _list_tasks(flow_id: Optional[str], status: Optional[str], limit: int,
             # For testing environment, use simple output
             if 'pytest' in sys.modules:
                 click.echo("\nTasks:")
-                for task in tasks:
-                    click.echo(
-                        f"{str(task.id)[:8]} - {task.status:8} - "
-                        f"{task.flow.name} - {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
+                # Reverse tasks to show most recent at bottom
+                for task in reversed(tasks):
+                    click.echo(f"{str(task.id)[:8]} - {task.status:8} - "
+                                f"{task.flow.name} - {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
                 return
             
-            # For normal usage, use pretty table format
-            headers = ["Task ID", "Status", "Flow", "Created At", "Updated At"]
-            table_data = []
+            # Use rich table for normal output
+            table = Table(title="Tasks", show_header=True)
+            table.add_column("ID", style="cyan")
+            table.add_column("Flow", style="green")
+            table.add_column("Status", style="yellow")
+            table.add_column("Created", style="magenta")
+            table.add_column("Updated", style="magenta")
+            table.add_column("Tries", justify="right", style="red")
             
-            for task in tasks:
-                table_data.append([
-                    str(task.id)[:8],
-                    task.status,
-                    task.flow.name,
-                    task.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    task.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-                ])
+            # Reverse tasks to show most recent at bottom
+            for task in reversed(tasks):
+                # Color status based on value
+                status_style = {
+                    'completed': 'green',
+                    'failed': 'red',
+                    'pending': 'yellow',
+                    'running': 'blue'
+                }.get(task.status, 'white')
+                
+                table.add_row(
+                    str(task.id),
+                    task.flow.name if task.flow else "Unknown",
+                    f"[{status_style}]{task.status}[/]",
+                    task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    task.updated_at.strftime("%Y-%m-%d %H:%M:%S") if task.updated_at else "",
+                    str(task.tries)
+                )
             
-            # Print table
-            click.echo("\nTasks:")
-            click.echo(tabulate(
-                table_data,
-                headers=headers,
-                tablefmt="grid",
-                numalign="left",
-                stralign="left"
-            ))
+            console = Console()
+            console.print(table)
             
-            # Print summary
-            status_counts: Dict[str, int] = {}
-            for task in tasks:
-                status_counts[task.status] = status_counts.get(task.status, 0) + 1
-            
-            click.echo("\nSummary:")
-            for status, count in status_counts.items():
-                click.echo(f"{status}: {count}")
-            
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}")
-        raise click.ClickException(f"Database error: {str(e)}")
     except Exception as e:
-        logger.error(f"Error listing tasks: {str(e)}")
-        raise click.ClickException(str(e))
+        click.echo(f"Error listing tasks: {e}", err=True)
 
 @task_group.command(name='list')
 @click.option('--flow-id', help='Filter tasks by flow ID')
