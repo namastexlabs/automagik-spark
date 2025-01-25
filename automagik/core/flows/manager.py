@@ -97,16 +97,19 @@ class FlowManager:
             # Extract components
             components = []
             for node in flow_data.get("data", {}).get("nodes", []):
+                if "data" not in node or "type" not in node["data"]:
+                    continue
+                    
                 component = {
                     "id": node["id"],
-                    "name": node.get("data", {}).get("node", {}).get("name", "Unknown"),
-                    "type": node.get("data", {}).get("type", "Unknown"),
-                    "tweakable_params": node.get("data", {}).get("node", {}).get("template", {}).keys(),
+                    "type": node["data"]["type"],
+                    "name": node["data"].get("display_name", node["data"].get("node", {}).get("name", "Unknown"))
                 }
                 components.append(component)
-                
             return components
-            
+        except Exception as e:
+            logger.error(f"Error getting flow components: {e}")
+            return []
         finally:
             await client.aclose()
 
@@ -120,11 +123,11 @@ class FlowManager:
         
         Args:
             flow_id: Flow ID to sync
-            input_component: ID of input component
-            output_component: ID of output component
+            input_component: Input component ID
+            output_component: Output component ID
             
         Returns:
-            UUID of synced flow if successful
+            UUID of created/updated flow if successful, None otherwise
         """
         # Get flow data from LangFlow
         client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
@@ -136,9 +139,9 @@ class FlowManager:
             # Create or update flow
             flow = Flow(
                 id=uuid4(),
-                name=flow_data.get("name", "Unnamed Flow"),
-                description=flow_data.get("description"),
-                data=flow_data.get("data"),
+                name=flow_data.get("name", "Untitled Flow"),
+                description=flow_data.get("description", ""),
+                data=flow_data.get("data", {}),
                 source="langflow",
                 source_id=flow_id,
                 flow_version=1,
@@ -148,34 +151,28 @@ class FlowManager:
                 folder_name=flow_data.get("folder_name"),
                 icon=flow_data.get("icon"),
                 icon_bg_color=flow_data.get("icon_bg_color"),
-                gradient=flow_data.get("gradient", False),
-                liked=flow_data.get("liked", False),
+                gradient=bool(flow_data.get("gradient", False)),
+                liked=bool(flow_data.get("liked", False)),
                 tags=flow_data.get("tags", [])
             )
             
-            # Add components
-            for node in flow_data.get("data", {}).get("nodes", []):
-                component = FlowComponent(
-                    id=uuid4(),
-                    flow_id=flow.id,
-                    component_id=node["id"],
-                    type=node.get("data", {}).get("type", "Unknown"),
-                    template=node.get("data", {}).get("node", {}).get("template"),
-                    tweakable_params=list(node.get("data", {}).get("node", {}).get("template", {}).keys()),
-                    is_input=(node["id"] == input_component),
-                    is_output=(node["id"] == output_component)
-                )
-                flow.components.append(component)
+            # Verify components exist
+            components = await self.get_flow_components(flow_id)
+            component_ids = {c["id"] for c in components}
+            if input_component not in component_ids or output_component not in component_ids:
+                logger.error(f"Invalid component IDs: {input_component}, {output_component}")
+                # Still create the flow, just log the error
+                pass
             
+            # Save flow
             self.session.add(flow)
             await self.session.commit()
-            
+            await self.session.refresh(flow)
             return flow.id
             
         except Exception as e:
             logger.error(f"Error syncing flow: {e}")
             return None
-            
         finally:
             await client.aclose()
 

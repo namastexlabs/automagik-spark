@@ -1,7 +1,9 @@
 """Tests for flow components functionality."""
 
+import json
 import pytest
-from unittest.mock import AsyncMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from automagik.core.flows.manager import FlowManager
 
@@ -10,34 +12,27 @@ def flow_manager(session):
     """Create a FlowManager instance."""
     return FlowManager(session)
 
-@pytest.mark.asyncio
-async def test_get_flow_components(flow_manager):
-    """Test getting flow components."""
-    flow_id = "test-flow-1"
-    flow_data = {
-        "data": {
-            "nodes": [
-                {
-                    "id": "comp-1",
-                    "data": {
-                        "node": {"name": "Input"},
-                        "type": "ChatInput"
-                    }
-                },
-                {
-                    "id": "comp-2",
-                    "data": {
-                        "node": {"name": "Output"},
-                        "type": "ChatOutput"
-                    }
-                }
-            ]
-        }
-    }
+@pytest.fixture
+def mock_data_dir():
+    """Get the mock data directory."""
+    return Path(__file__).parent.parent.parent.parent / "mock_data" / "flows"
 
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
-    mock_response.json = AsyncMock(return_value=flow_data)
+@pytest.fixture
+def mock_flows(mock_data_dir):
+    """Load mock flow data."""
+    with open(mock_data_dir / "flows.json") as f:
+        return json.load(f)
+
+@pytest.mark.asyncio
+async def test_get_flow_components(flow_manager, mock_flows):
+    """Test getting flow components."""
+    # Use the first flow from our mock data
+    flow_data = mock_flows[0]
+    flow_id = flow_data["id"]
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value=flow_data)
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
@@ -45,8 +40,12 @@ async def test_get_flow_components(flow_manager):
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         components = await flow_manager.get_flow_components(flow_id)
-        assert len(components) == 2
-        assert components[0]["id"] == "comp-1"
-        assert components[0]["type"] == "ChatInput"
-        assert components[1]["id"] == "comp-2"
-        assert components[1]["type"] == "ChatOutput"
+
+        # Verify components match our mock data
+        nodes = flow_data["data"]["nodes"]
+        assert len(components) == len(nodes)
+        
+        for node, component in zip(nodes, components):
+            assert component["id"] == node["id"]
+            assert component["type"] == node["data"]["type"]
+            assert component["name"] == node["data"].get("display_name", "Unknown")
