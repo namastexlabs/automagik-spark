@@ -41,11 +41,18 @@ async def test_get_flow_components(flow_manager, mock_flows):
     with patch("httpx.AsyncClient", return_value=mock_client):
         components = await flow_manager.get_flow_components(flow_id)
 
-        # Verify components match our mock data
-        nodes = flow_data["data"]["nodes"]
-        assert len(components) == len(nodes)
-        
-        for node, component in zip(nodes, components):
-            assert component["id"] == node["id"]
-            assert component["type"] == node["data"]["type"]
-            assert component["name"] == node["data"].get("display_name", "Unknown")
+        # Get expected ChatInput and ChatOutput nodes
+        expected_components = []
+        for node in flow_data["data"]["nodes"]:
+            node_type = node["data"].get("type")
+            if node_type in ["ChatInput", "ChatOutput"]:
+                expected_components.append({
+                    "id": node["id"],
+                    "type": node_type
+                })
+
+        # Verify we got the expected components
+        assert len(components) == len(expected_components)
+        for expected, actual in zip(expected_components, components):
+            assert actual["id"] == expected["id"]
+            assert actual["type"] == expected["type"]

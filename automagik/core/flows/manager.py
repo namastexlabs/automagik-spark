@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from collections import defaultdict
 
 from ..config import LANGFLOW_API_URL
 from ..database.models import Flow, FlowComponent, Schedule, Task
@@ -31,89 +32,72 @@ class FlowManager:
         """Initialize flow manager."""
         self.session = session
         self.flow_sync = FlowSync(session)
+        self.client = None
 
-    async def list_remote_flows(self, include_examples: bool = False) -> Dict[str, List[Dict[str, Any]]]:
-        """List flows from LangFlow.
-        
-        Args:
-            include_examples: Whether to include example flows
-            
-        Returns:
-            Dictionary of flow data dictionaries grouped by folder
-        """
-        # Get flows from LangFlow
-        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+    async def __aenter__(self):
+        """Initialize client when entering context."""
+        self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close client when exiting context."""
+        if self.client:
+            await self.client.aclose()
+
+    async def _ensure_client(self):
+        """Ensure client is initialized."""
+        if not self.client:
+            self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+
+    async def list_remote_flows(self) -> Dict[str, List[Dict]]:
+        """List remote flows from LangFlow API."""
         try:
-            # Get folders first to identify examples folder
-            folders_response = await client.get("/folders/")
+            await self._ensure_client()
+            # Get folders first
+            folders_response = await self.client.get("/folders/")
             folders_response.raise_for_status()
-            folders = folders_response.json()
-            valid_folder_ids = {f["id"] for f in folders}
-            folder_names = {f["id"]: f["name"] for f in folders}
-            
+            folders_data = folders_response.json()
+            folders = {folder["id"]: folder["name"] for folder in folders_data}
+
             # Get flows
-            response = await client.get("/flows/")
-            response.raise_for_status()
-            flows = response.json()
-            
-            # Filter out example flows (flows in folders that don't exist)
-            if not include_examples:
-                flows = [
-                    f for f in flows 
-                    if f.get("folder_id") in valid_folder_ids
-                ]
-                
-            # Group flows by folder
-            flows_by_folder = {}
+            flows_response = await self.client.get("/flows/")
+            flows_response.raise_for_status()
+            flows = flows_response.json()
+
+            # Group flows by folder, only including flows with valid folder IDs
+            flows_by_folder = defaultdict(list)
             for flow in flows:
                 folder_id = flow.get("folder_id")
-                folder_name = folder_names.get(folder_id, "No Folder")
-                if folder_name not in flows_by_folder:
-                    flows_by_folder[folder_name] = []
-                flows_by_folder[folder_name].append(flow)
-                
-            return flows_by_folder
-            
-        finally:
-            await client.aclose()
+                if folder_id and folder_id in folders:
+                    folder_name = folders[folder_id]
+                    flows_by_folder[folder_name].append(flow)
+
+            return dict(flows_by_folder)
+        except Exception as e:
+            logger.error(f"Error listing remote flows: {e}")
+            raise
 
     async def get_flow_components(self, flow_id: str) -> List[Dict[str, Any]]:
-        """Get components for a flow.
-        
-        Args:
-            flow_id: Flow ID to get components for
-            
-        Returns:
-            List of component data dictionaries
-        """
-        # Get flow data from LangFlow
-        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+        """Get flow components from LangFlow API."""
         try:
-            response = await client.get(f"/flows/{flow_id}")
+            await self._ensure_client()
+            response = await self.client.get(f"/flows/{flow_id}")
             response.raise_for_status()
-            try:
-                flow_data = await response.json()  # Try async first for test responses
-            except (AttributeError, TypeError):
-                flow_data = response.json()  # Fallback to sync for real responses
-            
-            # Extract components
+            flow_data = response.json()
+
+            # Extract components from flow data
             components = []
-            for node in flow_data.get("data", {}).get("nodes", []):
-                if "data" not in node or "type" not in node["data"]:
-                    continue
-                    
-                component = {
-                    "id": node["id"],
-                    "type": node["data"]["type"],
-                    "name": node["data"].get("display_name", node["data"].get("node", {}).get("name", "Unknown"))
-                }
-                components.append(component)
+            for node in flow_data["data"]["nodes"]:
+                node_type = node["data"].get("type")
+                if node_type in ["ChatInput", "ChatOutput"]:
+                    components.append({
+                        "id": node["id"],
+                        "type": node_type
+                    })
             return components
         except Exception as e:
             logger.error(f"Error getting flow components: {e}")
             return []
-        finally:
-            await client.aclose()
 
     async def sync_flow(
         self,
@@ -121,89 +105,61 @@ class FlowManager:
         input_component: str,
         output_component: str
     ) -> Optional[UUID]:
-        """Sync a flow from LangFlow.
-        
-        Args:
-            flow_id: Flow ID to sync
-            input_component: Input component ID
-            output_component: Output component ID
-            
-        Returns:
-            UUID of created/updated flow if successful, None otherwise
-        """
-        # Get flow data from LangFlow
-        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+        """Sync a flow from LangFlow API."""
         try:
-            response = await client.get(f"/flows/{flow_id}")
+            await self._ensure_client()
+            # Get flow data from LangFlow API
+            response = await self.client.get(f"/flows/{flow_id}")
             response.raise_for_status()
-            try:
-                flow_data = await response.json()  # Try async first for test responses
-            except (AttributeError, TypeError):
-                flow_data = response.json()  # Fallback to sync for real responses
-            
-            # Check if flow already exists with this source_id
-            result = await self.session.execute(
-                select(Flow).where(Flow.source_id == flow_id)
-            )
+            flow_data = response.json()
+
+            # Check if flow already exists
+            stmt = select(Flow).where(Flow.source_id == flow_id)
+            result = await self.session.execute(stmt)
             existing_flow = result.scalar_one_or_none()
-            
+
             if existing_flow:
                 # Update existing flow
                 existing_flow.name = flow_data.get("name", "Untitled Flow")
                 existing_flow.description = flow_data.get("description", "")
-                existing_flow.data = flow_data.get("data", {})
-                existing_flow.flow_version += 1
                 existing_flow.input_component = input_component
                 existing_flow.output_component = output_component
+                existing_flow.data = flow_data.get("data", {})
                 existing_flow.folder_id = flow_data.get("folder_id")
                 existing_flow.folder_name = flow_data.get("folder_name")
                 existing_flow.icon = flow_data.get("icon")
                 existing_flow.icon_bg_color = flow_data.get("icon_bg_color")
                 existing_flow.gradient = bool(flow_data.get("gradient", False))
-                existing_flow.liked = bool(flow_data.get("liked", False))
-                existing_flow.tags = flow_data.get("tags", [])
-                flow = existing_flow
-            else:
-                # Create new flow
-                flow = Flow(
-                    id=uuid4(),
-                    name=flow_data.get("name", "Untitled Flow"),
-                    description=flow_data.get("description", ""),
-                    data=flow_data.get("data", {}),
-                    source="langflow",
-                    source_id=flow_id,
-                    flow_version=1,
-                    input_component=input_component,
-                    output_component=output_component,
-                    folder_id=flow_data.get("folder_id"),
-                    folder_name=flow_data.get("folder_name"),
-                    icon=flow_data.get("icon"),
-                    icon_bg_color=flow_data.get("icon_bg_color"),
-                    gradient=bool(flow_data.get("gradient", False)),
-                    liked=bool(flow_data.get("liked", False)),
-                    tags=flow_data.get("tags", [])
-                )
-                self.session.add(flow)
-            
-            # Verify components exist
-            components = await self.get_flow_components(flow_id)
-            component_ids = {c["id"] for c in components}
-            if input_component not in component_ids or output_component not in component_ids:
-                logger.error(f"Invalid component IDs: {input_component}, {output_component}")
-                # Still save the flow, just log the error
-                pass
-            
-            # Save flow
+                existing_flow.flow_version += 1
+                await self.session.commit()
+                return existing_flow.id
+
+            # Create new flow
+            new_flow = Flow(
+                id=uuid4(),
+                source_id=flow_id,  # Use the original flow_id
+                name=flow_data.get("name", "Untitled Flow"),
+                description=flow_data.get("description", ""),
+                input_component=input_component,
+                output_component=output_component,
+                data=flow_data.get("data", {}),
+                source="langflow",
+                flow_version=1,
+                folder_id=flow_data.get("folder_id"),
+                folder_name=flow_data.get("folder_name"),
+                icon=flow_data.get("icon"),
+                icon_bg_color=flow_data.get("icon_bg_color"),
+                gradient=bool(flow_data.get("gradient", False))
+            )
+
+            self.session.add(new_flow)
             await self.session.commit()
-            await self.session.refresh(flow)
-            return flow.id
-            
+            return new_flow.id
         except Exception as e:
             logger.error(f"Error syncing flow: {e}")
-            await self.session.rollback()
             return None
         finally:
-            await client.aclose()
+            await self.client.aclose()
 
     async def create_schedule(
         self,

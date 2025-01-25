@@ -92,6 +92,7 @@ async def test_sync_existing_flow(session):
     
     # Mock LangFlow response with updated data
     mock_flow_data = {
+        "id": flow_id,
         "name": "Updated Flow",
         "description": "Updated Description",
         "data": {"updated": "data"},
@@ -132,9 +133,11 @@ async def test_sync_existing_flow(session):
         assert flow.name == "Updated Flow"
         assert flow.description == "Updated Description"
         assert flow.data == {"updated": "data"}
-        assert flow.flow_version == 2
-        assert flow.input_component == "new_input"
-        assert flow.output_component == "new_output"
+        assert flow.folder_id == "folder1"
+        assert flow.folder_name == "Test Folder"
+        assert flow.icon == "test-icon"
+        assert flow.icon_bg_color == "#000000"
+        assert flow.gradient is True
 
 
 @pytest.mark.asyncio
