@@ -37,8 +37,6 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Docker
-docker/
 postgres_data/
 redis_data/
 

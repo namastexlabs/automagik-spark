@@ -82,6 +82,34 @@ services:
       automagik-db:
         condition: service_healthy
 
+  # Automagik API service
+  automagik-api:
+    build: .
+    command: api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      automagik-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Automagik Worker service
+  automagik-worker:
+    build: .
+    command: worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      automagik-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   automagik-postgres:
   langflow-postgres:
