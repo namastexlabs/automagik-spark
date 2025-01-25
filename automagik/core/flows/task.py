@@ -1,7 +1,7 @@
 """Task management module."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
@@ -30,16 +30,18 @@ class TaskManager:
     ) -> Optional[UUID]:
         """Run a flow with input data."""
         try:
-            # Get flow
+            # Get flow by ID or source_id
             result = await self.session.execute(
-                select(Flow).where(Flow.id == flow_id)
+                select(Flow).where(
+                    (Flow.id == flow_id) | (Flow.source_id == str(flow_id))
+                )
             )
             flow = result.scalar_one()
             
             # Create task
             task = Task(
                 id=uuid4(),
-                flow_id=flow.id,
+                flow_id=flow.id,  # Always use local flow ID for task
                 status="pending",
                 input_data=input_data,
                 tries=0,
@@ -138,32 +140,38 @@ class TaskManager:
         """Retry a failed task."""
         try:
             # Get original task
-            original_task = await self.get_task(task_id)
-            if not original_task:
+            task = await self.get_task(task_id)
+            if not task:
                 logger.error(f"Task {task_id} not found")
                 return None
                 
-            if original_task.status != 'failed':
+            if task.status != 'failed':
                 logger.error(f"Can only retry failed tasks")
                 return None
                 
-            # Create new task
-            new_task = Task(
-                id=uuid4(),
-                flow_id=original_task.flow_id,
-                schedule_id=original_task.schedule_id,
-                status='pending',
-                input_data=original_task.input_data,
-                created_at=datetime.utcnow(),
-                max_retries=original_task.max_retries,
-                tries=0  # Reset tries count for the new task
-            )
+            if task.tries >= task.max_retries:
+                logger.error(f"Task {task_id} has exceeded maximum retries ({task.max_retries})")
+                return None
+                
+            # Calculate next retry time with exponential backoff
+            # Base delay is 5 minutes, doubles each retry
+            base_delay = timedelta(minutes=5)
+            retry_delay = base_delay * (2 ** task.tries)
             
-            self.session.add(new_task)
+            # Update task for retry
+            task.status = 'pending'
+            task.tries += 1
+            task.error = None  # Clear previous error
+            task.started_at = None
+            task.finished_at = None
+            task.next_retry_at = datetime.utcnow() + retry_delay
+            task.updated_at = datetime.utcnow()
+            
             await self.session.commit()
-            await self.session.refresh(new_task)
+            await self.session.refresh(task)
             
-            return new_task
+            logger.info(f"Task {task_id} will retry in {retry_delay.total_seconds()/60:.1f} minutes")
+            return task
             
         except Exception as e:
             logger.error(f"Error retrying task: {str(e)}")

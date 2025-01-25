@@ -66,13 +66,20 @@ class FlowSync:
             await self.session.commit()
 
             # Execute the flow
-            async with client.post(
+            response = await client.post(
                 f"/run/{flow.source_id}?stream=false",
                 json=payload,
                 timeout=600  # 10 minutes
-            ) as response:
+            )
+            try:
                 response.raise_for_status()
-                result = await response.json()
+            except httpx.HTTPStatusError as e:
+                # Get error details from response
+                error_content = response.text
+                logger.error(f"LangFlow API error response: {error_content}")
+                raise
+                
+            result = response.json()
 
             # Log component outputs in debug mode
             if "logs" in result:
@@ -113,13 +120,14 @@ class FlowSync:
             return output
 
         except Exception as e:
-            # Log the error
+            import traceback
+            # Log the error with a string representation of the traceback
             error_log = TaskLog(
                 id=uuid4(),
                 task_id=task.id,
                 level="error",
                 message=str(e),
-                data={"traceback": getattr(e, "__traceback__", None)}
+                data={"traceback": "".join(traceback.format_tb(e.__traceback__))}
             )
             self.session.add(error_log)
 

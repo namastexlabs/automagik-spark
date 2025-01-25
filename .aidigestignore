@@ -75,3 +75,6 @@ instructions/codebase.md
 *.model
 *.tar.gz
 *.zip
+
+
+/tests/mock_data/*

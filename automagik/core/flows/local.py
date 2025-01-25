@@ -20,10 +20,19 @@ class LocalFlowManager:
         self.session = session
 
     async def get_flow(self, flow_id: str) -> Optional[Flow]:
-        """Get a flow by ID."""
+        """Get a flow by ID or source_id."""
         try:
+            # Try getting by ID first
             flow = await self.session.get(Flow, flow_id)
-            return flow
+            if flow:
+                return flow
+                
+            # If not found, try by source_id
+            result = await self.session.execute(
+                select(Flow).where(Flow.source_id == flow_id)
+            )
+            return result.scalar_one_or_none()
+            
         except Exception as e:
             logger.error(f"Failed to get flow: {str(e)}")
             return None

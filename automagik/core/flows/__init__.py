@@ -11,5 +11,6 @@ This package handles all flow-related functionality including:
 from .manager import FlowManager
 from .analyzer import FlowAnalyzer
 from .sync import FlowSync
+from .task import TaskManager
 
-__all__ = ['FlowManager', 'FlowAnalyzer', 'FlowSync']
+__all__ = ['FlowManager', 'FlowAnalyzer', 'FlowSync', 'TaskManager']
