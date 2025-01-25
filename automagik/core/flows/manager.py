@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from ..config import LANGFLOW_API_URL
 from ..database.models import Flow, FlowComponent, Schedule, Task
 from ..database.session import get_session
 from .sync import FlowSync
@@ -42,7 +43,7 @@ class FlowManager:
             Dictionary of flow data dictionaries grouped by folder
         """
         # Get flows from LangFlow
-        client = httpx.AsyncClient(base_url="http://localhost:7860/api/v1")
+        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             # Get folders first to identify examples folder
             folders_response = await client.get("/folders/")
@@ -87,7 +88,7 @@ class FlowManager:
             List of component data dictionaries
         """
         # Get flow data from LangFlow
-        client = httpx.AsyncClient(base_url="http://localhost:7860/api/v1")
+        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.get(f"/flows/{flow_id}")
             response.raise_for_status()
@@ -126,7 +127,7 @@ class FlowManager:
             UUID of synced flow if successful
         """
         # Get flow data from LangFlow
-        client = httpx.AsyncClient(base_url="http://localhost:7860/api/v1")
+        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.get(f"/flows/{flow_id}")
             response.raise_for_status()
@@ -184,7 +185,7 @@ class FlowManager:
         schedule_type: str,
         schedule_expr: str,
         flow_params: Optional[Dict[str, Any]] = None
-    ) -> Optional[UUID]:
+    ) -> Optional[Schedule]:
         """Create a schedule for a flow.
         
         Args:
@@ -194,7 +195,7 @@ class FlowManager:
             flow_params: Parameters to pass to flow
             
         Returns:
-            UUID of created schedule if successful
+            Created Schedule object if successful
         """
         try:
             schedule = Schedule(
@@ -208,8 +209,9 @@ class FlowManager:
             
             self.session.add(schedule)
             await self.session.commit()
+            await self.session.refresh(schedule)
             
-            return schedule.id
+            return schedule
             
         except Exception as e:
             logger.error(f"Error creating schedule: {e}")
@@ -473,7 +475,7 @@ class FlowManager:
             .options(joinedload(Flow.schedules))
             .order_by(Flow.name)
         )
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())
 
     async def delete_flow(self, flow_id: str) -> bool:
         """Delete a flow from LangFlow.
@@ -484,7 +486,7 @@ class FlowManager:
         Returns:
             True if flow was deleted successfully, False otherwise
         """
-        client = httpx.AsyncClient(base_url="http://localhost:7860/api/v1")
+        client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.delete(f"/flows/{flow_id}")
             response.raise_for_status()
@@ -494,3 +496,30 @@ class FlowManager:
             return False
         finally:
             await client.aclose()
+
+    async def delete_schedule(self, schedule_id: UUID) -> bool:
+        """Delete a schedule.
+        
+        Args:
+            schedule_id: ID of schedule to delete
+            
+        Returns:
+            True if schedule was deleted successfully
+        """
+        try:
+            result = await self.session.execute(
+                select(Schedule).where(Schedule.id == schedule_id)
+            )
+            schedule = result.scalar_one_or_none()
+            
+            if not schedule:
+                logger.error(f"Schedule {schedule_id} not found")
+                return False
+            
+            await self.session.delete(schedule)
+            await self.session.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting schedule: {e}")
+            return False

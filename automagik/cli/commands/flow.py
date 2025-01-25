@@ -64,14 +64,21 @@ def sync(flow_id: Optional[str]):
             
             # If no flow ID provided, show list and get selection
             if not flow_id:
-                flows = await flow_manager.list_remote_flows()
-                if not flows:
+                flows_by_folder = await flow_manager.list_remote_flows()
+                if not flows_by_folder:
                     click.echo("No flows available to sync")
                     return
                 
+                # Flatten flows for selection while keeping folder info
+                flat_flows = []
+                for folder_name, flows in flows_by_folder.items():
+                    for flow in flows:
+                        flow['folder_name'] = folder_name
+                        flat_flows.append(flow)
+                
                 click.echo("\nAvailable Flows:")
-                for i, flow in enumerate(flows, 1):
-                    click.echo(f"{i}. {flow['name']}")
+                for i, flow in enumerate(flat_flows, 1):
+                    click.echo(f"{i}. [{flow['folder_name']}] {flow['name']}")
                     if flow.get('description'):
                         click.echo(f"   Description: {flow['description']}")
                 
@@ -82,11 +89,11 @@ def sync(flow_id: Optional[str]):
                     show_default=True
                 )
                 
-                if not 1 <= flow_num <= len(flows):
+                if not 1 <= flow_num <= len(flat_flows):
                     click.echo("Invalid flow number")
                     return
                     
-                flow_id = flows[flow_num - 1]['id']
+                flow_id = flat_flows[flow_num - 1]['id']
             
             # Get flow components
             components = await flow_manager.get_flow_components(flow_id)
@@ -94,15 +101,11 @@ def sync(flow_id: Optional[str]):
                 click.echo("Failed to get flow components")
                 return
                 
-            # Show components
+            # Show components and get input/output selection
             click.echo("\nFlow Components:")
             for i, comp in enumerate(components, 1):
-                click.echo(f"{i}. {comp['name']} ({comp['type']})")
-                click.echo(f"   ID: {comp['id']}")
-                if comp.get('tweakable_params'):
-                    click.echo(f"   Parameters: {', '.join(comp['tweakable_params'])}")
+                click.echo(f"{i}. {comp['id']} ({comp['type']})")
                 
-            # Select input component
             input_num = click.prompt(
                 "\nSelect input component number",
                 type=int,
@@ -110,38 +113,27 @@ def sync(flow_id: Optional[str]):
                 show_default=True
             )
             
-            if not 1 <= input_num <= len(components):
-                click.echo("Invalid input component number")
-                return
-                
-            # Select output component
             output_num = click.prompt(
-                "\nSelect output component number",
+                "Select output component number", 
                 type=int,
                 default=len(components),
                 show_default=True
             )
             
-            if not 1 <= output_num <= len(components):
-                click.echo("Invalid output component number")
+            if not (1 <= input_num <= len(components) and 1 <= output_num <= len(components)):
+                click.echo("Invalid component numbers")
                 return
                 
-            # Get component IDs
             input_component = components[input_num - 1]['id']
             output_component = components[output_num - 1]['id']
             
-            # Sync flow
-            flow_uuid = await flow_manager.sync_flow(
-                flow_id,
-                input_component,
-                output_component
-            )
-            
+            # Sync the flow
+            flow_uuid = await flow_manager.sync_flow(flow_id, input_component, output_component)
             if flow_uuid:
-                click.echo(f"\nFlow synced successfully! Flow ID: {flow_uuid}")
+                click.echo(f"\nSuccessfully synced flow with ID: {flow_uuid}")
             else:
-                click.echo("Failed to sync flow")
-    
+                click.echo("\nFailed to sync flow")
+                
     asyncio.run(_sync_flow(flow_id))
 
 @flow_group.command()

@@ -5,6 +5,7 @@ Provides CLI commands for managing flow schedules:
 - Create schedules
 - List schedules
 - Update schedule status (pause/resume/stop)
+- Delete schedules
 """
 
 import asyncio
@@ -13,6 +14,7 @@ from typing import Optional
 import logging
 from tabulate import tabulate
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from ...core.flows import FlowManager
 from ...core.database.session import get_session
@@ -182,3 +184,24 @@ def update(schedule_id: str, action: str):
                 click.echo(f"Failed to {action} schedule {schedule_id}")
     
     asyncio.run(_update_schedule())
+
+@schedule_group.command()
+@click.argument('schedule-id')
+def delete(schedule_id: str):
+    """Delete a schedule by its ID."""
+    async def _delete_schedule():
+        async with get_session() as session:
+            flow_manager = FlowManager(session)
+            
+            try:
+                schedule_uuid = UUID(schedule_id)
+            except ValueError:
+                click.echo("Invalid schedule ID format")
+                return
+                
+            if await flow_manager.delete_schedule(schedule_uuid):
+                click.echo(f"Schedule {schedule_id} deleted successfully")
+            else:
+                click.echo(f"Failed to delete schedule {schedule_id}")
+    
+    asyncio.run(_delete_schedule())
