@@ -1,0 +1,14 @@
+[
+    {
+        "name": "My Projects",
+        "description": "Manage your own projects. Download and upload folders.",
+        "id": "f4c008f0-a572-4c41-a760-f07870e5069b",
+        "parent_id": null
+    },
+    {
+        "name": "pastinha_automatica",
+        "description": "",
+        "id": "ab97ebfc-b240-4e24-8186-50318c6c3df6",
+        "parent_id": null
+    }
+]

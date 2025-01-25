@@ -1,4 +1,4 @@
-name: automagik
+version: "3.8"
 
 services:
   # Automagik's PostgreSQL
