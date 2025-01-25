@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+echo "Running pre-push checks..."
+
+# Run the test script
+if ! ./scripts/run_tests.sh; then
+    echo "❌ Pre-push checks failed. Please fix the issues before pushing."
+    exit 1
+fi
+
+echo "✅ Pre-push checks passed."
+exit 0

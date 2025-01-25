@@ -36,3 +36,9 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+postgres_data/
+redis_data/
+
+# windsurf rules
+.windsurfrules

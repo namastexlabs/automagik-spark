@@ -1,0 +1,243 @@
+"""Tests for the schedules API endpoints."""
+import pytest
+from uuid import uuid4
+from datetime import datetime, timezone
+from sqlalchemy import text
+
+from automagik.api.models import ScheduleCreate, ScheduleResponse
+from automagik.core.database.models import Schedule, Flow
+
+MOCK_API_KEY = "mock-api-key-12345"
+HEADERS = {"X-API-Key": MOCK_API_KEY}
+
+@pytest.fixture
+def test_flow():
+    """Create a test flow."""
+    return Flow(
+        id=uuid4(),
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+
+@pytest.fixture
+def test_schedule(test_flow):
+    """Create a test schedule."""
+    return Schedule(
+        id=uuid4(),
+        flow_id=test_flow.id,
+        schedule_type="cron",
+        schedule_expr="*/5 * * * *",
+        flow_params={"key": "value"},
+        status="active",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+
+@pytest.mark.asyncio
+async def test_list_schedules_empty(client, session):
+    """Test listing schedules when there are none."""
+    # First clear any existing schedules
+    async with session.begin():
+        await session.execute(text("DELETE FROM schedules"))
+        await session.execute(text("DELETE FROM flows"))
+    
+    response = client.get("/api/v1/schedules", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == []
+
+@pytest.mark.asyncio
+async def test_create_schedule(client, session, test_flow):
+    """Test creating a schedule."""
+    # First create a flow
+    async with session.begin():
+        session.add(test_flow)
+        await session.commit()
+
+    schedule_data = {
+        "flow_id": str(test_flow.id),
+        "schedule_type": "cron",
+        "schedule_expr": "*/5 * * * *",  # Every 5 minutes
+        "flow_params": {"key": "value"},
+        "status": "active"
+    }
+    
+    response = client.post("/api/v1/schedules", headers=HEADERS, json=schedule_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["flow_id"] == str(test_flow.id)
+    assert data["schedule_type"] == schedule_data["schedule_type"]
+    assert data["schedule_expr"] == schedule_data["schedule_expr"]
+    assert data["flow_params"] == schedule_data["flow_params"]
+    assert data["status"] == schedule_data["status"]
+    assert "id" in data
+    assert "created_at" in data
+    assert "updated_at" in data
+
+@pytest.mark.asyncio
+async def test_list_schedules(client, session, test_flow, test_schedule):
+    """Test listing schedules."""
+    # Create test flow and schedule
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    response = client.get("/api/v1/schedules", headers=HEADERS)
+    assert response.status_code == 200
+    schedules = response.json()
+    assert len(schedules) == 1
+    assert schedules[0]["flow_id"] == str(test_flow.id)
+    assert schedules[0]["schedule_type"] == test_schedule.schedule_type
+    assert schedules[0]["schedule_expr"] == test_schedule.schedule_expr
+    assert schedules[0]["flow_params"] == test_schedule.flow_params
+    assert schedules[0]["status"] == test_schedule.status
+
+@pytest.mark.asyncio
+async def test_get_schedule(client, session, test_flow, test_schedule):
+    """Test getting a specific schedule."""
+    # Create test flow and schedule
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    response = client.get(f"/api/v1/schedules/{test_schedule.id}", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(test_schedule.id)
+    assert data["flow_id"] == str(test_flow.id)
+    assert data["schedule_type"] == test_schedule.schedule_type
+    assert data["schedule_expr"] == test_schedule.schedule_expr
+    assert data["flow_params"] == test_schedule.flow_params
+    assert data["status"] == test_schedule.status
+
+@pytest.mark.asyncio
+async def test_get_schedule_not_found(client):
+    """Test getting a non-existent schedule."""
+    response = client.get(f"/api/v1/schedules/{uuid4()}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_update_schedule(client, session, test_flow, test_schedule):
+    """Test updating a schedule."""
+    # Create test flow and schedule
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    # Update the schedule
+    update_data = {
+        "flow_id": str(test_flow.id),
+        "schedule_type": "cron",
+        "schedule_expr": "0 * * * *",  # Every hour
+        "flow_params": {"new_key": "new_value"},
+        "status": "inactive"
+    }
+    
+    response = client.put(f"/api/v1/schedules/{test_schedule.id}", headers=HEADERS, json=update_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(test_schedule.id)
+    assert data["flow_id"] == str(test_flow.id)
+    assert data["schedule_type"] == update_data["schedule_type"]
+    assert data["schedule_expr"] == update_data["schedule_expr"]
+    assert data["flow_params"] == update_data["flow_params"]
+    assert data["status"] == update_data["status"]
+
+@pytest.mark.asyncio
+async def test_update_schedule_not_found(client):
+    """Test updating a non-existent schedule."""
+    update_data = {
+        "flow_id": str(uuid4()),
+        "schedule_type": "cron",
+        "schedule_expr": "0 * * * *",
+        "flow_params": {"new_key": "new_value"},
+        "status": "inactive"
+    }
+    
+    response = client.put(f"/api/v1/schedules/{uuid4()}", headers=HEADERS, json=update_data)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_schedule(client, session, test_flow, test_schedule):
+    """Test deleting a schedule."""
+    # Create test flow and schedule
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    response = client.delete(f"/api/v1/schedules/{test_schedule.id}", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(test_schedule.id)
+
+    # Verify schedule is deleted
+    response = client.get(f"/api/v1/schedules/{test_schedule.id}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_schedule_not_found(client):
+    """Test deleting a non-existent schedule."""
+    response = client.delete(f"/api/v1/schedules/{uuid4()}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_enable_schedule(client, session, test_flow, test_schedule):
+    """Test enabling a schedule."""
+    # Create test flow and schedule with inactive status
+    test_schedule.status = "inactive"
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    response = client.post(f"/api/v1/schedules/{test_schedule.id}/enable", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(test_schedule.id)
+    assert data["status"] == "active"
+
+@pytest.mark.asyncio
+async def test_enable_schedule_not_found(client):
+    """Test enabling a non-existent schedule."""
+    response = client.post(f"/api/v1/schedules/{uuid4()}/enable", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_disable_schedule(client, session, test_flow, test_schedule):
+    """Test disabling a schedule."""
+    # Create test flow and schedule with active status
+    async with session.begin():
+        session.add(test_flow)
+        session.add(test_schedule)
+        await session.commit()
+
+    response = client.post(f"/api/v1/schedules/{test_schedule.id}/disable", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(test_schedule.id)
+    assert data["status"] == "inactive"
+
+@pytest.mark.asyncio
+async def test_disable_schedule_not_found(client):
+    """Test disabling a non-existent schedule."""
+    response = client.post(f"/api/v1/schedules/{uuid4()}/disable", headers=HEADERS)
+    assert response.status_code == 404

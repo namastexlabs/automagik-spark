@@ -1,0 +1,52 @@
+[project]
+name = "automagik"
+version = "0.1.0"
+description = "AutoMagik - Automated workflow management with LangFlow integration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click",
+    "alembic",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "redis",
+    "aiohttp",
+    "pydantic",
+    "python-dotenv",
+    "pytz",
+    "croniter",
+    "httpx",
+    "tabulate",
+    "setuptools",
+    "asyncpg>=0.30.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+]
+
+[project.scripts]
+automagik = "automagik.cli.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.23.5",
+    "pytest-cov>=6.0.0",
+    "aiosqlite>=0.19.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["automagik"]
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: mark test as async",
+]
+asyncio_default_fixture_loop_scope = "function"

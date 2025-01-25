@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  # Automagik's PostgreSQL
+  automagik-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: automagik
+      POSTGRES_PASSWORD: automagik
+      POSTGRES_DB: automagik
+    ports:
+      - "5432:5432"
+    volumes:
+      - automagik-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automagik"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Database migrations
+  automagik-migrations:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["sh", "-c", "cd /app && alembic upgrade head"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
+    depends_on:
+      automagik-db:
+        condition: service_healthy
+
+  langflow-init:
+    image: busybox
+    command: sh -c "mkdir -p /data/langflow && chown -R 1000:1000 /data/langflow"
+    volumes:
+      - langflow-data:/data
+
+  langflow:
+    image: langflowai/langflow:latest
+    pull_policy: always
+    user: "1000:1000"
+    ports:
+      - "7860:7860"
+    environment:
+      - LANGFLOW_DATABASE_URL=sqlite:////data/langflow/langflow.db
+      - LANGFLOW_AUTO_LOGIN=true
+      - LANGFLOW_CONFIG_DIR=/data/langflow
+    volumes:
+      - langflow-data:/data
+    depends_on:
+      langflow-init:
+        condition: service_completed_successfully
+      automagik-db:
+        condition: service_healthy
+
+  # Automagik API service
+  automagik-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: api
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
+    ports:
+      - "8000:8000"
+    depends_on:
+      automagik-migrations:
+        condition: service_completed_successfully
+      automagik-db:
+        condition: service_healthy
+
+  # Automagik Worker service
+  automagik-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: worker
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
+    depends_on:
+      automagik-migrations:
+        condition: service_completed_successfully
+      automagik-db:
+        condition: service_healthy
+
+  # Redis service
+  # redis:
+  #   image: redis:alpine
+  #   ports:
+  #     - "6379:6379"
+
+volumes:
+  automagik-postgres:
+  langflow-data:
