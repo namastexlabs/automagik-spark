@@ -1,3 +1,6 @@
+# docker-compose.yml
+
+```yml
 version: "3.8"
 
 services:
@@ -96,3 +99,68 @@ services:
 volumes:
   automagik-postgres:
   langflow-data:
+```
+
+# docker-entrypoint.sh
+
+```sh
+#!/bin/bash
+set -e
+
+# Start services based on command
+case "$1" in
+    api)
+        echo "Starting API server..."
+        exec automagik api --host 0.0.0.0 --port 8000
+        ;;
+    worker)
+        echo "Starting worker..."
+        exec automagik worker start
+        ;;
+    *)
+        exec "$@"
+        ;;
+esac
+
+```
+
+# Dockerfile
+
+```
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY . .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -e .
+
+# Create directory for logs
+RUN mkdir -p /root/.automagik/logs
+
+# Copy entrypoint script
+COPY docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV AUTOMAGIK_ENV=production
+
+# Expose port for API
+EXPOSE 8000
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["api"]
+
+```
+

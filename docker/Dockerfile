@@ -4,6 +4,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -13,13 +14,13 @@ WORKDIR /app
 COPY . .
 
 # Install Python dependencies
-RUN pip install -e .
+RUN pip install --no-cache-dir -e .
 
 # Create directory for logs
 RUN mkdir -p /root/.automagik/logs
 
 # Copy entrypoint script
-COPY scripts/docker-entrypoint.sh /usr/local/bin/
+COPY docker/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set environment variables
