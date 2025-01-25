@@ -8,6 +8,7 @@ import asyncio
 import click
 import logging
 import os
+import socket
 from pathlib import Path
 import psutil
 from datetime import datetime, timezone, timedelta
@@ -20,7 +21,7 @@ from sqlalchemy import select
 from ...core.flows import FlowManager
 from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
-from ...core.database.models import Task, TaskLog
+from ...core.database.models import Task, TaskLog, Worker
 
 def configure_logging():
     """Configure logging based on environment variables."""
@@ -270,15 +271,54 @@ async def process_schedules(session):
 async def worker_loop():
     """Worker loop."""
     logger.info("Automagik worker started")
-    while True:
-        try:
-            async with get_session() as session:
-                await process_schedules(session)
-            
-        except Exception as e:
-            logger.error(f"Worker error: {str(e)}")
-            
-        await asyncio.sleep(10)
+    
+    # Register worker in database
+    worker_id = str(uuid.uuid4())
+    hostname = socket.gethostname()
+    pid = os.getpid()
+    
+    async with get_session() as session:
+        worker = Worker(
+            id=worker_id,
+            hostname=hostname,
+            pid=pid,
+            status='active',
+            stats={},
+            last_heartbeat=datetime.now(timezone.utc)
+        )
+        session.add(worker)
+        await session.commit()
+        logger.info(f"Registered worker {worker_id} ({hostname}:{pid})")
+    
+    try:
+        while True:
+            try:
+                async with get_session() as session:
+                    # Update worker heartbeat
+                    stmt = select(Worker).filter(Worker.id == worker_id)
+                    result = await session.execute(stmt)
+                    worker = result.scalar_one_or_none()
+                    if worker:
+                        worker.last_heartbeat = datetime.now(timezone.utc)
+                        await session.commit()
+                    
+                    # Process schedules
+                    await process_schedules(session)
+                
+            except Exception as e:
+                logger.error(f"Worker error: {str(e)}")
+                
+            await asyncio.sleep(10)
+    finally:
+        # Remove worker from database on shutdown
+        async with get_session() as session:
+            stmt = select(Worker).filter(Worker.id == worker_id)
+            result = await session.execute(stmt)
+            worker = result.scalar_one_or_none()
+            if worker:
+                await session.delete(worker)
+                await session.commit()
+                logger.info(f"Unregistered worker {worker_id}")
 
 def get_pid_file():
     """Get the path to the worker PID file."""

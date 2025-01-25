@@ -135,17 +135,35 @@ class Schedule(Base):
     flow_id = Column(UUID(as_uuid=True), ForeignKey("flows.id"), nullable=False)
     
     # Schedule info
-    schedule_type = Column(String(50), nullable=False)  # interval, cron
-    schedule_expr = Column(String(255), nullable=False)  # "5m", "1h", "0 8 * * *"
-    flow_params = Column(JSON)  # Parameters to pass to flow
-    
-    # Status
-    status = Column(String(50), nullable=False, default="active")  # active, paused
+    schedule_type = Column(String(50), nullable=False)  # e.g., "cron", "interval"
+    schedule_expr = Column(String(255), nullable=False)  # e.g., "* * * * *" for cron, "1h" for interval
+    flow_params = Column(JSON)  # Parameters to pass to the flow
+    status = Column(String(50), nullable=False, default="active")  # active, paused, disabled
     next_run_at = Column(DateTime(timezone=True))
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    
+
     # Relationships
     flow = relationship("Flow", back_populates="schedules")
+
+
+class Worker(Base):
+    """Worker model."""
+    __tablename__ = "workers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    hostname = Column(String(255), nullable=False)
+    pid = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False, default="active")  # active, paused, stopped
+    current_task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"))
+    stats = Column(JSON)  # Worker statistics
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    last_heartbeat = Column(DateTime(timezone=True))
+
+    # Relationships
+    current_task = relationship("Task")

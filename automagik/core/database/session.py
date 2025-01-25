@@ -42,3 +42,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
     finally:
         await session.close()
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency for getting a database session."""
+    async with async_session() as session:
+        yield session

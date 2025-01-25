@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import Security, HTTPException, status
 from fastapi.security.api_key import APIKeyHeader
 from .config import get_api_key
+from ..core.database.session import get_async_session
 
 X_API_KEY = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -32,3 +33,6 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
         )
     
     return api_key
+
+# Use the FastAPI-compatible session dependency
+get_session = get_async_session
