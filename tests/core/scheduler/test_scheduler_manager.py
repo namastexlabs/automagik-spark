@@ -120,6 +120,56 @@ async def test_create_schedule_with_nonexistent_flow(scheduler_manager):
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_with_invalid_interval_formats(scheduler_manager, sample_flow):
+    """Test creating schedules with various invalid interval formats."""
+    invalid_intervals = [
+        "30",       # Missing unit
+        "1x",       # Invalid unit
+        "0m",       # Zero value
+        "-1m",      # Negative value
+        "1.5m",     # Non-integer value
+        "m",        # Missing value
+        "",         # Empty string
+        "1mm",      # Double unit
+        "m1",       # Unit before value
+        "one m",    # Non-numeric value
+    ]
+    
+    for interval in invalid_intervals:
+        schedule = await scheduler_manager.create_schedule(
+            flow_id=sample_flow.id,
+            schedule_type="interval",
+            schedule_expr=interval,
+            flow_params={"input": "test"}
+        )
+        assert schedule is None, f"Schedule with invalid interval '{interval}' should not be created"
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_with_valid_interval_formats(scheduler_manager, sample_flow):
+    """Test creating schedules with various valid interval formats."""
+    valid_intervals = [
+        "1m",    # 1 minute
+        "30m",   # 30 minutes
+        "1h",    # 1 hour
+        "24h",   # 24 hours
+        "1d",    # 1 day
+        "7d",    # 7 days
+    ]
+    
+    for interval in valid_intervals:
+        schedule = await scheduler_manager.create_schedule(
+            flow_id=sample_flow.id,
+            schedule_type="interval",
+            schedule_expr=interval,
+            flow_params={"input": "test"}
+        )
+        assert schedule is not None, f"Schedule with valid interval '{interval}' should be created"
+        assert schedule.schedule_expr == interval
+        assert schedule.next_run_at is not None
+
+
+@pytest.mark.asyncio
 async def test_update_schedule_status(scheduler_manager, sample_flow):
     """Test updating schedule status."""
     # Create a schedule

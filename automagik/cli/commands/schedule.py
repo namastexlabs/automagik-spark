@@ -78,30 +78,33 @@ def create():
                 
                 interval = click.prompt("\nEnter interval")
                 
-                # Parse interval
-                unit = interval[-1].lower()
+                # Validate interval format
+                if not interval[-1].lower() in ['m', 'h', 'd']:
+                    click.echo("Invalid interval unit")
+                    return
+                    
                 try:
                     value = int(interval[:-1])
+                    if value <= 0:
+                        click.echo("Interval value must be positive")
+                        return
                 except ValueError:
                     click.echo("Invalid interval format")
                     return
                 
-                # Convert to minutes
-                if unit == 'm':
-                    minutes = value
-                elif unit == 'h':
-                    minutes = value * 60
-                elif unit == 'd':
-                    minutes = value * 60 * 24
-                else:
-                    click.echo("Invalid interval unit")
-                    return
+                # Use the interval string directly
+                schedule_expr = interval.lower()
                 
                 # Calculate first run
                 now = datetime.now(timezone.utc)
-                first_run = now + timedelta(minutes=1)  # Start in 1 minute
+                
+                if interval[-1] == 'm':
+                    first_run = now + timedelta(minutes=value)
+                elif interval[-1] == 'h':
+                    first_run = now + timedelta(hours=value)
+                else:  # days
+                    first_run = now + timedelta(days=value)
                 click.echo(f"\nFirst run will be at: {first_run.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-                schedule_expr = str(minutes)
                 
             else:
                 click.echo("\nCron Examples:")
@@ -138,7 +141,7 @@ def create():
                 click.echo(f"Type: {schedule_type}")
                 
                 if schedule_type == 'interval':
-                    click.echo(f"Interval: Every {schedule_expr} minutes")
+                    click.echo(f"Interval: Every {schedule_expr}")
                 else:
                     click.echo(f"Cron: {schedule_expr}")
                     

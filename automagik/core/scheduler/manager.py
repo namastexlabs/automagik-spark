@@ -57,20 +57,71 @@ class SchedulerManager:
         await self.scheduler.stop()
 
     def _validate_interval(self, interval: str) -> bool:
-        """Validate interval expression."""
+        """
+        Validate interval expression.
+        
+        Valid formats:
+        - Xm: X minutes (e.g., "1m", "30m")
+        - Xh: X hours (e.g., "1h", "24h")
+        - Xd: X days (e.g., "1d", "7d")
+        
+        Where X is a positive integer.
+        """
         try:
-            # Validate interval format (e.g., "1m", "1h", "1d")
-            match = re.match(r'^(\d+)([mhd])$', interval)
-            if not match:
+            # Must be a non-empty string
+            if not interval or not isinstance(interval, str):
                 return False
-            
-            value = int(match.group(1))
+                
+            # Must end with valid unit (m, h, d)
+            if len(interval) < 2 or interval[-1].lower() not in ['m', 'h', 'd']:
+                return False
+                
+            # Must have a value before the unit
+            value_str = interval[:-1]
+            if not value_str.isdigit():
+                return False
+                
+            # Value must be a positive integer
+            value = int(value_str)
             if value <= 0:
                 return False
                 
+            # Must not have any extra characters
+            if len(interval) != len(str(value)) + 1:
+                return False
+                
             return True
-        except (ValueError, TypeError):
+            
+        except (ValueError, TypeError, AttributeError):
             return False
+
+    def parse_interval(self, interval: str) -> timedelta:
+        """
+        Parse interval string into timedelta.
+        
+        Args:
+            interval: Interval string (e.g., "30m", "1h", "1d")
+            
+        Returns:
+            timedelta object
+            
+        Raises:
+            ValueError if interval is invalid
+        """
+        if not self._validate_interval(interval):
+            raise ValueError(f"Invalid interval format: {interval}")
+            
+        value = int(interval[:-1])
+        unit = interval[-1].lower()
+        
+        if unit == 'm':
+            return timedelta(minutes=value)
+        elif unit == 'h':
+            return timedelta(hours=value)
+        elif unit == 'd':
+            return timedelta(days=value)
+        else:
+            raise ValueError("Invalid interval unit")
 
     def _validate_cron(self, cron: str) -> bool:
         """Validate cron expression."""
@@ -86,36 +137,24 @@ class SchedulerManager:
         
         if schedule_type == "interval":
             if not self._validate_interval(schedule_expr):
+                logger.error(f"Invalid interval expression: {schedule_expr}")
                 return None
             try:
                 delta = self.parse_interval(schedule_expr)
                 return now + delta
-            except ValueError:
+            except ValueError as e:
+                logger.error(f"Error parsing interval: {e}")
                 return None
             
         elif schedule_type == "cron":
             if not self._validate_cron(schedule_expr):
+                logger.error(f"Invalid cron expression: {schedule_expr}")
                 return None
             cron = croniter(schedule_expr, now)
             next_run = cron.get_next(datetime)
             return next_run.replace(tzinfo=timezone.utc)
             
         return None
-
-    def parse_interval(self, interval: str) -> timedelta:
-        """Parse interval string into timedelta."""
-        match = re.match(r'^(\d+)([mhd])$', interval)
-        value = int(match.group(1))
-        unit = match.group(2)
-        
-        if unit == 'm':
-            return timedelta(minutes=value)
-        elif unit == 'h':
-            return timedelta(hours=value)
-        elif unit == 'd':
-            return timedelta(days=value)
-        else:
-            raise ValueError("Invalid interval unit")
 
     # Schedule database operations
     async def create_schedule(
