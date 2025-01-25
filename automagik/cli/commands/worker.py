@@ -14,6 +14,7 @@ import uuid
 import re
 
 from ...core.flows import FlowManager
+from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
 from ...core.database.models import Task, TaskLog
 
@@ -66,6 +67,9 @@ def parse_interval(interval_str: str) -> timedelta:
     - Xm (minutes)
     - Xh (hours)
     - Xd (days)
+    
+    Raises:
+        ValueError: If interval format is invalid or duration is zero/negative
     """
     match = re.match(r'^(\d+)([mhd])$', interval_str)
     if not match:
@@ -73,6 +77,9 @@ def parse_interval(interval_str: str) -> timedelta:
     
     value = int(match.group(1))
     unit = match.group(2)
+    
+    if value <= 0:
+        raise ValueError(f"Interval duration must be positive: {interval_str}")
     
     if unit == 'm':
         return timedelta(minutes=value)
@@ -83,41 +90,39 @@ def parse_interval(interval_str: str) -> timedelta:
     else:
         raise ValueError(f"Invalid interval unit: {unit}")
 
-async def process_schedules(flow_manager: FlowManager):
+async def process_schedules(session):
     """Process due schedules."""
     now = datetime.now(timezone.utc)
-    logger.info(f"Processing schedules at {now}")
     
-    # Get fresh session for each iteration
-    async with get_session() as session:
-        flow_manager = FlowManager(session)
-        schedules = await flow_manager.list_schedules()
-        
-        logger.info(f"Found {len(schedules)} schedules")
-        
-        for schedule in schedules:
-            logger.info(f"Checking schedule {schedule.id} (status: {schedule.status}, next run: {schedule.next_run_at})")
+    flow_manager = FlowManager(session)
+    scheduler_manager = SchedulerManager(session, flow_manager)
+    
+    schedules = await scheduler_manager.list_schedules()
+    active_schedules = [s for s in schedules if s.status == 'active']  # Only process active schedules
+    logger.info(f"Found {len(active_schedules)} active schedules")
+    
+    for schedule in active_schedules:
+        # Convert next_run_at to UTC if it's naive
+        next_run = schedule.next_run_at
+        if next_run and next_run.tzinfo is None:
+            next_run = next_run.replace(tzinfo=timezone.utc)
+            schedule.next_run_at = next_run
             
-            if schedule.status != 'active':
-                logger.debug(f"Skipping inactive schedule {schedule.id} (status: {schedule.status})")
-                continue
-                
-            # Convert next_run_at to UTC if it's naive
-            next_run = schedule.next_run_at
-            if next_run and next_run.tzinfo is None:
-                next_run = next_run.replace(tzinfo=timezone.utc)
-                logger.info(f"Converted naive datetime to UTC: {next_run}")
-                
-            if not next_run:
-                logger.warning(f"Schedule {schedule.id} has no next run time")
-                continue
-                
-            if next_run > now:
-                logger.debug(f"Schedule {schedule.id} not due yet (next run: {next_run}, now: {now})")
-                continue
-                
-            logger.info(f"Running schedule {schedule.id} for flow {schedule.flow.name}")
+        if not next_run:
+            logger.warning(f"Schedule {schedule.id} has no next run time")
+            continue
             
+        time_until = next_run - now
+        hours = int(time_until.total_seconds() / 3600)
+        minutes = int((time_until.total_seconds() % 3600) / 60)
+        
+        if next_run > now:
+            logger.info(f"Schedule '{schedule.flow.name}' will run in {hours}h {minutes}m (at {next_run.strftime('%H:%M:%S UTC')})")
+            continue
+            
+        logger.info(f"Executing schedule {schedule.id} for flow '{schedule.flow.name}'")
+        
+        try:
             # Create task
             task = Task(
                 id=uuid.uuid4(),
@@ -131,7 +136,9 @@ async def process_schedules(flow_manager: FlowManager):
             await session.refresh(task)
             
             # Run task
-            await run_flow(flow_manager, task)
+            success = await run_flow(flow_manager, task)
+            if success:
+                logger.info(f"Successfully executed flow '{schedule.flow.name}'")
             
             # Update next run time
             if schedule.schedule_type == 'interval':
@@ -139,21 +146,21 @@ async def process_schedules(flow_manager: FlowManager):
                     delta = parse_interval(schedule.schedule_expr)
                     schedule.next_run_at = now + delta
                     await session.commit()
+                    logger.info(f"Next run scheduled for {schedule.next_run_at.strftime('%H:%M:%S UTC')}")
                 except ValueError as e:
                     logger.error(f"Invalid interval: {e}")
                     continue
+        except Exception as e:
+            logger.error(f"Failed to process schedule {schedule.id}: {e}")
+            continue
 
 async def worker_loop():
     """Worker loop."""
-    logger.info("Starting worker...")
+    logger.info("Automagik worker started")
     while True:
         try:
-            # Get fresh session for each iteration
             async with get_session() as session:
-                flow_manager = FlowManager(session)
-                
-                # Process schedules
-                await process_schedules(flow_manager)
+                await process_schedules(session)
             
         except Exception as e:
             logger.error(f"Worker error: {str(e)}")
