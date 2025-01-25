@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta
 from croniter import croniter
+import re
+from dateutil import parser
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -57,12 +59,15 @@ class SchedulerManager:
     def _validate_interval(self, interval: str) -> bool:
         """Validate interval expression."""
         try:
-            # Convert interval to minutes
-            if not interval.isdigit():
+            # Validate interval format (e.g., "1m", "1h", "1d")
+            match = re.match(r'^(\d+)([mhd])$', interval)
+            if not match:
                 return False
-            minutes = int(interval)
-            if minutes <= 0:
+            
+            value = int(match.group(1))
+            if value <= 0:
                 return False
+                
             return True
         except (ValueError, TypeError):
             return False
@@ -82,8 +87,11 @@ class SchedulerManager:
         if schedule_type == "interval":
             if not self._validate_interval(schedule_expr):
                 return None
-            minutes = int(schedule_expr)
-            return now + timedelta(minutes=minutes)
+            try:
+                delta = self.parse_interval(schedule_expr)
+                return now + delta
+            except ValueError:
+                return None
             
         elif schedule_type == "cron":
             if not self._validate_cron(schedule_expr):
@@ -93,6 +101,21 @@ class SchedulerManager:
             return next_run.replace(tzinfo=timezone.utc)
             
         return None
+
+    def parse_interval(self, interval: str) -> timedelta:
+        """Parse interval string into timedelta."""
+        match = re.match(r'^(\d+)([mhd])$', interval)
+        value = int(match.group(1))
+        unit = match.group(2)
+        
+        if unit == 'm':
+            return timedelta(minutes=value)
+        elif unit == 'h':
+            return timedelta(hours=value)
+        elif unit == 'd':
+            return timedelta(days=value)
+        else:
+            raise ValueError("Invalid interval unit")
 
     # Schedule database operations
     async def create_schedule(
@@ -220,6 +243,56 @@ class SchedulerManager:
         except Exception as e:
             logger.error(f"Error updating schedule next run: {str(e)}")
             await self.session.rollback()
+            return False
+
+    async def update_schedule_expression(
+        self,
+        schedule_id: UUID,
+        schedule_expr: str
+    ) -> bool:
+        """
+        Update a schedule's expression.
+        
+        Args:
+            schedule_id: Schedule ID
+            schedule_expr: New schedule expression
+            
+        Returns:
+            True if update was successful
+        """
+        try:
+            # Get schedule
+            result = await self.session.execute(
+                select(Schedule).where(Schedule.id == schedule_id)
+            )
+            schedule = result.scalar_one()
+            
+            # Validate new expression
+            if schedule.schedule_type == 'interval':
+                if not self._validate_interval(schedule_expr):
+                    logger.error(f"Invalid interval expression: {schedule_expr}")
+                    return False
+            else:  # cron
+                if not self._validate_cron(schedule_expr):
+                    logger.error(f"Invalid cron expression: {schedule_expr}")
+                    return False
+            
+            # Update expression
+            schedule.schedule_expr = schedule_expr
+            
+            # Calculate and update next run time
+            next_run = self._calculate_next_run(schedule.schedule_type, schedule_expr)
+            if next_run:
+                schedule.next_run_at = next_run
+            else:
+                logger.error(f"Failed to calculate next run time for expression: {schedule_expr}")
+                return False
+            
+            await self.session.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating schedule expression: {str(e)}")
             return False
 
     async def delete_schedule(self, schedule_id: UUID) -> bool:

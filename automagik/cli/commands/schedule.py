@@ -206,6 +206,24 @@ def update(schedule_id: str, action: str):
 
 @schedule_group.command()
 @click.argument('schedule_id')
+@click.argument('expression')
+def set_expression(schedule_id: str, expression: str):
+    """Update schedule expression."""
+    async def _update_expression():
+        async with get_session() as session:
+            flow_manager = FlowManager(session)
+            scheduler_manager = SchedulerManager(session, flow_manager)
+            result = await scheduler_manager.update_schedule_expression(schedule_id, expression)
+            
+            if result:
+                click.echo(f"Schedule {schedule_id} expression updated to '{expression}'")
+            else:
+                click.echo(f"Failed to update schedule {schedule_id} expression")
+    
+    asyncio.run(_update_expression())
+
+@schedule_group.command()
+@click.argument('schedule_id')
 def delete(schedule_id: str):
     """Delete a schedule."""
     async def _delete_schedule():

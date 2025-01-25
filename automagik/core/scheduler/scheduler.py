@@ -7,6 +7,7 @@ Handles scheduling and execution of flows based on cron expressions or intervals
 import asyncio
 import logging
 from datetime import datetime, timedelta
+import re
 from typing import Dict, Any, Optional, List
 import uuid
 from croniter import croniter
@@ -18,6 +19,49 @@ from ..database.models import Schedule, Task, Flow
 from ..flows.manager import FlowManager
 
 logger = logging.getLogger(__name__)
+
+def parse_interval(interval_str: str) -> timedelta:
+    """Parse an interval string into a timedelta.
+    
+    Supported formats:
+    - Xm: X minutes (e.g., "30m")
+    - Xh: X hours (e.g., "1h")
+    - Xd: X days (e.g., "7d")
+    
+    Args:
+        interval_str: Interval string to parse
+        
+    Returns:
+        timedelta object
+        
+    Raises:
+        ValueError: If the interval format is invalid
+    """
+    if not interval_str:
+        raise ValueError("Interval cannot be empty")
+        
+    match = re.match(r'^(\d+)([mhd])$', interval_str)
+    if not match:
+        raise ValueError(
+            f"Invalid interval format: {interval_str}. "
+            "Must be a number followed by 'm' (minutes), 'h' (hours), or 'd' (days). "
+            "Examples: '30m', '1h', '7d'"
+        )
+    
+    value, unit = match.groups()
+    value = int(value)
+    
+    if value <= 0:
+        raise ValueError("Interval must be positive")
+    
+    if unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'd':
+        return timedelta(days=value)
+    else:
+        raise ValueError(f"Invalid interval unit: {unit}")
 
 class FlowScheduler:
     """Manages flow scheduling and execution."""
@@ -114,9 +158,9 @@ class FlowScheduler:
                 cron = croniter(schedule.schedule_expr, from_time)
                 next_run = cron.get_next(datetime)
             else:
-                # Interval in minutes
-                interval = int(schedule.schedule_expr)
-                next_run = from_time + timedelta(minutes=interval)
+                # Parse interval string
+                delta = parse_interval(schedule.schedule_expr)
+                next_run = from_time + delta
             
             schedule.next_run_at = next_run
             return False
