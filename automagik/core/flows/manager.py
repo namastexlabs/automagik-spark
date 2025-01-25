@@ -47,15 +47,15 @@ class FlowManager:
         try:
             # Get folders first to identify examples folder
             folders_response = await client.get("/folders/")
-            folders_response.raise_for_status()
-            folders = folders_response.json()
+            await folders_response.raise_for_status()
+            folders = await folders_response.json()
             valid_folder_ids = {f["id"] for f in folders}
             folder_names = {f["id"]: f["name"] for f in folders}
             
             # Get flows
             response = await client.get("/flows/")
-            response.raise_for_status()
-            flows = response.json()
+            await response.raise_for_status()
+            flows = await response.json()
             
             # Filter out example flows (flows in folders that don't exist)
             if not include_examples:
@@ -91,8 +91,8 @@ class FlowManager:
         client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.get(f"/flows/{flow_id}")
-            response.raise_for_status()
-            flow_data = response.json()
+            await response.raise_for_status()
+            flow_data = await response.json()
             
             # Extract components
             components = []
@@ -130,8 +130,8 @@ class FlowManager:
         client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.get(f"/flows/{flow_id}")
-            response.raise_for_status()
-            flow_data = response.json()
+            await response.raise_for_status()
+            flow_data = await response.json()
             
             # Create or update flow
             flow = Flow(
@@ -489,7 +489,7 @@ class FlowManager:
         client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
         try:
             response = await client.delete(f"/flows/{flow_id}")
-            response.raise_for_status()
+            await response.raise_for_status()
             return True
         except httpx.HTTPError as e:
             logger.error(f"Failed to delete flow {flow_id}: {e}")

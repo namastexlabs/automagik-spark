@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.3.4",
     "pytest-asyncio>=0.23.5",
     "pytest-cov>=6.0.0",
+    "aiosqlite>=0.19.0",
 ]
 
 [build-system]
@@ -39,5 +40,11 @@ build-backend = "hatchling.build"
 packages = ["automagik"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
+addopts = "-v"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: mark test as async",
+]
 asyncio_default_fixture_loop_scope = "function"
