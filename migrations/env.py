@@ -1,32 +1,22 @@
+import os
+import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
-import sys
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+# Add parent directory to path so we can import our models
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Add project root to path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(project_root)
-
-# Load environment variables
-env_path = os.path.join(project_root, '.env')
-load_dotenv(env_path)
-
-from automagik.core.models.flow import Base
-from automagik.core.config import get_database_url
+from automagik.core.database import Base
+from automagik.core.database.session import DATABASE_URL
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the database URL in the alembic config
-config.set_main_option('sqlalchemy.url', get_database_url())
+# Override sqlalchemy.url with our DATABASE_URL from environment
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("+asyncpg", ""))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
