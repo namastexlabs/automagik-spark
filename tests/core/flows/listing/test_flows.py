@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from automagik.core.flows.manager import FlowManager
@@ -68,14 +68,14 @@ async def test_list_flows_with_data(flow_manager, sample_flow):
 async def test_list_remote_flows(flow_manager, mock_folders, mock_flows):
     """Test listing remote flows from LangFlow."""
     # Create response for /folders/
-    folders_response = AsyncMock()
-    folders_response.raise_for_status = AsyncMock()
-    folders_response.json = AsyncMock(return_value=mock_folders)
+    folders_response = MagicMock()
+    folders_response.raise_for_status = MagicMock()
+    folders_response.json = MagicMock(return_value=mock_folders)
 
     # Create response for /flows/
-    flows_response = AsyncMock()
-    flows_response.raise_for_status = AsyncMock()
-    flows_response.json = AsyncMock(return_value=mock_flows)
+    flows_response = MagicMock()
+    flows_response.raise_for_status = MagicMock()
+    flows_response.json = MagicMock(return_value=mock_flows)
 
     async def mock_get(url):
         if url == "/folders/":
