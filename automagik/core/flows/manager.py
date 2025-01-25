@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Flow, Schedule, Task
 from .remote import RemoteFlowManager
-from .schedule import ScheduleManager
 from .task import TaskManager
 from .local import LocalFlowManager
 
@@ -27,7 +26,6 @@ class FlowManager:
         """Initialize flow manager."""
         self.session = session
         self.remote = RemoteFlowManager(session)
-        self.schedule = ScheduleManager(session)
         self.task = TaskManager(session)
         self.local = LocalFlowManager(session)
 
@@ -57,37 +55,6 @@ class FlowManager:
     ) -> Optional[UUID]:
         """Sync a flow from LangFlow API."""
         return await self.remote.sync_flow(flow_id, input_component, output_component)
-
-    # Schedule operations
-    async def create_schedule(
-        self,
-        flow_id: UUID,
-        schedule_type: str,
-        schedule_expr: str,
-        flow_params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Schedule]:
-        """Create a schedule for a flow."""
-        return await self.schedule.create_schedule(flow_id, schedule_type, schedule_expr, flow_params)
-
-    async def list_schedules(self) -> List[Schedule]:
-        """List all schedules from database."""
-        return await self.schedule.list_schedules()
-
-    async def update_schedule_status(self, schedule_id: str, action: str) -> bool:
-        """Update schedule status."""
-        return await self.schedule.update_schedule_status(schedule_id, action)
-
-    async def update_schedule_next_run(self, schedule_id: str, next_run: datetime) -> bool:
-        """Update schedule next run time."""
-        return await self.schedule.update_schedule_next_run(schedule_id, next_run)
-
-    async def delete_schedule(self, schedule_id: UUID) -> bool:
-        """Delete a schedule."""
-        return await self.schedule.delete_schedule(schedule_id)
-
-    async def get_schedule(self, schedule_id: UUID) -> Optional[Schedule]:
-        """Get a schedule by ID."""
-        return await self.schedule.get_schedule(schedule_id)
 
     # Task operations
     async def run_flow(

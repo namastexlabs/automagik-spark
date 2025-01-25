@@ -15,8 +15,10 @@ import logging
 from tabulate import tabulate
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from croniter import croniter
 
 from ...core.flows import FlowManager
+from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ def create():
     async def _create_schedule():
         async with get_session() as session:
             flow_manager = FlowManager(session)
+            scheduler_manager = SchedulerManager(session, flow_manager)
             flows = await flow_manager.list_flows()
             
             if not flows:
@@ -98,6 +101,7 @@ def create():
                 now = datetime.now(timezone.utc)
                 first_run = now + timedelta(minutes=1)  # Start in 1 minute
                 click.echo(f"\nFirst run will be at: {first_run.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+                schedule_expr = str(minutes)
                 
             else:
                 click.echo("\nCron Examples:")
@@ -105,16 +109,26 @@ def create():
                 click.echo("  */30 * * * *  - Every 30 minutes")
                 click.echo("  0 */4 * * *   - Every 4 hours")
                 
-                minutes = 1  # TODO: Implement cron parsing
+                schedule_expr = click.prompt("\nEnter cron expression")
+                
+                # Validate cron expression
+                try:
+                    now = datetime.now(timezone.utc)
+                    cron = croniter(schedule_expr, now)
+                    first_run = cron.get_next(datetime)
+                    click.echo(f"\nFirst run will be at: {first_run.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+                except ValueError as e:
+                    click.echo(f"Invalid cron expression: {e}")
+                    return
                 
             # Get input value
             input_value = click.prompt("\nEnter input value")
             
             # Create schedule
-            schedule = await flow_manager.create_schedule(
-                str(flow.id),
+            schedule = await scheduler_manager.create_schedule(
+                flow.id,
                 schedule_type,
-                str(minutes),
+                schedule_expr,
                 {'input_value': input_value}
             )
             
@@ -124,9 +138,9 @@ def create():
                 click.echo(f"Type: {schedule_type}")
                 
                 if schedule_type == 'interval':
-                    click.echo(f"Interval: Every {minutes} minutes")
+                    click.echo(f"Interval: Every {schedule_expr} minutes")
                 else:
-                    click.echo(f"Cron: {minutes}")  # TODO: Show actual cron expression
+                    click.echo(f"Cron: {schedule_expr}")
                     
                 click.echo(f"\nInput value: {input_value}")
                 click.echo(f"\nNext run at: {schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
@@ -141,7 +155,8 @@ def list():
     async def _list_schedules():
         async with get_session() as session:
             flow_manager = FlowManager(session)
-            schedules = await flow_manager.list_schedules()
+            scheduler_manager = SchedulerManager(session, flow_manager)
+            schedules = await scheduler_manager.list_schedules()
             
             if not schedules:
                 click.echo("No schedules found")
@@ -150,35 +165,39 @@ def list():
             # Prepare table data
             rows = []
             for schedule in schedules:
-                next_run = schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run_at else 'N/A'
+                flow_name = schedule.flow.name if schedule.flow else "Unknown"
+                schedule_type = schedule.schedule_type
+                schedule_expr = schedule.schedule_expr
+                status = schedule.status
+                next_run = schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S UTC') if schedule.next_run_at else 'N/A'
                 
                 rows.append([
-                    schedule.id,
-                    schedule.flow.name,
-                    schedule.schedule_type,
-                    schedule.schedule_expr,
-                    schedule.status,
+                    str(schedule.id),
+                    flow_name,
+                    schedule_type,
+                    schedule_expr,
+                    status,
                     next_run
                 ])
             
-            # Print table
+            # Display table
             headers = ['ID', 'Flow', 'Type', 'Expression', 'Status', 'Next Run']
-            click.echo("\nFlow Schedules:")
             click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
     
     asyncio.run(_list_schedules())
 
 @schedule_group.command()
-@click.argument('schedule-id')
+@click.argument('schedule_id')
 @click.argument('action', type=click.Choice(['pause', 'resume', 'stop']))
 def update(schedule_id: str, action: str):
     """Update schedule status."""
     async def _update_schedule():
         async with get_session() as session:
             flow_manager = FlowManager(session)
-            success = await flow_manager.update_schedule_status(schedule_id, action)
+            scheduler_manager = SchedulerManager(session, flow_manager)
+            result = await scheduler_manager.update_schedule_status(schedule_id, action)
             
-            if success:
+            if result:
                 click.echo(f"Schedule {schedule_id} {action}d successfully")
             else:
                 click.echo(f"Failed to {action} schedule {schedule_id}")
@@ -186,20 +205,16 @@ def update(schedule_id: str, action: str):
     asyncio.run(_update_schedule())
 
 @schedule_group.command()
-@click.argument('schedule-id')
+@click.argument('schedule_id')
 def delete(schedule_id: str):
-    """Delete a schedule by its ID."""
+    """Delete a schedule."""
     async def _delete_schedule():
         async with get_session() as session:
             flow_manager = FlowManager(session)
+            scheduler_manager = SchedulerManager(session, flow_manager)
+            result = await scheduler_manager.delete_schedule(UUID(schedule_id))
             
-            try:
-                schedule_uuid = UUID(schedule_id)
-            except ValueError:
-                click.echo("Invalid schedule ID format")
-                return
-                
-            if await flow_manager.delete_schedule(schedule_uuid):
+            if result:
                 click.echo(f"Schedule {schedule_id} deleted successfully")
             else:
                 click.echo(f"Failed to delete schedule {schedule_id}")
