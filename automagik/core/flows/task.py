@@ -5,9 +5,10 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, func, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.types import String
 
 from ..database.models import Task, Flow
 from .sync import FlowSync
@@ -53,7 +54,7 @@ class TaskManager:
                     flow=flow,
                     task=task,
                     input_data=input_data,
-                    debug=True
+                    debug=True  # Always run in debug mode
                 )
                 return task.id
                 
@@ -80,25 +81,57 @@ class TaskManager:
         ).order_by(Task.created_at.desc())
         
         if flow_id:
-            query = query.where(Task.flow_id == flow_id)
+            try:
+                flow_uuid = UUID(flow_id)
+                query = query.where(Task.flow_id == flow_uuid)
+            except ValueError:
+                return []
+                
         if status:
             query = query.where(Task.status == status)
             
         query = query.limit(limit)
         
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
+        try:
+            result = await self.session.execute(query)
+            return list(result.scalars().all())
+        except Exception as e:
+            logger.error(f"Error listing tasks: {e}")
+            return []
 
     async def get_task(self, task_id: str) -> Optional[Task]:
         """Get a task by ID."""
-        result = await self.session.execute(
-            select(Task)
-            .options(
-                joinedload(Task.flow)
+        try:
+            # Handle truncated IDs
+            if len(task_id) < 32:
+                result = await self.session.execute(
+                    select(Task.id).where(func.substr(cast(Task.id, String), 1, len(task_id)) == task_id)
+                )
+                matches = result.scalars().all()
+                if not matches:
+                    return None
+                if len(matches) > 1:
+                    return None  # Multiple matches, can't determine which one
+                task_id = str(matches[0])
+            
+            try:
+                task_uuid = UUID(task_id)
+            except ValueError:
+                return None
+            
+            # Get full task details
+            result = await self.session.execute(
+                select(Task)
+                .options(
+                    joinedload(Task.flow)
+                )
+                .where(Task.id == task_uuid)
             )
-            .where(Task.id == task_id)
-        )
-        return result.scalar_one_or_none()
+            return result.scalar_one_or_none()
+            
+        except Exception as e:
+            logger.error(f"Error getting task: {e}")
+            return None
 
     async def retry_task(self, task_id: str) -> Optional[Task]:
         """Retry a failed task."""

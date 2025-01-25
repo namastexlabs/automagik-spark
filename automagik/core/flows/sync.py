@@ -36,7 +36,7 @@ class FlowSync:
         flow: Flow,
         task: Task,
         input_data: Dict[str, Any],
-        debug: bool = True
+        debug: bool = True  # This parameter is kept for backward compatibility
     ) -> Dict[str, Any]:
         """Execute a flow with the given input data.
         
@@ -44,7 +44,7 @@ class FlowSync:
             flow: Flow to execute
             task: Task being executed
             input_data: Input data for the flow
-            debug: Whether to run in debug mode
+            debug: Whether to run in debug mode (always True)
         
         Returns:
             Dict containing the flow output
@@ -54,9 +54,9 @@ class FlowSync:
         
         # Build the request payload
         payload = {
-            "inputs": input_data,
-            "tweaks": {},  # TODO: Support tweaks
-            "debug": debug,  # Always run in debug mode to get component outputs
+            **input_data,
+            "output_type": "debug",  # Always run in debug mode
+            "input_type": "chat"
         }
         
         try:
@@ -67,7 +67,7 @@ class FlowSync:
 
             # Execute the flow
             async with client.post(
-                f"/flows/{flow.source_id}/execute",
+                f"/run/{flow.source_id}?stream=false",
                 json=payload,
                 timeout=600  # 10 minutes
             ) as response:
@@ -75,7 +75,7 @@ class FlowSync:
                 result = await response.json()
 
             # Log component outputs in debug mode
-            if debug and "logs" in result:
+            if "logs" in result:
                 for log_entry in result["logs"]:
                     # Create task log for each component output
                     task_log = TaskLog(
@@ -143,7 +143,7 @@ class FlowSync:
     def _get_base_url(self) -> str:
         """Get base URL for LangFlow API."""
         if self._base_url is None:
-            self._base_url = "http://localhost:7860/api/v1"  # TODO: Make configurable
+            self._base_url = "http://192.168.112.125:7860/api/v1"  # TODO: Make configurable
         return self._base_url
 
     async def close(self):

@@ -41,6 +41,11 @@ def list(remote: bool):
                         click.echo("No remote flows available")
                         return
                         
+                    # Get all synced flows to check which remote flows are synced
+                    stmt = select(Flow)
+                    result = await session.execute(stmt)
+                    synced_flows = {flow.source_id: flow for flow in result.scalars().all()}
+                        
                     click.echo("\nAvailable Remote Flows:")
                     total_count = 1
                     for folder_name, flows in flows_by_folder.items():
@@ -48,7 +53,11 @@ def list(remote: bool):
                         click.echo("-" * (len(folder_name) + 4))
                         
                         for flow in flows:
-                            click.echo(f"{total_count}. {flow['name']}")
+                            flow_id = flow['id']
+                            synced_flow = synced_flows.get(flow_id)
+                            sync_status = f"[Synced: {str(synced_flow.id)[:8]}]" if synced_flow else "[Not Synced]"
+                            
+                            click.echo(f"{total_count}. {flow['name']} (ID: {flow_id}) {sync_status}")
                             if flow.get('description'):
                                 click.echo(f"   Description: {flow['description']}")
                             total_count += 1
