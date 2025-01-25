@@ -1,13 +1,18 @@
-from fastapi import FastAPI
+"""Main FastAPI application module."""
+from fastapi import FastAPI, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
-from .config import get_cors_origins
+from fastapi.security.api_key import APIKeyHeader
+from .config import get_cors_origins, get_api_key
+from .dependencies import verify_api_key
+from .routers import tasks, flows, schedules, workers
 
 app = FastAPI(
     title="AutoMagik API",
     description="AutoMagik - Automated workflow management with LangFlow integration",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    openapi_url="/api/v1/openapi.json",
 )
 
 # Configure CORS with environment variables
@@ -19,8 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-async def root():
+# API Key security scheme
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+@app.get("/api/v1/")
+async def root(api_key: str = Security(verify_api_key)):
     """Root endpoint returning API status"""
     return {
         "status": "online",
@@ -28,8 +36,8 @@ async def root():
         "version": "0.1.0"
     }
 
-# Import and include your API routers here
-# Example:
-# from .routers import tasks, workflows
-# app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-# app.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
+# Add routers with /api/v1 prefix
+app.include_router(flows.router, prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(schedules.router, prefix="/api/v1")
+app.include_router(workers.router, prefix="/api/v1")
