@@ -270,6 +270,11 @@ async def process_schedules(session):
 
 async def worker_loop():
     """Worker loop."""
+    # Skip worker registration in test environment
+    if os.getenv("AUTOMAGIK_ENV") == "testing":
+        logger.info("Skipping worker registration in test environment")
+        return
+        
     logger.info("Automagik worker started")
     
     # Register worker in database

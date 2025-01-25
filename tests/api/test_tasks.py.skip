@@ -1,0 +1,298 @@
+"""Tests for the tasks API endpoints."""
+import pytest
+from uuid import uuid4
+from datetime import datetime, timezone
+
+from automagik.api.models import TaskCreate, TaskResponse
+from automagik.core.database.models import Task, Flow
+
+MOCK_API_KEY = "mock-api-key-12345"
+HEADERS = {"X-API-Key": MOCK_API_KEY}
+
+@pytest.mark.asyncio
+async def test_list_tasks_empty(client, session):
+    """Test listing tasks when there are none."""
+    response = client.get("/api/v1/tasks", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == []
+
+@pytest.mark.asyncio
+async def test_create_task(client, session):
+    """Test creating a task."""
+    # First create a flow
+    flow_id = uuid4()
+    flow = Flow(
+        id=flow_id,
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    async with session.begin():
+        session.add(flow)
+
+    task_data = {
+        "flow_id": str(flow_id),
+        "input_data": {"key": "value"},
+        "status": "pending",
+        "tries": 0,
+        "max_retries": 3,
+        "output_data": None,
+        "error": None
+    }
+    
+    response = client.post("/api/v1/tasks", headers=HEADERS, json=task_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["flow_id"] == str(flow_id)
+    assert data["input_data"] == task_data["input_data"]
+    assert data["status"] == task_data["status"]
+    assert data["tries"] == task_data["tries"]
+    assert data["max_retries"] == task_data["max_retries"]
+    assert data["output_data"] == task_data["output_data"]
+    assert data["error"] == task_data["error"]
+    assert "id" in data
+    assert "created_at" in data
+    assert "updated_at" in data
+
+@pytest.mark.asyncio
+async def test_list_tasks(client, session):
+    """Test listing tasks."""
+    # Create a test flow and task
+    flow_id = uuid4()
+    flow = Flow(
+        id=flow_id,
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    task = Task(
+        id=uuid4(),
+        flow_id=flow_id,
+        input_data={"key": "value"},
+        status="pending",
+        tries=0,
+        max_retries=3,
+        output_data=None,
+        error=None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    async with session.begin():
+        session.add(flow)
+        session.add(task)
+
+    response = client.get("/api/v1/tasks", headers=HEADERS)
+    assert response.status_code == 200
+    tasks = response.json()
+    assert len(tasks) == 1
+    assert tasks[0]["flow_id"] == str(flow_id)
+    assert tasks[0]["input_data"] == task.input_data
+    assert tasks[0]["status"] == task.status
+    assert tasks[0]["tries"] == task.tries
+    assert tasks[0]["max_retries"] == task.max_retries
+    assert tasks[0]["output_data"] == task.output_data
+    assert tasks[0]["error"] == task.error
+
+@pytest.mark.asyncio
+async def test_get_task(client, session):
+    """Test getting a specific task."""
+    # Create a test flow and task
+    flow_id = uuid4()
+    flow = Flow(
+        id=flow_id,
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    task_id = uuid4()
+    task = Task(
+        id=task_id,
+        flow_id=flow_id,
+        input_data={"key": "value"},
+        status="pending",
+        tries=0,
+        max_retries=3,
+        output_data=None,
+        error=None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    async with session.begin():
+        session.add(flow)
+        session.add(task)
+
+    response = client.get(f"/api/v1/tasks/{task_id}", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(task_id)
+    assert data["flow_id"] == str(flow_id)
+    assert data["input_data"] == task.input_data
+    assert data["status"] == task.status
+    assert data["tries"] == task.tries
+    assert data["max_retries"] == task.max_retries
+    assert data["output_data"] == task.output_data
+    assert data["error"] == task.error
+
+@pytest.mark.asyncio
+async def test_get_task_not_found(client):
+    """Test getting a non-existent task."""
+    response = client.get(f"/api/v1/tasks/{uuid4()}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_task(client, session):
+    """Test deleting a task."""
+    # Create a test flow and task
+    flow_id = uuid4()
+    flow = Flow(
+        id=flow_id,
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    task_id = uuid4()
+    task = Task(
+        id=task_id,
+        flow_id=flow_id,
+        input_data={"key": "value"},
+        status="pending",
+        tries=0,
+        max_retries=3,
+        output_data=None,
+        error=None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    async with session.begin():
+        session.add(flow)
+        session.add(task)
+
+    response = client.delete(f"/api/v1/tasks/{task_id}", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(task_id)
+
+    # Verify task is deleted
+    response = client.get(f"/api/v1/tasks/{task_id}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_task_not_found(client):
+    """Test deleting a non-existent task."""
+    response = client.delete(f"/api/v1/tasks/{uuid4()}", headers=HEADERS)
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_run_task(client, session):
+    """Test running a task."""
+    # Create a test flow and task
+    flow_id = uuid4()
+    flow = Flow(
+        id=flow_id,
+        name="test-flow",
+        description="Test flow description",
+        data={"key": "value"},
+        source="langflow",
+        source_id=str(uuid4()),
+        flow_version=1,
+        input_component="input-1",
+        output_component="output-1",
+        is_component=False,
+        folder_id="folder-1",
+        folder_name="Test Folder",
+        icon="test-icon",
+        icon_bg_color="#FFFFFF",
+        gradient=False,
+        liked=False,
+        tags=["test"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    task_id = uuid4()
+    task = Task(
+        id=task_id,
+        flow_id=flow_id,
+        input_data={"key": "value"},
+        status="pending",
+        tries=0,
+        max_retries=3,
+        output_data=None,
+        error=None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    async with session.begin():
+        session.add(flow)
+        session.add(task)
+
+    response = client.post(f"/api/v1/tasks/{task_id}/run", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(task_id)
+    assert data["status"] == "running"
+
+@pytest.mark.asyncio
+async def test_run_task_not_found(client):
+    """Test running a non-existent task."""
+    response = client.post(f"/api/v1/tasks/{uuid4()}/run", headers=HEADERS)
+    assert response.status_code == 404

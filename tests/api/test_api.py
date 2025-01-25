@@ -1,13 +1,18 @@
 """Tests for the API endpoints."""
 import os
+import pytest
 from fastapi.testclient import TestClient
 from automagik.api.app import app
+from tests.conftest import TEST_API_KEY
 
 def test_root_endpoint(client: TestClient):
     """Test the root endpoint returns correct status."""
-    response = client.get("/api/v1/")
+    headers = {"X-API-Key": TEST_API_KEY}
+    response = client.get("/api/v1/", headers=headers)
     assert response.status_code == 200
     assert response.json()["status"] == "online"
+    assert response.json()["service"] == "AutoMagik API"
+    assert response.json()["version"] == "0.1.0"
 
 def test_docs_endpoint(client: TestClient):
     """Test the OpenAPI docs endpoint is accessible."""
@@ -28,6 +33,7 @@ def test_cors_configuration(client: TestClient):
     headers = {
         "Origin": test_origin,
         "Access-Control-Request-Method": "GET",
+        "X-API-Key": TEST_API_KEY
     }
 
     # Test preflight request
@@ -36,5 +42,5 @@ def test_cors_configuration(client: TestClient):
     assert response.headers["access-control-allow-origin"] == test_origin
 
     # Test actual request
-    response = client.get("/api/v1/", headers={"Origin": test_origin})
+    response = client.get("/api/v1/", headers={"Origin": test_origin, "X-API-Key": TEST_API_KEY})
     assert response.status_code == 200
