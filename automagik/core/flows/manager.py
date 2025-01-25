@@ -523,3 +523,17 @@ class FlowManager:
         except Exception as e:
             logger.error(f"Error deleting schedule: {e}")
             return False
+
+    async def get_schedule(self, schedule_id: UUID) -> Optional[Schedule]:
+        """Get a schedule by ID.
+
+        Args:
+            schedule_id: Schedule ID
+
+        Returns:
+            Schedule if found, None otherwise
+        """
+        result = await self.session.execute(
+            select(Schedule).where(Schedule.id == schedule_id)
+        )
+        return result.scalar_one_or_none()
