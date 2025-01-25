@@ -56,6 +56,7 @@ class TaskManager:
                     input_data=input_data,
                     debug=True  # Always run in debug mode
                 )
+                # Task status is set by execute_flow
                 return task.id
                 
             except Exception as e:

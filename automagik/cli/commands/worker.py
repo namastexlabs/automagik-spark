@@ -45,13 +45,8 @@ async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
         logger.info(f"Running flow {flow.name} (source_id: {flow.source_id}) for task {task.id}")
         result = await flow_manager.run_flow(flow.source_id, task.input_data)
         
-        # Update task status
-        task.status = 'completed' if result else 'failed'
-        task.finished_at = datetime.now(timezone.utc)
-        task.output_data = result
-        await flow_manager.session.commit()
-        
-        return True
+        # Task status is managed by run_flow
+        return result is not None
         
     except Exception as e:
         logger.error(f"Failed to run flow: {str(e)}")
