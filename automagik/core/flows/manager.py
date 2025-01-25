@@ -1,8 +1,7 @@
 """
 Flow management module.
 
-Provides the main interface for managing flows, combining functionality
-from flow_analyzer and flow_sync.
+Provides the main interface for managing flows
 """
 
 import asyncio
@@ -92,7 +91,10 @@ class FlowManager:
         try:
             response = await client.get(f"/flows/{flow_id}")
             response.raise_for_status()
-            flow_data = response.json()
+            try:
+                flow_data = await response.json()  # Try async first for test responses
+            except (AttributeError, TypeError):
+                flow_data = response.json()  # Fallback to sync for real responses
             
             # Extract components
             components = []
@@ -134,44 +136,71 @@ class FlowManager:
         try:
             response = await client.get(f"/flows/{flow_id}")
             response.raise_for_status()
-            flow_data = response.json()
+            try:
+                flow_data = await response.json()  # Try async first for test responses
+            except (AttributeError, TypeError):
+                flow_data = response.json()  # Fallback to sync for real responses
             
-            # Create or update flow
-            flow = Flow(
-                id=uuid4(),
-                name=flow_data.get("name", "Untitled Flow"),
-                description=flow_data.get("description", ""),
-                data=flow_data.get("data", {}),
-                source="langflow",
-                source_id=flow_id,
-                flow_version=1,
-                input_component=input_component,
-                output_component=output_component,
-                folder_id=flow_data.get("folder_id"),
-                folder_name=flow_data.get("folder_name"),
-                icon=flow_data.get("icon"),
-                icon_bg_color=flow_data.get("icon_bg_color"),
-                gradient=bool(flow_data.get("gradient", False)),
-                liked=bool(flow_data.get("liked", False)),
-                tags=flow_data.get("tags", [])
+            # Check if flow already exists with this source_id
+            result = await self.session.execute(
+                select(Flow).where(Flow.source_id == flow_id)
             )
+            existing_flow = result.scalar_one_or_none()
+            
+            if existing_flow:
+                # Update existing flow
+                existing_flow.name = flow_data.get("name", "Untitled Flow")
+                existing_flow.description = flow_data.get("description", "")
+                existing_flow.data = flow_data.get("data", {})
+                existing_flow.flow_version += 1
+                existing_flow.input_component = input_component
+                existing_flow.output_component = output_component
+                existing_flow.folder_id = flow_data.get("folder_id")
+                existing_flow.folder_name = flow_data.get("folder_name")
+                existing_flow.icon = flow_data.get("icon")
+                existing_flow.icon_bg_color = flow_data.get("icon_bg_color")
+                existing_flow.gradient = bool(flow_data.get("gradient", False))
+                existing_flow.liked = bool(flow_data.get("liked", False))
+                existing_flow.tags = flow_data.get("tags", [])
+                flow = existing_flow
+            else:
+                # Create new flow
+                flow = Flow(
+                    id=uuid4(),
+                    name=flow_data.get("name", "Untitled Flow"),
+                    description=flow_data.get("description", ""),
+                    data=flow_data.get("data", {}),
+                    source="langflow",
+                    source_id=flow_id,
+                    flow_version=1,
+                    input_component=input_component,
+                    output_component=output_component,
+                    folder_id=flow_data.get("folder_id"),
+                    folder_name=flow_data.get("folder_name"),
+                    icon=flow_data.get("icon"),
+                    icon_bg_color=flow_data.get("icon_bg_color"),
+                    gradient=bool(flow_data.get("gradient", False)),
+                    liked=bool(flow_data.get("liked", False)),
+                    tags=flow_data.get("tags", [])
+                )
+                self.session.add(flow)
             
             # Verify components exist
             components = await self.get_flow_components(flow_id)
             component_ids = {c["id"] for c in components}
             if input_component not in component_ids or output_component not in component_ids:
                 logger.error(f"Invalid component IDs: {input_component}, {output_component}")
-                # Still create the flow, just log the error
+                # Still save the flow, just log the error
                 pass
             
             # Save flow
-            self.session.add(flow)
             await self.session.commit()
             await self.session.refresh(flow)
             return flow.id
             
         except Exception as e:
             logger.error(f"Error syncing flow: {e}")
+            await self.session.rollback()
             return None
         finally:
             await client.aclose()
