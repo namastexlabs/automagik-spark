@@ -27,7 +27,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'automagik=automagik.cli.main:cli',
+            'automagik=automagik.cli.main:main',
         ],
     },
     python_requires='>=3.9',

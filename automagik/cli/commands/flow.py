@@ -29,29 +29,59 @@ def flow_group():
     pass
 
 @flow_group.command()
-@click.option('--all', 'show_all', is_flag=True, help='Include example flows')
-def list(show_all: bool):
-    """List available flows from LangFlow."""
+@click.option('--remote', is_flag=True, help='List remote flows from LangFlow')
+def list(remote: bool):
+    """List flows. By default shows local flows, use --remote to show LangFlow flows."""
     async def _list_flows():
         async with get_session() as session:
             flow_manager = FlowManager(session)
-            flows_by_folder = await flow_manager.list_remote_flows(include_examples=show_all)
             
-            if not flows_by_folder:
-                click.echo("No flows available")
-                return
+            if remote:
+                flows_by_folder = await flow_manager.list_remote_flows()
+                if not flows_by_folder:
+                    click.echo("No remote flows available")
+                    return
+                    
+                click.echo("\nAvailable Remote Flows:")
+                total_count = 1
+                for folder_name, flows in flows_by_folder.items():
+                    click.echo(f"\n {folder_name}:")
+                    click.echo("-" * (len(folder_name) + 4))
+                    
+                    for flow in flows:
+                        click.echo(f"{total_count}. {flow['name']}")
+                        if flow.get('description'):
+                            click.echo(f"   Description: {flow['description']}")
+                        total_count += 1
+            else:
+                # List flows from database
+                stmt = select(Flow)
+                result = await session.execute(stmt)
+                flows = result.scalars().all()
                 
-            click.echo("\nAvailable Flows:")
-            total_count = 1
-            for folder_name, flows in flows_by_folder.items():
-                click.echo(f"\n {folder_name}:")
-                click.echo("-" * (len(folder_name) + 4))
+                if not flows:
+                    click.echo("No flows synced")
+                    return
+                    
+                click.echo("\nSynced Flows:")
+                click.echo("-" * 12)
                 
+                table_data = []
                 for flow in flows:
-                    click.echo(f"{total_count}. {flow['name']}")
-                    total_count += 1
-                click.echo()
+                    folder = f"[{flow.folder_name}]" if flow.folder_name else ""
+                    table_data.append([
+                        str(flow.id)[:8],
+                        f"{folder} {flow.name}",
+                        flow.description or "",
+                        flow.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    ])
                 
+                click.echo(tabulate(
+                    table_data,
+                    headers=["ID", "Name", "Description", "Created"],
+                    tablefmt="simple"
+                ))
+
     asyncio.run(_list_flows())
 
 @flow_group.command()

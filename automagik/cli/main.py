@@ -26,7 +26,7 @@ logging.basicConfig(
 
 @click.group()
 @click.option('--debug', is_flag=True, help='Enable debug logging')
-def cli(debug: bool):
+def main(debug: bool):
     """Automagik CLI - Manage and automate LangFlow workflows."""
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -34,11 +34,11 @@ def cli(debug: bool):
         logging.getLogger().setLevel(logging.INFO)
 
 # Add command groups
-cli.add_command(flow_group)
-cli.add_command(schedule_group)
-cli.add_command(worker)
-cli.add_command(task_group)
-cli.add_command(db_group)
+main.add_command(flow_group)
+main.add_command(schedule_group)
+main.add_command(worker)
+main.add_command(task_group)
+main.add_command(db_group)
 
 if __name__ == '__main__':
-    cli()
+    main()

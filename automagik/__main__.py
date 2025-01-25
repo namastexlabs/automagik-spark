@@ -1,8 +1,8 @@
 """
-Main entry point for running automagik as a module.
+Main entry point for automagik CLI.
 """
 
-from .cli.main import cli
+from automagik.cli.main import main
 
-if __name__ == '__main__':
-    cli()
+if __name__ == "__main__":
+    main()

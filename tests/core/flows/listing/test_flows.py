@@ -4,10 +4,11 @@ import json
 import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from automagik.core.flows.manager import FlowManager
 from automagik.core.database.models import Flow
+from sqlalchemy import select
 
 @pytest.fixture
 def flow_manager(session):
@@ -117,3 +118,85 @@ async def test_list_remote_flows(flow_manager, mock_folders, mock_flows):
         for flow in mock_flows:
             if flow.get("folder_id") not in folder_ids:
                 assert flow not in all_flows, f"Example flow {flow['id']} was not filtered out"
+
+@pytest.mark.asyncio
+async def test_synced_vs_remote_flows(flow_manager, mock_flows):
+    """Test that synced flows appear in local list but not remote list."""
+    # First sync a flow
+    flow_data = mock_flows[0]
+    flow_id = flow_data["id"]
+    
+    # Get input/output components from the flow
+    nodes = flow_data["data"]["nodes"]
+    input_node = next(n for n in nodes if "ChatInput" in n["data"]["type"])
+    output_node = next(n for n in nodes if "ChatOutput" in n["data"]["type"])
+    input_component = input_node["id"]
+    output_component = output_node["id"]
+
+    # Mock the flow sync response
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value=flow_data)
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock()
+    mock_client.aclose = AsyncMock()
+
+    # Mock different responses for different endpoints
+    async def mock_get(url):
+        if "/flows/" in url and not url.endswith("/flows/"):
+            mock_response.json.return_value = flow_data
+            return mock_response
+        elif "/folders/" in url:
+            folder_response = MagicMock()
+            folder_response.json.return_value = [
+                {"id": "c54584e6-88eb-4ac0-b70c-68aee37fdce2", "name": "My Projects"}
+            ]
+            return folder_response
+        elif url.endswith("/flows/"):
+            flows_response = MagicMock()
+            flows_response.json.return_value = mock_flows
+            return flows_response
+        return mock_response
+
+    mock_client.get.side_effect = mock_get
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        # Sync the flow
+        synced_flow_id = await flow_manager.sync_flow(flow_id, input_component, output_component)
+        assert isinstance(synced_flow_id, UUID)
+
+        # Now list local flows
+        stmt = select(Flow)
+        result = await flow_manager.session.execute(stmt)
+        local_flows = result.scalars().all()
+
+        # Verify the synced flow is in local flows
+        assert len(local_flows) > 0
+        found_flow = False
+        for flow in local_flows:
+            if flow.id == synced_flow_id:
+                found_flow = True
+                assert flow.name == flow_data["name"]
+                assert flow.description == flow_data.get("description", "")
+                assert flow.source == "langflow"
+                assert flow.source_id == flow_id
+                assert flow.input_component == input_component
+                assert flow.output_component == output_component
+                break
+        assert found_flow, "Synced flow not found in local flows"
+
+        # List remote flows
+        flows_by_folder = await flow_manager.list_remote_flows()
+        assert flows_by_folder is not None
+
+        # Verify the flow exists in remote flows
+        found_in_remote = False
+        for folder_flows in flows_by_folder.values():
+            for remote_flow in folder_flows:
+                if remote_flow["id"] == flow_id:
+                    found_in_remote = True
+                    break
+            if found_in_remote:
+                break
+        assert found_in_remote, "Flow not found in remote flows"
