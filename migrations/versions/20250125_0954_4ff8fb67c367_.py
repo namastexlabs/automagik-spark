@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 8e613f145aa6
+Revision ID: 4ff8fb67c367
 Revises: 
-Create Date: 2025-01-25 03:56:10.339776+00:00
+Create Date: 2025-01-25 09:54:01.771600+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '8e613f145aa6'
+revision: str = '4ff8fb67c367'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -38,8 +38,8 @@ def upgrade() -> None:
     sa.Column('gradient', sa.Boolean(), nullable=True),
     sa.Column('liked', sa.Boolean(), nullable=True),
     sa.Column('tags', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('flow_components',
@@ -51,8 +51,8 @@ def upgrade() -> None:
     sa.Column('tweakable_params', sa.JSON(), nullable=True),
     sa.Column('is_input', sa.Boolean(), nullable=True),
     sa.Column('is_output', sa.Boolean(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flows.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -63,9 +63,9 @@ def upgrade() -> None:
     sa.Column('schedule_expr', sa.String(length=255), nullable=False),
     sa.Column('flow_params', sa.JSON(), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('next_run_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('next_run_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flows.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -78,11 +78,11 @@ def upgrade() -> None:
     sa.Column('error', sa.Text(), nullable=True),
     sa.Column('tries', sa.Integer(), nullable=True),
     sa.Column('max_retries', sa.Integer(), nullable=True),
-    sa.Column('next_retry_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('started_at', sa.DateTime(), nullable=True),
-    sa.Column('finished_at', sa.DateTime(), nullable=True),
+    sa.Column('next_retry_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flows.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -93,7 +93,7 @@ def upgrade() -> None:
     sa.Column('message', sa.Text(), nullable=False),
     sa.Column('component_id', sa.String(length=255), nullable=True),
     sa.Column('data', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

@@ -9,6 +9,7 @@ from .schedule import schedule_group
 from .worker import worker_group
 from .task import task_group
 from .db import db_group
+from .api import api
 
 __all__ = [
     'flow_group',
@@ -16,4 +17,5 @@ __all__ = [
     'task_group',
     'worker_group',
     'db_group',
+    'api',
 ]

@@ -1,9 +1,8 @@
 """CLI entry point for automagik."""
 
+import os
 import click
 import logging
-import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 from .commands import (
@@ -11,28 +10,28 @@ from .commands import (
     schedule_group,
     task_group,
     db_group,
-    worker_group
+    worker_group,
+    api
 )
 
 # Load environment variables from .env file
-env_path = Path(os.getcwd()) / '.env'
-if env_path.exists():
-    load_dotenv(env_path)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(asctime)s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S %z'
-)
+load_dotenv()
 
 @click.group()
-@click.option('--debug', is_flag=True, help='Enable debug logging')
-def main(debug: bool):
-    """Automagik CLI - Manage and automate LangFlow workflows."""
+@click.option('--debug/--no-debug', default=False, help='Enable debug mode')
+def main(debug):
+    """AutoMagik CLI"""
     if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
         logging.getLogger().setLevel(logging.DEBUG)
     else:
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
         logging.getLogger().setLevel(logging.INFO)
 
 # Add command groups
@@ -41,6 +40,7 @@ main.add_command(schedule_group)
 main.add_command(worker_group)
 main.add_command(task_group)
 main.add_command(db_group)
+main.add_command(api)
 
 if __name__ == '__main__':
     main()
