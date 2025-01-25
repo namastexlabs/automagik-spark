@@ -5,6 +5,7 @@ Provides commands for:
 - List flows
 - View flow details
 - Sync flows from LangFlow
+- Delete a flow by its ID
 """
 
 import asyncio
@@ -34,17 +35,22 @@ def list(show_all: bool):
     async def _list_flows():
         async with get_session() as session:
             flow_manager = FlowManager(session)
-            flows = await flow_manager.list_remote_flows(include_examples=show_all)
+            flows_by_folder = await flow_manager.list_remote_flows(include_examples=show_all)
             
-            if not flows:
+            if not flows_by_folder:
                 click.echo("No flows available")
                 return
                 
             click.echo("\nAvailable Flows:")
-            for i, flow in enumerate(flows, 1):
-                click.echo(f"\n{i}. {flow['name']}")
-                if flow.get('description'):
-                    click.echo(f"   Description: {flow['description']}")
+            total_count = 1
+            for folder_name, flows in flows_by_folder.items():
+                click.echo(f"\n {folder_name}:")
+                click.echo("-" * (len(folder_name) + 4))
+                
+                for flow in flows:
+                    click.echo(f"{total_count}. {flow['name']}")
+                    total_count += 1
+                click.echo()
                 
     asyncio.run(_list_flows())
 
@@ -163,3 +169,18 @@ def view(flow_name: str):
                 click.echo(f"Description: {flow.data['description']}")
                 
     asyncio.run(_view_flow())
+
+@flow_group.command()
+@click.argument('flow_id')
+def delete(flow_id: str):
+    """Delete a flow by its ID."""
+    async def _delete_flow():
+        async with get_session() as session:
+            flow_manager = FlowManager(session)
+            success = await flow_manager.delete_flow(flow_id)
+            if success:
+                click.echo(f"Successfully deleted flow {flow_id}")
+            else:
+                click.echo(f"Failed to delete flow {flow_id}")
+                
+    asyncio.run(_delete_flow())
