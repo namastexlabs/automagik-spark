@@ -1,5 +1,4 @@
 version: "3.8"
-
 services:
   # Automagik's PostgreSQL
   automagik-db:
@@ -17,19 +16,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  # Database migrations
-  automagik-migrations:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    command: ["sh", "-c", "cd /app && alembic upgrade head"]
-    env_file: ../.env
-    environment:
-      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
-    depends_on:
-      automagik-db:
-        condition: service_healthy
 
   langflow-init:
     image: busybox
@@ -60,15 +46,13 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    command: api
+    command: python -m automagik api
     env_file: ../.env
     environment:
-      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
     ports:
       - "8000:8000"
     depends_on:
-      automagik-migrations:
-        condition: service_completed_successfully
       automagik-db:
         condition: service_healthy
 
@@ -77,13 +61,11 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    command: worker
+    command: python -m automagik worker start
     env_file: ../.env
     environment:
-      DATABASE_URL: postgresql://automagik:automagik@automagik-db/automagik
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
     depends_on:
-      automagik-migrations:
-        condition: service_completed_successfully
       automagik-db:
         condition: service_healthy
 
