@@ -1,4 +1,6 @@
 """Main FastAPI application module."""
+
+import datetime
 from fastapi import FastAPI, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
@@ -27,14 +29,20 @@ app.add_middleware(
 # API Key security scheme
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-@app.get("/api/v1/")
+
+@app.get("/")
 async def root(api_key: str = Security(verify_api_key)):
     """Root endpoint returning API status"""
+    current_time = datetime.datetime.now()
     return {
         "status": "online",
         "service": "AutoMagik API",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "server_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "docs_url": "/api/v1/docs",
+        "redoc_url": "/api/v1/redoc",
     }
+
 
 # Add routers with /api/v1 prefix
 app.include_router(flows.router, prefix="/api/v1")
