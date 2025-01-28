@@ -23,10 +23,30 @@ The easiest way to get started with AutoMagik is using Docker Compose. This will
 2. Start all services:
    ```bash
    cd docker/
-   docker-compose up -d
+   docker-compose -p automagik up -d
    ```
 
-That's it! Once the command completes, you'll have:
+3. Initialize the database (first time only):
+   ```bash
+   # Initialize database schema
+   docker-compose exec automagik-api python -m automagik db init
+   
+   # Create and apply migrations
+   docker-compose exec automagik-api python -m automagik db migrate 
+   docker-compose exec automagik-api python -m automagik db upgrade
+   ```
+
+   For subsequent updates, only run:
+   ```bash
+   docker-compose exec automagik-api python -m automagik db upgrade
+   ```
+   Then restart the automagik worker: 
+   ```bash
+   docker-compose restart automagik-worker
+   ```
+      
+
+That's it! Once the commands complete, you'll have:
 - AutoMagik API running at http://localhost:8000
 - LangFlow UI at http://localhost:7860
 - PostgreSQL database running (automatically configured)
