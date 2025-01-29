@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Automagik's PostgreSQL
+  automagik-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: automagik
+      POSTGRES_PASSWORD: automagik
+      POSTGRES_DB: automagik
+    volumes:
+      - automagik-db-data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automagik"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Automagik API service
+  automagik-api:
+    image: namastexlabs/automagik-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
+      AUTOMAGIK_ENV: production
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8888:8888"
+    depends_on:
+      automagik-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - api
+
+  # Automagik Worker service
+  automagik-worker:
+    image: namastexlabs/automagik-worker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
+      AUTOMAGIK_ENV: production
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      automagik-db:
+        condition: service_healthy
+      automagik-api:
+        condition: service_healthy
+    profiles:
+      - worker
+
+  # Optional LangFlow service
+  langflow:
+    image: logspace/langflow:latest
+    ports:
+      - "17860:7860"
+    volumes:
+      - langflow-data:/data
+    profiles:
+      - langflow
+
+volumes:
+  automagik-db-data:
+  langflow-data:

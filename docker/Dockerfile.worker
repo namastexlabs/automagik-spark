@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv and add to path
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    echo 'export PATH="/root/.cargo/bin:$PATH"' >> /root/.bashrc
+
+# Install AutoMagik
+RUN . /root/.bashrc && \
+    uv pip install --system --no-cache automagik
+
+# Create non-root user
+RUN useradd -m -u 1000 automagik && \
+    mkdir -p /home/automagik/.automagik/logs && \
+    chown -R automagik:automagik /home/automagik/.automagik
+USER automagik
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV AUTOMAGIK_ENV=production
+
+# Run worker
+CMD ["python", "-m", "automagik", "worker"]

@@ -164,28 +164,36 @@ fi
 
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f docker-compose.yml --profile langflow --profile api pull && \
-    docker compose -p automagik -f docker-compose.yml --profile langflow --profile api up -d
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile api pull && \
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile api up -d
 else
-    docker compose -p automagik -f docker-compose.yml --profile api pull && \
-    docker compose -p automagik -f docker-compose.yml --profile api up -d
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile api pull && \
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile api up -d
 fi
 
-# Function to check container logs for errors
-check_container_logs() {
-    local container=$1
-    local error_count=$(docker logs $container 2>&1 | grep -iE 'error|exception|fatal' | wc -l)
-    if [ $error_count -gt 0 ]; then
-        print_error "Found errors in $container logs:"
-        docker logs $container 2>&1 | grep -iE 'error|exception|fatal'
-        return 1
-    fi
-    return 0
-}
+# Check LangFlow if installed
+if [ "$INSTALL_LANGFLOW" = true ]; then
+    print_status "Waiting for LangFlow to be ready..."
+    RETRY_COUNT=0
+    LANGFLOW_READY=false
 
-# Wait for services to be ready
-print_status "Waiting for services to be ready..."
-sleep 5
+    while [ $RETRY_COUNT -lt 30 ]; do
+        if curl -s http://localhost:17860 &> /dev/null; then
+            LANGFLOW_READY=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+    done
+    echo "" # New line after dots
+
+    if [ "$LANGFLOW_READY" = false ]; then
+        print_error "LangFlow failed to start. Checking logs..."
+        docker compose -p automagik -f scripts/docker-compose.prod.yml logs langflow
+        exit 1
+    fi
+fi
 
 # Wait for PostgreSQL
 print_status "Waiting for PostgreSQL to be ready..."
@@ -194,7 +202,7 @@ RETRY_COUNT=0
 PG_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker compose -p automagik -f docker-compose.yml exec -T automagik-db pg_isready -U automagik; then
+    if docker compose -p automagik -f scripts/docker-compose.prod.yml exec -T automagik-db pg_isready -U automagik; then
         PG_READY=true
         break
     fi
@@ -206,15 +214,15 @@ echo "" # New line after dots
 
 if [ "$PG_READY" = false ]; then
     print_error "PostgreSQL failed to start. Checking logs..."
-    docker compose -p automagik -f docker-compose.yml logs automagik-db
+    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-db
     exit 1
 fi
 
 # Initialize database
 print_status "Applying database migrations..."
-if ! docker compose -p automagik -f docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
+if ! docker compose -p automagik -f scripts/docker-compose.prod.yml exec -T automagik-api python -m automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
-    docker compose -p automagik -f docker-compose.yml logs automagik-api
+    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-api
     exit 1
 fi
 
@@ -237,41 +245,29 @@ echo "" # New line after dots
 
 if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
-    docker compose -p automagik -f docker-compose.yml logs automagik-api
+    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-api
     exit 1
 fi
 
 # Start worker containers after API is ready
 print_status "Starting worker containers..."
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f docker-compose.yml --profile langflow --profile worker up -d
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile worker up -d
 else
-    docker compose -p automagik -f docker-compose.yml --profile worker up -d
+    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile worker up -d
 fi
 
-# Check LangFlow if installed
-if [ "$INSTALL_LANGFLOW" = true ]; then
-    print_status "Waiting for LangFlow to be ready..."
-    RETRY_COUNT=0
-    LANGFLOW_READY=false
-
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if curl -s http://localhost:17860 &> /dev/null; then
-            LANGFLOW_READY=true
-            break
-        fi
-        echo -n "."
-        sleep 2
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-    done
-    echo "" # New line after dots
-
-    if [ "$LANGFLOW_READY" = false ]; then
-        print_error "LangFlow failed to start. Checking logs..."
-        docker compose -p automagik -f docker-compose.yml logs langflow
-        exit 1
+# Function to check container logs for errors
+check_container_logs() {
+    local container=$1
+    local error_count=$(docker logs $container 2>&1 | grep -iE 'error|exception|fatal' | wc -l)
+    if [ $error_count -gt 0 ]; then
+        print_error "Found errors in $container logs:"
+        docker logs $container 2>&1 | grep -iE 'error|exception|fatal'
+        return 1
     fi
-fi
+    return 0
+}
 
 # Print AutoMagik ASCII art
 cat << "EOF"                                                                                                                                                                                
@@ -346,7 +342,7 @@ fi
 
 print_status ""
 print_status "To view logs:"
-print_status "docker compose -p automagik -f docker-compose.yml logs -f"
+print_status "docker compose -p automagik -f scripts/docker-compose.prod.yml logs -f"
 print_status ""
 print_status "To stop services:"
-print_status "docker compose -p automagik -f docker-compose.yml down"
+print_status "docker compose -p automagik -f scripts/docker-compose.prod.yml down"
