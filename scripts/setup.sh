@@ -228,6 +228,7 @@ fi
 
 # Initialize database
 print_status "Applying database migrations..."
+sleep 5  # Give PostgreSQL a moment to fully initialize
 if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
     docker compose -p automagik -f ./docker-compose.yml logs automagik-api
