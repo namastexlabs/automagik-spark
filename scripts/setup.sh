@@ -98,11 +98,6 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# Create automagik directory
-AUTOMAGIK_DIR="$HOME/.automagik"
-mkdir -p "$AUTOMAGIK_DIR"
-cd "$AUTOMAGIK_DIR"
-
 # Download required files
 print_status "Downloading required files..."
 curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/namastexlabs/automagik/main/docker/docker-compose.yml
@@ -333,8 +328,8 @@ if prompt_yes_no "Would you like to install the AutoMagik CLI? (Recommended for 
 
     # Create virtual environment
     print_status "Creating virtual environment..."
-    python3 -m venv ~/.automagik/venv
-    source ~/.automagik/venv/bin/activate
+    python3 -m venv venv
+    source venv/bin/activate
 
     # Install AutoMagik with CLI dependencies
     print_status "Installing AutoMagik CLI..."
@@ -342,7 +337,7 @@ if prompt_yes_no "Would you like to install the AutoMagik CLI? (Recommended for 
     pip install automagik
 
     print_status "CLI installed successfully! "
-    print_status "You can now use commands like (after activating the venv with 'source ~/.automagik/venv/bin/activate'):"
+    print_status "You can now use commands like (after activating the venv with 'source venv/bin/activate'):"
     print_status "- automagik api"
     print_status "- automagik worker"
     print_status "- automagik flow list"
