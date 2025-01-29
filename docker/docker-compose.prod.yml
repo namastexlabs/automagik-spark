@@ -47,6 +47,7 @@ services:
   automagik-worker:
     image: namastexlabs/automagik-worker:latest
     container_name: automagik-worker
+    command: python -m automagik worker start
     env_file:
       - .env
     environment:

@@ -197,10 +197,10 @@ fi
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
     print_status "Starting services with LangFlow..."
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d automagik-db automagik-api automagik-worker
 else
     print_status "Starting services..."
-    docker compose -p automagik -f ./docker-compose.yml up -d
+    docker compose -p automagik -f ./docker-compose.yml up -d automagik-db automagik-api automagik-worker
 fi
 
 # Wait for PostgreSQL
@@ -226,16 +226,7 @@ if [ "$PG_READY" = false ]; then
     exit 1
 fi
 
-# Initialize database
-print_status "Applying database migrations..."
-sleep 5  # Give PostgreSQL a moment to fully initialize
-if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
-    print_error "Database migration failed. Checking logs..."
-    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
-    exit 1
-fi
-
-# Check API
+# Wait for API to be ready
 print_status "Waiting for API to be ready..."
 MAX_RETRIES=30
 RETRY_COUNT=0
@@ -254,6 +245,15 @@ echo "" # New line after dots
 
 if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
+    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
+    exit 1
+fi
+
+# Initialize database
+print_status "Applying database migrations..."
+sleep 5  # Give PostgreSQL a moment to fully initialize
+if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
+    print_error "Database migration failed. Checking logs..."
     docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
