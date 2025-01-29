@@ -1,151 +1,27 @@
 # AutoMagik
 
+<p align="center">
+  <img src=".github/images/automagik.svg" alt="AutoMagik Logo" width="600"/>
+</p>
+
 Because magic shouldn't be complicated.
 
 AutoMagik is a workflow automation system that lets you run AI-driven flows from [LangFlow](https://github.com/logspace-ai/langflow) with minimal fuss. Deploy tasks, monitor them, and iterate quickly—without writing a bunch of code.
 
 ---
 
-## Quick Setup (Docker)
+## Quick Setup
 
-The easiest way to get started with AutoMagik is using Docker Compose. This will automatically set up all required services including PostgreSQL, the API, worker, and LangFlow.
+The easiest way to get started with AutoMagik is using our setup script. This will automatically set up all required services including PostgreSQL, the API, worker, and optionally LangFlow.
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
+- Linux-based system (Ubuntu/Debian recommended)
 - Git (to clone the repository)
+- Python 3.10 or higher (will be installed automatically on Ubuntu/Debian if not present)
+- Docker and Docker Compose (will be installed automatically on Ubuntu/Debian if not present)
 
 ### One-Command Setup
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/namastexlabs/automagik.git
-   cd automagik
-   ```
-
-2. Start all services:
-
-   ```bash
-   cd docker/
-   docker-compose -p automagik up -d
-   ```
-
-3. Initialize the database (first time only):
-
-   ```bash
-   # Initialize database schema
-   docker-compose exec automagik-api python -m automagik db init
-   
-   # Create and apply migrations
-   docker-compose exec automagik-api python -m automagik db migrate 
-   docker-compose exec automagik-api python -m automagik db upgrade
-   ```
-
-   For subsequent updates, only run:
-
-   ```bash
-   docker-compose exec automagik-api python -m automagik db upgrade
-   ```
-
-   Then restart the automagik worker:
-
-   ```bash
-   docker restart automagik-worker
-   ```
-
-That's it! Once the commands complete, you'll have:
-
-- AutoMagik API running at <http://localhost:8000>
-- LangFlow UI at <http://localhost:7860>
-- PostgreSQL database running (automatically configured)
-- Worker service running and ready to process tasks
-
-### Verify Installation
-
-Check that everything is working:
-
-```bash
-# Check API status
-curl http://localhost:8000/api/v1/
-
-# Access API documentation
-open http://localhost:8000/api/v1/docs  # Interactive Swagger UI
-open http://localhost:8000/api/v1/redoc # ReDoc documentation
-```
-
-### What's Included
-
-- **API Server**: Handles all HTTP requests and core logic
-- **Worker**: Processes tasks and schedules
-- **Database**: PostgreSQL with all required tables automatically created
-- **LangFlow**: Visual flow editor for creating AI workflows
-
-### Next Steps
-
-1. Visit <http://localhost:7860> to create your first flow in LangFlow
-2. Use the API at <http://localhost:8000/api/v1/docs> to manage your flows and tasks
-3. Monitor task execution and logs through the API
-
-For advanced setup and configuration options, see the sections below.
-
----
-
-## How to Use the API
-
-After containers are up, you can run the AutoMagik API server. By default, the server listens on port 8000:
-
-• Check API status:
-
-  ```
-  curl http://localhost:8000/api/v1/
-  ```
-
-• Explore interactive docs:
-
-- Swagger UI: <http://localhost:8000/api/v1/docs>
-- ReDoc: <http://localhost:8000/api/v1/redoc>
-
-• Example endpoints:
-
-- GET /api/v1/flows  
-- POST /api/v1/tasks  
-- GET /api/v1/schedules  
-
-Secure your API with an API key: set AUTOMAGIK_API_KEY in your .env.
-
----
-
-## Extra: CLI Setup
-
-AutoMagik ships with a handy CLI tool. If you have Python ≥3.10:
-
-1. Clone the repo and install locally:
-
-   ```
-   git clone https://github.com/namastexlabs/automagik.git
-   cd automagik
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -e .
-   ```
-
-2. Run CLI commands, for instance:
-
-   ```
-   automagik --help
-   automagik flow list
-   automagik schedules create ...
-   automagik worker start
-   ```
-
-3. The CLI covers tasks like flow synchronization, scheduling, worker management, etc.
-
----
-
-## Development Setup
-
-For development, you'll want to set up AutoMagik locally:
 
 1. Clone the repository:
    ```bash
@@ -155,81 +31,214 @@ For development, you'll want to set up AutoMagik locally:
 
 2. Run the setup script:
    ```bash
-   ./scripts/setup.sh
+   ./scripts/setup_local.sh
    ```
-   This will:
-   - Create a virtual environment
-   - Install dependencies
-   - Set up git hooks for code quality
-   - Configure the development environment
 
-### Git Hooks
+That's it! The script will:
+- Create necessary environment files
+- Install Docker if needed (on Ubuntu/Debian)
+- Set up all required services
+- Install the CLI tool (optional)
+- Guide you through the entire process
 
-The project uses git hooks to ensure code quality:
+Once complete, you'll have:
+- AutoMagik API running at <http://localhost:8888>
+- PostgreSQL database at `localhost:15432`
+- Worker service running and ready to process tasks
+- LangFlow UI at <http://localhost:17860> (if installed)
+- CLI tool installed in a virtual environment (if chosen)
 
-- **pre-push**: Runs tests and checks test coverage before allowing pushes
-  - Ensures all tests pass
-  - Verifies test coverage is above 45%
-  - Prevents pushing if checks fail
+### Verify Installation
 
-These hooks are automatically configured when you run `setup.sh`. If you need to reconfigure them manually:
+The setup script automatically verifies all services. You can also check manually:
+
 ```bash
-git config core.hooksPath .githooks
-chmod +x .githooks/pre-push scripts/run_tests.sh
+# Check API health
+curl http://localhost:8888/health
+
+# Access API documentation
+open http://localhost:8888/api/v1/docs  # Interactive Swagger UI
+open http://localhost:8888/api/v1/redoc # ReDoc documentation
+
+# List flows (if CLI is installed)
+source .venv/bin/activate
+automagik flow list
 ```
 
----
+### What's Included
 
-## Project Structure
+- **API Server**: Handles all HTTP requests and core logic
+- **Worker**: Processes tasks and schedules
+- **Database**: PostgreSQL with all required tables automatically created
+- **LangFlow** (optional): Visual flow editor for creating AI workflows
+- **CLI Tool** (optional): Command-line interface for managing flows and tasks
 
-Here’s a simplified view of how the pieces connect:
+### Development Setup
+
+For development, use the development setup script instead:
+
+```bash
+./scripts/setup_dev.sh
+```
+
+This will:
+- Set up a development environment with additional tools
+- Configure git hooks for code quality
+- Install development dependencies
+- Use development-specific configurations
+
+### Environment Configuration
+
+The setup creates two main environment files:
+- `.env`: Your local configuration
+- `.env.example`: Template for reference
+
+Key environment variables:
+- `AUTOMAGIK_API_KEY`: API authentication key
+- `DATABASE_URL`: PostgreSQL connection string
+- `LANGFLOW_API_URL`: LangFlow instance URL
+- `AUTOMAGIK_DEBUG`: Enable debug mode (0/1)
+- `LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
+
+### Project Structure
 
 ```mermaid
 flowchart LR
-    subgraph Data Storage
-      A[PostgreSQL] & B[Redis]
+    subgraph Services
+      A[PostgreSQL] & B[LangFlow]
     end
     subgraph AutoMagik
-      E[AutoMagik CLI] -- Schedules, Tasks --> D(API / Core)
-      D(API / Core) -- Database Ops --> A
-      D(API / Core) -- Cache --> B
-      E[AutoMagik CLI] -- Worker mgmt --> D(API / Core)
+      E[CLI] -- Commands --> D[API]
+      D -- Database --> A
+      D -- Flows --> B
+      F[Worker] -- Tasks --> D
     end
-    subgraph External Tools
-      C[LangFlow]
-    end
-    
-    C -- Flow Sync --> D
 ```
 
-- “API / Core” (FastAPI) handles all HTTP requests and internal logic.  
-- “AutoMagik CLI” interacts with the core for tasks & scheduling.  
-- PostgreSQL stores flows, tasks, schedules, etc.  
-- Redis is used by workers for caching.  
-- LangFlow flows can be synced in or out.
+- **API**: Core service handling requests and business logic
+- **Worker**: Processes tasks and schedules
+- **CLI**: Command-line tool for managing flows and tasks
+- **PostgreSQL**: Stores flows, tasks, schedules, and other data
+- **LangFlow**: Optional service for creating and editing flows
 
----
+### Using the CLI
 
-## Development
+AutoMagik comes with a powerful CLI tool for managing flows, tasks, and schedules. Here are some common commands:
 
-1. Fork/clone this repository.  
-2. Create a virtual environment and install with dev dependencies:
+#### Flow Management
+```bash
+# List all flows
+automagik flow list
 
-   ```
-   pip install -e ".[dev]"
-   ```
+# View flow details
+automagik flow view FLOW_ID
 
-3. Run tests:
+# Sync a flow from LangFlow
+automagik flow sync FLOW_ID
 
-   ```
-   pytest
-   ```
+# Delete a flow
+automagik flow delete FLOW_ID
+```
 
-4. Make changes, commit, and open a pull request or push to your fork.
+#### Task Management
+```bash
+# List all tasks
+automagik task list
 
-See more details in [our docs](docs/README.md) or the main [README.md](README.md).
+# Create a new task
+automagik task create FLOW_ID --input '{"key": "value"}'
 
----
+# View task details
+automagik task view TASK_ID
 
-Enjoy your magical AI workflows!  
-If you have questions or issues, check out our [docs](docs/README.md) and open an issue if needed.
+# Retry a failed task
+automagik task retry TASK_ID
+```
+
+#### Schedule Management
+```bash
+# List all schedules
+automagik schedule list
+
+# Create a schedule (runs daily at midnight)
+automagik schedule create FLOW_ID "0 0 * * *"
+
+# Update schedule expression
+automagik schedule set-expression SCHEDULE_ID "*/15 * * * *"
+
+# Enable/disable a schedule
+automagik schedule update SCHEDULE_ID --enabled true
+
+# Delete a schedule
+automagik schedule delete SCHEDULE_ID
+```
+
+#### API and Worker Management
+```bash
+# Start the API server
+automagik api
+
+# Start the worker
+automagik worker start
+
+# Stop the worker
+automagik worker stop
+
+# Check worker status
+automagik worker status
+```
+
+
+
+### API Endpoints
+
+The API is organized under the `/api/v1` prefix and includes these main endpoints:
+
+- **Flows**: `/api/v1/flows`
+  - `GET /api/v1/flows`: List all flows
+  - `POST /api/v1/flows`: Create a new flow
+  - `GET /api/v1/flows/{id}`: Get flow details
+  - `DELETE /api/v1/flows/{id}`: Delete a flow
+
+- **Tasks**: `/api/v1/tasks`
+  - `GET /api/v1/tasks`: List all tasks
+  - `POST /api/v1/tasks`: Create a new task
+  - `GET /api/v1/tasks/{id}`: Get task details
+  - `POST /api/v1/tasks/{id}/run`: Run a task
+
+- **Schedules**: `/api/v1/schedules`
+  - `GET /api/v1/schedules`: List all schedules
+  - `POST /api/v1/schedules`: Create a schedule
+  - `GET /api/v1/schedules/{id}`: Get schedule details
+  - `DELETE /api/v1/schedules/{id}`: Delete a schedule
+
+For full API documentation, visit:
+- Swagger UI: <http://localhost:8888/api/v1/docs>
+- ReDoc: <http://localhost:8888/api/v1/redoc>
+
+### Logs and Monitoring
+
+- API logs: Available through Docker Compose logs
+- Worker logs: Configured via `AUTOMAGIK_WORKER_LOG` (default: `logs/worker.log`)
+- Database logs: Available through Docker Compose logs
+
+View all logs:
+```bash
+docker compose -p automagik -f docker/docker-compose.yml logs -f
+```
+
+### Stopping Services
+
+To stop all services:
+```bash
+docker compose -p automagik -f docker/docker-compose.yml down
+```
+
+### Next Steps
+
+1. If you installed LangFlow, visit <http://localhost:17860> to create your first flow
+2. Use the API at <http://localhost:8888/api/v1/docs> to manage your flows and tasks
+3. Try out the CLI commands with `automagik --help`
+4. Monitor task execution through logs and API endpoints
+
+For more detailed documentation, check out the `docs/` directory.
