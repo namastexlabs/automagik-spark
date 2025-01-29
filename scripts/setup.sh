@@ -163,10 +163,10 @@ mkdir -p logs
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
     print_status "Starting services with LangFlow..."
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d automagik-db automagik-api automagik-worker
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d automagik-db automagik-api
 else
     print_status "Starting services..."
-    docker compose -p automagik -f ./docker-compose.yml up -d automagik-db automagik-api automagik-worker
+    docker compose -p automagik -f ./docker-compose.yml up -d automagik-db automagik-api
 fi
 
 # Wait for PostgreSQL
@@ -223,6 +223,10 @@ if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api p
     docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
+
+# Start worker after migrations
+print_status "Starting worker..."
+docker compose -p automagik -f ./docker-compose.yml up -d automagik-worker
 
 # Print AutoMagik ASCII art
 cat << "EOF"                                                                                                                                                                                
