@@ -1,7 +1,7 @@
 # AutoMagik
 
 <p align="center">
-  <img src=".github/images/automagik.svg" alt="AutoMagik Logo" width="600"/>
+  <img src=".github/images/automagik_logo.png" alt="AutoMagik Logo" width="600"/>
 </p>
 
 Because magic shouldn't be complicated.
