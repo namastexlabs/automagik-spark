@@ -12,27 +12,19 @@ AutoMagik is a workflow automation system that lets you run AI-driven flows from
 
 ## Quick Setup
 
-The easiest way to get started with AutoMagik is using our setup script. This will automatically set up all required services including PostgreSQL, the API, worker, and optionally LangFlow.
+The easiest way to get started with AutoMagik is using our setup script. This will automatically set up all required services including PostgreSQL, the API, and worker.
 
 ### Prerequisites
 
 - Linux-based system (Ubuntu/Debian recommended)
-- Git (to clone the repository)
-- Python 3.10 or higher (will be installed automatically on Ubuntu/Debian if not present)
 - Docker and Docker Compose (will be installed automatically on Ubuntu/Debian if not present)
 
 ### One-Command Setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/namastexlabs/automagik.git
-   cd automagik
-   ```
-
-2. Run the setup script:
-   ```bash
-   ./scripts/setup_local.sh
-   ```
+Run this command to get started:
+```bash
+curl -sSL https://raw.githubusercontent.com/namastexlabs/automagik/main/scripts/setup.sh | bash
+```
 
 That's it! The script will:
 - Create necessary environment files
@@ -45,8 +37,7 @@ Once complete, you'll have:
 - AutoMagik API running at <http://localhost:8888>
 - PostgreSQL database at `localhost:15432`
 - Worker service running and ready to process tasks
-- LangFlow UI at <http://localhost:17860> (if installed)
-- CLI tool installed in a virtual environment (if chosen)
+- CLI tool installed (if chosen)
 
 ### Verify Installation
 
