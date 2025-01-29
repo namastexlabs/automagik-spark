@@ -13,12 +13,20 @@ from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
-# Get database URL from environment
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://automagik:automagik@localhost:5432/automagik')
-if not DATABASE_URL.startswith('postgresql+asyncpg://'):
-    DATABASE_URL = f"postgresql+asyncpg://{DATABASE_URL.split('://', 1)[1]}"
+# Get database URL from environment, ensure it uses asyncpg driver
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
 
-logger.info(f"Using {DATABASE_URL.split('@')[1].split('/')[0]} database")
+# Only enforce PostgreSQL check in non-testing environments
+if os.getenv('AUTOMAGIK_ENV') != 'testing':
+    if not DATABASE_URL.startswith('postgresql+asyncpg://'):
+        if DATABASE_URL.startswith('postgresql://'):
+            DATABASE_URL = f"postgresql+asyncpg://{DATABASE_URL.split('://', 1)[1]}"
+        else:
+            raise ValueError("DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'")
+
+logger.info(f"Using database at {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else DATABASE_URL}")
 
 # Create async engine
 engine = create_async_engine(

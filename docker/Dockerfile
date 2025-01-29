@@ -5,7 +5,13 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv and add to path
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    echo 'export PATH="/root/.cargo/bin:$PATH"' >> /root/.bashrc
 
 # Set working directory
 WORKDIR /app
@@ -13,8 +19,9 @@ WORKDIR /app
 # Copy project files
 COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
+# Install Python dependencies using uv
+RUN . /root/.bashrc && \
+    uv pip install --system --no-cache-dir -e .
 
 # Create directory for logs
 RUN mkdir -p /root/.automagik/logs
@@ -24,4 +31,4 @@ ENV PYTHONUNBUFFERED=1
 ENV AUTOMAGIK_ENV=production
 
 # Expose port for API
-EXPOSE 8000
+EXPOSE 8888

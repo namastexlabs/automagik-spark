@@ -30,6 +30,12 @@ app.add_middleware(
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+@app.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+
 @app.get("/")
 async def root(api_key: str = Security(verify_api_key)):
     """Root endpoint returning API status"""

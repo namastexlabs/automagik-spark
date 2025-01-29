@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: automagik
       POSTGRES_DB: automagik
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - automagik-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -15,40 +15,52 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - automagik-network
 
-  langflow-init:
-    image: busybox
-    command: sh -c "mkdir -p /data/langflow && chown -R 1000:1000 /data/langflow"
-    volumes:
-      - langflow-data:/data
-
+  # Optional LangFlow service
   langflow:
+    profiles:
+      - langflow
     image: langflowai/langflow:latest
     pull_policy: always
     ports:
-      - "7860:7860"
+      - "17860:7860"
     environment:
       - LANGFLOW_WORKERS=2
     volumes:
       - langflow-data:/data
+    networks:
+      - automagik-network
 
   # Automagik API service
   automagik-api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: automagik-api:local
+    pull_policy: never
     command: python -m automagik api
     env_file: ../.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
     ports:
-      - "8000:8000"
+      - "8888:8888"
     volumes:
       - ..:/app
     working_dir: /app
     depends_on:
       automagik-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automagik-network
 
   # Automagik Worker service
   automagik-worker:
@@ -58,17 +70,19 @@ services:
     command: python -m automagik worker start
     env_file: ../.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db/automagik
+      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
     depends_on:
       automagik-db:
         condition: service_healthy
-
-  # Redis service
-  # redis:
-  #   image: redis:alpine
-  #   ports:
-  #     - "6379:6379"
+      automagik-api:
+        condition: service_healthy
+    networks:
+      - automagik-network
 
 volumes:
   automagik-postgres:
   langflow-data:
+
+networks:
+  automagik-network:
+    name: automagik-network

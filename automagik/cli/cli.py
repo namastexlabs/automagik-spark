@@ -5,6 +5,9 @@ import click
 import logging
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
+
 from .commands import (
     flow_group,
     schedule_group,
@@ -13,9 +16,6 @@ from .commands import (
     worker_group,
     api
 )
-
-# Load environment variables from .env file
-load_dotenv()
 
 @click.group()
 @click.option('--debug/--no-debug', default=False, help='Enable debug mode')

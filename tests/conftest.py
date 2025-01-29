@@ -10,23 +10,26 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from contextlib import asynccontextmanager
 
-from automagik.core.database.models import Base
-from automagik.api.app import app
-from automagik.api.dependencies import get_session, get_async_session
-from automagik.core.database.session import async_session as production_session
-
 # Use in-memory SQLite for testing with a shared connection
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 # Test API key
 TEST_API_KEY = "mock-api-key-12345"
 
+# Set up test environment variables
+os.environ["AUTOMAGIK_ENV"] = "testing"
+os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
+
+# Now load the models after setting up the environment
+from automagik.core.database.models import Base
+from automagik.api.app import app
+from automagik.api.dependencies import get_session, get_async_session
+from automagik.core.database.session import async_session as production_session
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Set up test environment."""
-    os.environ["AUTOMAGIK_ENV"] = "testing"
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
-    os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
     yield
     os.environ.pop("AUTOMAGIK_ENV", None)
     os.environ.pop("AUTOMAGIK_API_KEY", None)

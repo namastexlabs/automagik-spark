@@ -109,14 +109,15 @@ def test_worker_start(mock_signal, mock_run, mock_pid_file, mock_log_dir):
         assert mock_signal.call_count == 2  # SIGINT and SIGTERM handlers
 
 
-def test_worker_start_already_running(mock_pid_file):
+def test_worker_start_already_running(mock_pid_file, mock_log_dir):
     """Test starting worker when already running."""
     # Write a PID file with current process ID
     os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
     with open(mock_pid_file, "w") as f:
         f.write(str(os.getpid()))
 
-    with patch("os.kill"):  # Mock the process check
+    with patch("os.kill"), \
+         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": str(mock_log_dir / "worker.log")}):
         runner = CliRunner()
         result = runner.invoke(worker_group, ["start"])
         assert result.exit_code == 0

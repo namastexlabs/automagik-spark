@@ -23,12 +23,20 @@ from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
 from ...core.database.models import Task, TaskLog, Worker
 
+# Initialize logger with basic configuration
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 def configure_logging():
     """Configure logging based on environment variables."""
     log_path = os.getenv('AUTOMAGIK_WORKER_LOG')
     if not log_path:
-        # Default to ~/.automagik/logs/worker.log
-        log_path = os.path.expanduser("~/.automagik/logs/worker.log")
+        # Check if we're in development mode (local directory exists)
+        if os.path.isdir('logs'):
+            log_path = os.path.expanduser('logs/worker.log')
+        else:
+            # Default to system logs in production
+            log_path = '/var/log/automagik/worker.log'
     
     # Ensure log directory exists
     log_dir = os.path.dirname(log_path)
@@ -44,24 +52,20 @@ def configure_logging():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # File handler
     file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(formatter)
+    logging.root.addHandler(file_handler)
     
-    # Console handler
+    # Also add console handler for development
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    
-    # Configure root logger
-    logging.root.setLevel(logging.INFO)
-    logging.root.addHandler(file_handler)
     logging.root.addHandler(console_handler)
     
+    # Set log level from environment or default to INFO
+    log_level = os.getenv('AUTOMAGIK_LOG_LEVEL', 'INFO')
+    logging.root.setLevel(getattr(logging, log_level))
+    
     return log_path
-
-# Configure logging
-log_path = configure_logging()
-logger = logging.getLogger(__name__)
 
 async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
     """Run a flow."""
@@ -328,14 +332,11 @@ async def worker_loop():
 def get_pid_file():
     """Get the path to the worker PID file."""
     pid_dir = os.path.expanduser("~/.automagik")
-    os.makedirs(pid_dir, exist_ok=True)
     return os.path.join(pid_dir, "worker.pid")
 
 def write_pid():
     """Write the current process ID to the PID file."""
-    pid_dir = os.path.expanduser("~/.automagik")
-    os.makedirs(pid_dir, exist_ok=True)
-    pid_file = os.path.join(pid_dir, "worker.pid")
+    pid_file = get_pid_file()
     logger.info(f"Writing PID {os.getpid()} to {pid_file}")
     with open(pid_file, "w") as f:
         f.write(str(os.getpid()))
@@ -364,7 +365,7 @@ def is_worker_running():
         # Process doesn't exist
         logger.debug(f"Process {pid} not found, cleaning up PID file")
         try:
-            os.unlink(os.path.expanduser("~/.automagik/worker.pid"))
+            os.unlink(get_pid_file())
         except FileNotFoundError:
             pass
         return False
@@ -459,25 +460,32 @@ def worker_group():
 @worker_group.command(name='start')
 def start_worker():
     """Start the worker process."""
-    if is_worker_running():
-        click.echo("Worker is already running")
-        return
-        
-    click.echo("Starting worker process...")
-    
-    # Write PID file
-    write_pid()
-    
-    # Setup signal handlers
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
-    
-    # Configure logging
+    # Configure logging first
     log_path = configure_logging()
     logger.info(f"Worker logs will be written to {log_path}")
-    
+
+    # Check if worker is already running
+    if is_worker_running():
+        logger.info("Worker is already running")
+        return
+        
+    # Write PID file
+    pid_dir = os.path.dirname(get_pid_file())
+    os.makedirs(pid_dir, exist_ok=True)
+    write_pid()
+
+    logger.info("Starting worker process")
+
+    # Set up signal handlers
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+
     # Run the worker loop
-    asyncio.run(worker_loop())
+    try:
+        asyncio.run(worker_loop())
+    except Exception as e:
+        logger.exception("Worker failed")
+        sys.exit(1)
 
 @worker_group.command(name='stop')
 def stop_worker_command():
