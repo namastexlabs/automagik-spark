@@ -75,6 +75,16 @@ install_docker() {
     print_warning "Please log out and back in for docker group changes to take effect"
 }
 
+# Create automagik directory
+AUTOMAGIK_DIR="$HOME/.automagik"
+mkdir -p "$AUTOMAGIK_DIR"
+cd "$AUTOMAGIK_DIR"
+
+# Download required files
+print_status "Downloading required files..."
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/namastexlabs/automagik/main/docker/docker-compose.yml
+curl -fsSL -o .env.example https://raw.githubusercontent.com/namastexlabs/automagik/main/.env.example
+
 # Function to create .env file from example
 create_env_file() {
     if [ ! -f .env.example ]; then
@@ -100,40 +110,6 @@ create_env_file() {
     print_status "Environment file created successfully!"
     print_warning "Your API key is: $API_KEY"
 }
-
-# Function to check container logs for errors
-check_container_logs() {
-    local container=$1
-    local error_count=$(docker logs $container 2>&1 | grep -iE 'error|exception|fatal' | wc -l)
-    if [ $error_count -gt 0 ]; then
-        print_error "Found errors in $container logs:"
-        docker logs $container 2>&1 | grep -iE 'error|exception|fatal'
-        return 1
-    fi
-    return 0
-}
-
-# Check if LangFlow is already running
-check_langflow() {
-    if curl -s http://localhost:7860 > /dev/null; then
-        print_status "LangFlow detected at http://localhost:7860"
-        return 0
-    elif curl -s http://localhost:17860 > /dev/null; then
-        print_status "LangFlow detected at http://localhost:17860"
-        return 0
-    fi
-    return 1
-}
-
-# Create automagik directory
-AUTOMAGIK_DIR="$HOME/.automagik"
-mkdir -p "$AUTOMAGIK_DIR"
-cd "$AUTOMAGIK_DIR"
-
-# Download required files
-print_status "Downloading required files..."
-curl -fsSL -o .env.example https://raw.githubusercontent.com/namastexlabs/automagik/refs/heads/main/.env.example
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/namastexlabs/automagik/refs/heads/main/docker/docker-compose.yml
 
 # Create .env file if it doesn't exist
 create_env_file
@@ -170,35 +146,24 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
+# Check if LangFlow is already running
+check_langflow() {
+    if curl -s http://localhost:7860 > /dev/null; then
+        print_status "LangFlow detected at http://localhost:7860"
+        return 0
+    elif curl -s http://localhost:17860 > /dev/null; then
+        print_status "LangFlow detected at http://localhost:17860"
+        return 0
+    fi
+    return 1
+}
+
 # Check if LangFlow is already running and ask to install if not
 INSTALL_LANGFLOW=false
 if ! check_langflow; then
     print_warning "LangFlow is not detected"
     if prompt_yes_no "Would you like to install LangFlow?"; then
         INSTALL_LANGFLOW=true
-    fi
-fi
-
-# Start the services
-print_status "Building and starting AutoMagik services..."
-
-# Check for existing containers and handle accordingly
-if docker ps -a | grep -q "automagik.*db.*"; then
-    # Get the actual container ID and name
-    CONTAINER_INFO=$(docker ps -a | grep "automagik.*db.*" | grep "postgres" | head -n 1)
-    DB_CONTAINER=$(echo "$CONTAINER_INFO" | awk '{print $1}')
-    DB_NAME=$(echo "$CONTAINER_INFO" | awk '{print $NF}')
-    
-    if [[ "$DB_NAME" == *"dev"* ]]; then
-        print_warning "Development database container exists ($DB_NAME)"
-    else
-        print_status "Using existing production database ($DB_NAME)"
-    fi
-    
-    # Start the container if it's not running
-    if ! docker ps -q | grep -q "$DB_CONTAINER"; then
-        print_status "Starting database container..."
-        docker start $DB_CONTAINER
     fi
 fi
 
@@ -210,6 +175,18 @@ else
     docker compose -p automagik -f docker-compose.yml --profile api pull && \
     docker compose -p automagik -f docker-compose.yml --profile api up -d
 fi
+
+# Function to check container logs for errors
+check_container_logs() {
+    local container=$1
+    local error_count=$(docker logs $container 2>&1 | grep -iE 'error|exception|fatal' | wc -l)
+    if [ $error_count -gt 0 ]; then
+        print_error "Found errors in $container logs:"
+        docker logs $container 2>&1 | grep -iE 'error|exception|fatal'
+        return 1
+    fi
+    return 0
+}
 
 # Wait for services to be ready
 print_status "Waiting for services to be ready..."
@@ -300,6 +277,7 @@ if [ "$INSTALL_LANGFLOW" = true ]; then
         exit 1
     fi
 fi
+
 # Print AutoMagik ASCII art
 cat << "EOF"                                                                                                                                                                                
        ██            ███████████  ████████   ███        ███     █       ▓███████ ░██▓ ███   ████    
@@ -312,6 +290,7 @@ cat << "EOF"
                                                                                                                                                                                                                                     
                                     Production Environment Setup
 EOF
+
 print_status "Setup completed successfully! 🎉"
 print_status "You can access:"
 print_status "- API: http://localhost:8888"
@@ -352,32 +331,18 @@ if prompt_yes_no "Would you like to install the AutoMagik CLI? (Recommended for 
         fi
     fi
 
-    # Check if uv is installed
-    if ! command -v uv &> /dev/null; then
-        print_warning "uv is not installed. Installing..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        # Add uv to PATH for current session if not already there
-        if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
-            export PATH="$HOME/.cargo/bin:$PATH"
-        fi
-    fi
-
-    # Create or use existing virtual environment
-    if [ -d .venv ]; then
-        print_status "Using existing virtual environment..."
-        source .venv/bin/activate
-    else
-        print_status "Creating virtual environment..."
-        uv venv
-        source .venv/bin/activate
-    fi
+    # Create virtual environment
+    print_status "Creating virtual environment..."
+    python3 -m venv ~/.automagik/venv
+    source ~/.automagik/venv/bin/activate
 
     # Install AutoMagik with CLI dependencies
     print_status "Installing AutoMagik CLI..."
-    uv pip install --no-cache-dir -e .
+    pip install --upgrade pip
+    pip install automagik
 
     print_status "CLI installed successfully! 🎉"
-    print_status "You can now use commands like (after activating the venv with 'source .venv/bin/activate'):"
+    print_status "You can now use commands like (after activating the venv with 'source ~/.automagik/venv/bin/activate'):"
     print_status "- automagik api"
     print_status "- automagik worker"
     print_status "- automagik flow list"
