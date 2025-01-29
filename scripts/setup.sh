@@ -36,14 +36,16 @@ download_files() {
     print_status "Downloading required files..."
     
     # Create necessary directories
-    mkdir -p docker
+    mkdir -p docker migrations
     
     # List of files to download with their source and destination paths
     declare -A FILES=(
-        ["docker/Dockerfile.api"]="docker/Dockerfile.api"
-        ["docker/Dockerfile.worker"]="docker/Dockerfile.worker"
         ["docker/docker-compose.prod.yml"]="docker-compose.yml"
         [".env.example"]=".env.example"
+        ["migrations/alembic.ini"]="migrations/alembic.ini"
+        ["migrations/env.py"]="migrations/env.py"
+        ["migrations/script.py.mako"]="migrations/script.py.mako"
+        ["migrations/versions/001_initial.py"]="migrations/versions/001_initial.py"
     )
     
     # Base URL for raw GitHub content
@@ -59,11 +61,6 @@ download_files() {
             return 1
         fi
     done
-    
-    # Update context and dockerfile paths
-    sed -i 's|context: .|context: .|g' docker-compose.yml
-    sed -i 's|dockerfile: Dockerfile.api|dockerfile: docker/Dockerfile.api|g' docker-compose.yml
-    sed -i 's|dockerfile: Dockerfile.worker|dockerfile: docker/Dockerfile.worker|g' docker-compose.yml
     
     return 0
 }
@@ -199,10 +196,10 @@ fi
 
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile api pull && \
+    print_status "Starting services with LangFlow..."
     docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile api up -d
 else
-    docker compose -p automagik -f ./docker-compose.yml --profile api pull && \
+    print_status "Starting services..."
     docker compose -p automagik -f ./docker-compose.yml --profile api up -d
 fi
 
@@ -263,9 +260,9 @@ fi
 # Start worker containers after API is ready
 print_status "Starting worker containers..."
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile worker up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile api --profile worker --profile langflow up -d
 else
-    docker compose -p automagik -f ./docker-compose.yml --profile worker up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile api --profile worker up -d
 fi
 
 # Function to check container logs for errors

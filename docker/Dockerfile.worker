@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     postgresql-client \
@@ -13,15 +13,18 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     echo 'export PATH="/root/.cargo/bin:$PATH"' >> /root/.bashrc
 
-# Install AutoMagik
-RUN . /root/.bashrc && \
-    uv pip install --system --no-cache automagik
+# Set working directory
+WORKDIR /app
 
-# Create non-root user
-RUN useradd -m -u 1000 automagik && \
-    mkdir -p /home/automagik/.automagik/logs && \
-    chown -R automagik:automagik /home/automagik/.automagik
-USER automagik
+# Copy project files
+COPY . .
+
+# Install Python dependencies using uv
+RUN . /root/.bashrc && \
+    uv pip install --system --no-cache-dir -e .
+
+# Create directory for logs
+RUN mkdir -p /root/.automagik/logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

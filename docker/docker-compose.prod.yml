@@ -17,13 +17,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - automagik-network
 
   # Automagik API service
   automagik-api:
     image: namastexlabs/automagik-api:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.api
     env_file:
       - .env
     environment:
@@ -40,15 +39,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - automagik-network
     profiles:
       - api
 
   # Automagik Worker service
   automagik-worker:
     image: namastexlabs/automagik-worker:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
     env_file:
       - .env
     environment:
@@ -60,6 +58,8 @@ services:
         condition: service_healthy
       automagik-api:
         condition: service_healthy
+    networks:
+      - automagik-network
     profiles:
       - worker
 
@@ -70,9 +70,15 @@ services:
       - "17860:7860"
     volumes:
       - langflow-data:/data
+    networks:
+      - automagik-network
     profiles:
       - langflow
 
 volumes:
   automagik-db-data:
   langflow-data:
+
+networks:
+  automagik-network:
+    name: automagik-network
