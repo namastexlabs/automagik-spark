@@ -23,7 +23,7 @@ The easiest way to get started with AutoMagik is using our setup script. This wi
 
 Run this command to get started:
 ```bash
-curl -sSL https://raw.githubusercontent.com/namastexlabs/automagik/main/scripts/setup.sh | bash
+mkdir automagik && cd automagik && wget https://raw.githubusercontent.com/namastexlabs/automagik/main/scripts/setup.sh && chmod +x setup.sh && ./setup.sh
 ```
 
 That's it! The script will:
