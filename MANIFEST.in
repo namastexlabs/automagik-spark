@@ -1,0 +1,7 @@
+include LICENSE
+include README.md
+include MANIFEST.in
+recursive-include automagik *.py
+recursive-include automagik/core/database/migrations *.py *.mako
+recursive-include docs *.md
+recursive-include .github/images *.svg
