@@ -31,7 +31,44 @@ prompt_yes_no() {
     done
 }
 
-# Check if we're on Ubuntu/Debian
+# Function to download required files
+download_files() {
+    print_status "Downloading required files..."
+    
+    # Create necessary directories
+    mkdir -p docker
+    
+    # List of files to download with their source and destination paths
+    declare -A FILES=(
+        ["docker/Dockerfile.api"]="docker/Dockerfile.api"
+        ["docker/Dockerfile.worker"]="docker/Dockerfile.worker"
+        ["docker/docker-compose.prod.yml"]="docker-compose.yml"
+        [".env.example"]=".env.example"
+    )
+    
+    # Base URL for raw GitHub content
+    BASE_URL="https://raw.githubusercontent.com/namastexlabs/automagik/main"
+    
+    # Download each file
+    for src in "${!FILES[@]}"; do
+        dest="${FILES[$src]}"
+        dir=$(dirname "$dest")
+        mkdir -p "$dir"
+        if ! curl -sSL "$BASE_URL/$src" -o "$dest"; then
+            print_error "Failed to download $src to $dest"
+            return 1
+        fi
+    done
+    
+    # Update context and dockerfile paths
+    sed -i 's|context: .|context: .|g' docker-compose.yml
+    sed -i 's|dockerfile: Dockerfile.api|dockerfile: docker/Dockerfile.api|g' docker-compose.yml
+    sed -i 's|dockerfile: Dockerfile.worker|dockerfile: docker/Dockerfile.worker|g' docker-compose.yml
+    
+    return 0
+}
+
+# Function to check if we're on Ubuntu/Debian
 check_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -99,34 +136,36 @@ if ! docker compose version &> /dev/null; then
 fi
 
 # Download required files
-print_status "Downloading required files..."
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/namastexlabs/automagik/main/docker/docker-compose.yml
-curl -fsSL -o .env.example https://raw.githubusercontent.com/namastexlabs/automagik/main/.env.example
+if ! download_files; then
+    print_error "Failed to download required files"
+    exit 1
+fi
 
 # Function to create .env file from example
 create_env_file() {
-    if [ ! -f .env.example ]; then
-        print_error ".env.example file not found"
-        exit 1
-    fi
-
     if [ -f .env ]; then
-        print_warning "An existing .env file was found."
-        if ! prompt_yes_no "Would you like to create a new one? (This will overwrite the existing file)"; then
-            print_status "Keeping existing .env file."
-            return
+        if prompt_yes_no "An existing .env file was found.\nWould you like to create a new one? (This will overwrite the existing file)"; then
+            print_status "Creating .env file from example..."
+        else
+            return 0
         fi
+    else
+        print_status "Creating .env file from example..."
     fi
 
-    print_status "Creating .env file from example..."
-    cp .env.example .env
-    
     # Generate a random API key
     API_KEY=$(openssl rand -hex 32)
-    sed -i "s/AUTOMAGIK_API_KEY=.*/AUTOMAGIK_API_KEY=$API_KEY/" .env
-    
+
+    # Create .env file from example
+    cp .env.example .env
+
+    # Update API key in .env file
+    sed -i "s/your-api-key-here/$API_KEY/g" .env
+
     print_status "Environment file created successfully!"
     print_warning "Your API key is: $API_KEY"
+
+    return 0
 }
 
 # Create .env file if it doesn't exist
@@ -141,13 +180,9 @@ print_status "Creating logs directory..."
 mkdir -p "$(dirname "$AUTOMAGIK_WORKER_LOG")"
 touch "$AUTOMAGIK_WORKER_LOG"
 
-# Check if LangFlow is already running
+# Function to check if LangFlow is running
 check_langflow() {
-    if curl -s http://localhost:7860 > /dev/null; then
-        print_status "LangFlow detected at http://localhost:7860"
-        return 0
-    elif curl -s http://localhost:17860 > /dev/null; then
-        print_status "LangFlow detected at http://localhost:17860"
+    if docker compose -p automagik -f ./docker-compose.yml ps -q langflow 2>/dev/null; then
         return 0
     fi
     return 1
@@ -164,35 +199,11 @@ fi
 
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile api pull && \
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile api up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile api pull && \
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile api up -d
 else
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile api pull && \
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile api up -d
-fi
-
-# Check LangFlow if installed
-if [ "$INSTALL_LANGFLOW" = true ]; then
-    print_status "Waiting for LangFlow to be ready..."
-    RETRY_COUNT=0
-    LANGFLOW_READY=false
-
-    while [ $RETRY_COUNT -lt 30 ]; do
-        if curl -s http://localhost:17860 &> /dev/null; then
-            LANGFLOW_READY=true
-            break
-        fi
-        echo -n "."
-        sleep 2
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-    done
-    echo "" # New line after dots
-
-    if [ "$LANGFLOW_READY" = false ]; then
-        print_error "LangFlow failed to start. Checking logs..."
-        docker compose -p automagik -f scripts/docker-compose.prod.yml logs langflow
-        exit 1
-    fi
+    docker compose -p automagik -f ./docker-compose.yml --profile api pull && \
+    docker compose -p automagik -f ./docker-compose.yml --profile api up -d
 fi
 
 # Wait for PostgreSQL
@@ -202,7 +213,7 @@ RETRY_COUNT=0
 PG_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker compose -p automagik -f scripts/docker-compose.prod.yml exec -T automagik-db pg_isready -U automagik; then
+    if docker compose -p automagik -f ./docker-compose.yml exec -T automagik-db pg_isready -U automagik; then
         PG_READY=true
         break
     fi
@@ -214,15 +225,15 @@ echo "" # New line after dots
 
 if [ "$PG_READY" = false ]; then
     print_error "PostgreSQL failed to start. Checking logs..."
-    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-db
+    docker compose -p automagik -f ./docker-compose.yml logs automagik-db
     exit 1
 fi
 
 # Initialize database
 print_status "Applying database migrations..."
-if ! docker compose -p automagik -f scripts/docker-compose.prod.yml exec -T automagik-api python -m automagik db upgrade; then
+if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
-    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-api
+    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
 
@@ -245,16 +256,16 @@ echo "" # New line after dots
 
 if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
-    docker compose -p automagik -f scripts/docker-compose.prod.yml logs automagik-api
+    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
 
 # Start worker containers after API is ready
 print_status "Starting worker containers..."
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile langflow --profile worker up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile worker up -d
 else
-    docker compose -p automagik -f scripts/docker-compose.prod.yml --profile worker up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile worker up -d
 fi
 
 # Function to check container logs for errors
@@ -342,7 +353,7 @@ fi
 
 print_status ""
 print_status "To view logs:"
-print_status "docker compose -p automagik -f scripts/docker-compose.prod.yml logs -f"
+print_status "docker compose -p automagik -f ./docker-compose.yml logs -f"
 print_status ""
 print_status "To stop services:"
-print_status "docker compose -p automagik -f scripts/docker-compose.prod.yml down"
+print_status "docker compose -p automagik -f ./docker-compose.yml down"
