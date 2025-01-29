@@ -75,6 +75,29 @@ install_docker() {
     print_warning "Please log out and back in for docker group changes to take effect"
 }
 
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    print_warning "Docker is not installed"
+    if check_os; then
+        if prompt_yes_no "Would you like to install Docker?"; then
+            install_docker
+        else
+            print_error "Docker is required to run AutoMagik. Please install it manually."
+            exit 1
+        fi
+    else
+        print_error "Automatic Docker installation is only supported on Ubuntu and Debian."
+        print_error "Please install Docker manually from https://docs.docker.com/engine/install/"
+        exit 1
+    fi
+fi
+
+# Check if Docker Compose is available
+if ! docker compose version &> /dev/null; then
+    print_error "Docker Compose (V2) is not available. Please install it manually."
+    exit 1
+fi
+
 # Create automagik directory
 AUTOMAGIK_DIR="$HOME/.automagik"
 mkdir -p "$AUTOMAGIK_DIR"
@@ -122,29 +145,6 @@ set +a
 print_status "Creating logs directory..."
 mkdir -p "$(dirname "$AUTOMAGIK_WORKER_LOG")"
 touch "$AUTOMAGIK_WORKER_LOG"
-
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    print_warning "Docker is not installed"
-    if check_os; then
-        if prompt_yes_no "Would you like to install Docker?"; then
-            install_docker
-        else
-            print_error "Docker is required to run AutoMagik. Please install it manually."
-            exit 1
-        fi
-    else
-        print_error "Automatic Docker installation is only supported on Ubuntu and Debian."
-        print_error "Please install Docker manually from https://docs.docker.com/engine/install/"
-        exit 1
-    fi
-fi
-
-# Check if Docker Compose is available
-if ! docker compose version &> /dev/null; then
-    print_error "Docker Compose (V2) is not available. Please install it manually."
-    exit 1
-fi
 
 # Check if LangFlow is already running
 check_langflow() {
@@ -291,7 +291,7 @@ cat << "EOF"
                                     Production Environment Setup
 EOF
 
-print_status "Setup completed successfully! 🎉"
+print_status "Setup completed successfully! "
 print_status "You can access:"
 print_status "- API: http://localhost:8888"
 if [ "$INSTALL_LANGFLOW" = true ]; then
@@ -341,7 +341,7 @@ if prompt_yes_no "Would you like to install the AutoMagik CLI? (Recommended for 
     pip install --upgrade pip
     pip install automagik
 
-    print_status "CLI installed successfully! 🎉"
+    print_status "CLI installed successfully! "
     print_status "You can now use commands like (after activating the venv with 'source ~/.automagik/venv/bin/activate'):"
     print_status "- automagik api"
     print_status "- automagik worker"
