@@ -197,10 +197,10 @@ fi
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
     print_status "Starting services with LangFlow..."
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow --profile api up -d
+    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d
 else
     print_status "Starting services..."
-    docker compose -p automagik -f ./docker-compose.yml --profile api up -d
+    docker compose -p automagik -f ./docker-compose.yml up -d
 fi
 
 # Wait for PostgreSQL
@@ -255,14 +255,6 @@ if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
     docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
-fi
-
-# Start worker containers after API is ready
-print_status "Starting worker containers..."
-if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f ./docker-compose.yml --profile api --profile worker --profile langflow up -d
-else
-    docker compose -p automagik -f ./docker-compose.yml --profile api --profile worker up -d
 fi
 
 # Function to check container logs for errors

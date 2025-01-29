@@ -23,6 +23,7 @@ services:
   # Automagik API service
   automagik-api:
     image: namastexlabs/automagik-api:latest
+    container_name: automagik-api
     env_file:
       - .env
     environment:
@@ -47,6 +48,7 @@ services:
   # Automagik Worker service
   automagik-worker:
     image: namastexlabs/automagik-worker:latest
+    container_name: automagik-worker
     env_file:
       - .env
     environment:
