@@ -15,7 +15,7 @@ def client():
 async def test_api_no_key_configured(client):
     """Test API when no API key is configured."""
     os.environ.pop("AUTOMAGIK_API_KEY", None)
-    response = client.get("/api/v1/")
+    response = client.get("/")
     assert response.status_code == 200
     assert response.json()["status"] == "online"
 
@@ -23,7 +23,7 @@ async def test_api_no_key_configured(client):
 async def test_api_key_required(client):
     """Test API key is required when configured."""
     os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
-    response = client.get("/api/v1/")
+    response = client.get("/")
     assert response.status_code == 401
     assert "X-API-Key header is missing" in response.json()["detail"]
 
@@ -32,7 +32,7 @@ async def test_api_key_valid(client):
     """Test API key authentication works."""
     os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": TEST_API_KEY}
-    response = client.get("/api/v1/", headers=headers)
+    response = client.get("/", headers=headers)
     assert response.status_code == 200
     assert response.json()["status"] == "online"
 

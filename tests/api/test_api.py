@@ -8,7 +8,7 @@ from tests.conftest import TEST_API_KEY
 def test_root_endpoint(client: TestClient):
     """Test the root endpoint returns correct status."""
     headers = {"X-API-Key": TEST_API_KEY}
-    response = client.get("/api/v1/", headers=headers)
+    response = client.get("/", headers=headers)
     assert response.status_code == 200
     assert response.json()["status"] == "online"
     assert response.json()["service"] == "AutoMagik API"
@@ -37,10 +37,10 @@ def test_cors_configuration(client: TestClient):
     }
 
     # Test preflight request
-    response = client.options("/api/v1/", headers=headers)
+    response = client.options("/", headers=headers)
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == test_origin
 
     # Test actual request
-    response = client.get("/api/v1/", headers={"Origin": test_origin, "X-API-Key": TEST_API_KEY})
+    response = client.get("/", headers={"Origin": test_origin, "X-API-Key": TEST_API_KEY})
     assert response.status_code == 200
