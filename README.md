@@ -143,6 +143,43 @@ AutoMagik ships with a handy CLI tool. If you have Python ≥3.10:
 
 ---
 
+## Development Setup
+
+For development, you'll want to set up AutoMagik locally:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/namastexlabs/automagik.git
+   cd automagik
+   ```
+
+2. Run the setup script:
+   ```bash
+   ./scripts/setup.sh
+   ```
+   This will:
+   - Create a virtual environment
+   - Install dependencies
+   - Set up git hooks for code quality
+   - Configure the development environment
+
+### Git Hooks
+
+The project uses git hooks to ensure code quality:
+
+- **pre-push**: Runs tests and checks test coverage before allowing pushes
+  - Ensures all tests pass
+  - Verifies test coverage is above 45%
+  - Prevents pushing if checks fail
+
+These hooks are automatically configured when you run `setup.sh`. If you need to reconfigure them manually:
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-push scripts/run_tests.sh
+```
+
+---
+
 ## Project Structure
 
 Here’s a simplified view of how the pieces connect:

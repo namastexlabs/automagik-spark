@@ -130,11 +130,10 @@ fi
 
 # Setup git hooks
 print_status "Setting up git hooks..."
-# Make git hooks executable
+git config core.hooksPath .githooks
 chmod +x .githooks/pre-push
 chmod +x scripts/run_tests.sh
-# Configure git to use our hooks directory
-git config core.hooksPath .githooks
+print_status "Git hooks configured successfully"
 
 # Install development dependencies
 print_status "Installing development dependencies..."
