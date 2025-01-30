@@ -1,37 +1,44 @@
 """Configuration for integration tests."""
 
+import os
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+
+from automagik.core.database.models import Base
 
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
     import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
 @pytest.fixture(scope="session")
 async def engine():
     """Create a test database engine."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        poolclass=NullPool,
-        echo=True
-    )
-    yield engine
-    await engine.dispose()
+    # Use an in-memory SQLite database for tests
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
 @pytest.fixture
-async def session(engine) -> AsyncSession:
+async def session(engine):
     """Create a test database session."""
     async_session = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
+    
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
