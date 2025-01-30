@@ -42,3 +42,4 @@ redis_data/
 logs/*
 # windsurf rules
 .windsurfrules
+.coverage
