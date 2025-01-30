@@ -16,6 +16,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import LANGFLOW_API_URL
 from ..database.models import Flow, FlowComponent, Task, TaskLog
 from ..database.session import get_session
 
@@ -151,7 +152,7 @@ class FlowSync:
     def _get_base_url(self) -> str:
         """Get base URL for LangFlow API."""
         if self._base_url is None:
-            self._base_url = "http://192.168.112.125:7860/api/v1"  # TODO: Make configurable
+            self._base_url = LANGFLOW_API_URL
         return self._base_url
 
     async def close(self):
