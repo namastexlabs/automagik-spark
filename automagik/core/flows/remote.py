@@ -9,7 +9,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..config import LANGFLOW_API_URL
+from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 from ..database.models import Flow
 
 logger = logging.getLogger(__name__)
@@ -24,18 +24,33 @@ class RemoteFlowManager:
 
     async def __aenter__(self):
         """Initialize client when entering context."""
-        self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+        headers = {
+            'accept': 'application/json'
+        }
+        if LANGFLOW_API_KEY:
+            headers["x-api-key"] = LANGFLOW_API_KEY
+        logger.debug(f"Using LangFlow API URL: {LANGFLOW_API_URL}")
+        logger.debug(f"Headers: {headers}")
+        self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL, headers=headers, verify=False)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Close client when exiting context."""
         if self.client:
             await self.client.aclose()
+            self.client = None
 
     async def _ensure_client(self):
         """Ensure client is initialized."""
         if not self.client:
-            self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL)
+            headers = {
+                'accept': 'application/json'
+            }
+            if LANGFLOW_API_KEY:
+                headers["x-api-key"] = LANGFLOW_API_KEY
+            logger.debug(f"Using LangFlow API URL: {LANGFLOW_API_URL}")
+            logger.debug(f"Headers: {headers}")
+            self.client = httpx.AsyncClient(base_url=LANGFLOW_API_URL, headers=headers, verify=False)
 
     async def list_remote_flows(self) -> Dict[str, List[Dict]]:
         """List remote flows from LangFlow API."""

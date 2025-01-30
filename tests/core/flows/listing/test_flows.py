@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
-from automagik.core.flows.manager import FlowManager
+from automagik.core.flows.manager import FlowManager, RemoteFlowManager
 from automagik.core.database.models import Flow
 from sqlalchemy import select
 
@@ -14,6 +14,11 @@ from sqlalchemy import select
 def flow_manager(session):
     """Create a FlowManager instance."""
     return FlowManager(session)
+
+@pytest.fixture
+def remote_flow_manager(session):
+    """Create a RemoteFlowManager instance."""
+    return RemoteFlowManager(session)
 
 @pytest.fixture
 def mock_data_dir():
@@ -174,3 +179,39 @@ async def test_synced_vs_remote_flows(flow_manager, mock_flows):
             # List remote flows using the same client
             flows_by_folder = await flow_manager.list_remote_flows()
             assert isinstance(flows_by_folder, dict)
+
+@pytest.mark.asyncio
+async def test_remote_flow_manager_client_config(remote_flow_manager, mock_flows):
+    """Test that the RemoteFlowManager client is configured correctly."""
+    async with remote_flow_manager:
+        # Check that client is initialized
+        assert remote_flow_manager.client is not None
+        
+        # Check headers configuration
+        headers = remote_flow_manager.client.headers
+        assert "accept" in headers
+        assert headers["accept"] == "application/json"
+        
+        # If API key is set, verify x-api-key header
+        from automagik.core.config import LANGFLOW_API_KEY
+        if LANGFLOW_API_KEY:
+            assert "x-api-key" in headers
+            assert headers["x-api-key"] == LANGFLOW_API_KEY
+        
+        # Verify base URL configuration
+        from automagik.core.config import LANGFLOW_API_URL
+        assert str(remote_flow_manager.client.base_url).rstrip("/") == LANGFLOW_API_URL.rstrip("/")
+
+@pytest.mark.asyncio
+async def test_remote_flow_manager_client_lifecycle(remote_flow_manager):
+    """Test the lifecycle of RemoteFlowManager client."""
+    # Test client initialization
+    assert not hasattr(remote_flow_manager, "client") or remote_flow_manager.client is None
+    
+    # Test client creation in context
+    async with remote_flow_manager:
+        assert remote_flow_manager.client is not None
+        assert "accept" in remote_flow_manager.client.headers
+    
+    # Test client is closed after context
+    assert remote_flow_manager.client is None
