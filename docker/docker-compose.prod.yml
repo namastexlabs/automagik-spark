@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   # Automagik's PostgreSQL
   automagik-db:
     image: postgres:15
+    container_name: automagik-db
     environment:
       POSTGRES_USER: automagik
       POSTGRES_PASSWORD: automagik
@@ -47,7 +46,6 @@ services:
   automagik-worker:
     image: namastexlabs/automagik-worker:latest
     container_name: automagik-worker
-    command: python -m automagik worker start
     env_file:
       - .env
     environment:

@@ -41,9 +41,7 @@ prompt_yes_no() {
 download_files() {
     print_status "Downloading required files..."
     
-    # Create necessary directories
-    mkdir -p migrations
-    
+   
     # List of files to download with their source and destination paths
     declare -A FILES=(
         ["docker/docker-compose.prod.yml"]="docker-compose.yml"
@@ -135,7 +133,7 @@ create_env_file() {
     fi
 
     print_status "Creating .env file from example..."
-    cp .env.example .env
+    mv .env.example .env
 
     # Generate API key
     API_KEY=$(openssl rand -hex 32)
@@ -155,10 +153,6 @@ fi
 
 # Create .env file if it doesn't exist
 create_env_file
-
-# Create logs directory
-print_status "Creating logs directory..."
-mkdir -p logs
 
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
