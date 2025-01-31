@@ -53,11 +53,15 @@ class FlowSync:
         # Get the client
         client = await self._get_client()
         
-        # Build the request payload
+        # Build API payload
         payload = {
-            **input_data,
-            "output_type": "debug",  # Always run in debug mode
-            "input_type": "chat"
+            "input_value": input_data.get("input_value", ""),
+            "output_type": "debug",
+            "input_type": "chat",
+            "tweaks": {
+                flow.input_component: {},
+                flow.output_component: {}
+            }
         }
         
         try:
@@ -67,6 +71,8 @@ class FlowSync:
             await self.session.commit()
 
             # Execute the flow
+            logger.debug(f"Executing flow {flow.source_id} with input_data: {input_data}")
+            logger.debug(f"API payload: {payload}")
             response = await client.post(
                 f"/api/v1/run/{flow.source_id}?stream=false",
                 json=payload,
@@ -81,44 +87,22 @@ class FlowSync:
                 raise
                 
             result = response.json()
+            logger.debug(f"Flow execution result: {result}")
 
-            # Log component outputs in debug mode
-            if "logs" in result:
-                for log_entry in result["logs"]:
-                    # Create task log for each component output
-                    task_log = TaskLog(
-                        id=uuid4(),
-                        task_id=task.id,
-                        level="debug",
-                        component_id=log_entry.get("component_id"),
-                        message=f"Component output: {log_entry.get('component_type')}",
-                        data={
-                            "inputs": log_entry.get("inputs"),
-                            "output": log_entry.get("output"),
-                            "type": log_entry.get("component_type")
-                        }
-                    )
-                    self.session.add(task_log)
+            # Update task with output
+            if result.get("outputs"):
+                output = result["outputs"][0]
+                if "outputs" in output and output["outputs"]:
+                    task.output_data = output["outputs"][0].get("outputs", {})
+                else:
+                    task.output_data = output
 
-            # Extract output from the specified output component
-            output = None
-            if flow.output_component and "logs" in result:
-                for log_entry in result["logs"]:
-                    if log_entry.get("component_id") == flow.output_component:
-                        output = log_entry.get("output")
-                        break
-
-            # If no specific output component or output not found, use the final result
-            if output is None:
-                output = result.get("output", result)
-
-            # Update task with success
+            # Update task status
             task.status = "completed"
             task.finished_at = datetime.utcnow()
-            task.output_data = output
             await self.session.commit()
 
-            return output
+            return task.output_data
 
         except Exception as e:
             import traceback

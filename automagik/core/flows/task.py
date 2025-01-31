@@ -38,6 +38,10 @@ class TaskManager:
             )
             flow = result.scalar_one()
             
+            # Log flow execution details
+            logger.debug(f"Running flow {flow.id} (source_id: {flow.source_id})")
+            logger.debug(f"Input data: {input_data}")
+            
             # Create task
             task = Task(
                 id=uuid4(),
@@ -52,6 +56,8 @@ class TaskManager:
             
             # Execute flow
             try:
+                logger.debug(f"Executing flow with task {task.id}")
+                logger.debug(f"Task input data: {task.input_data}")
                 output = await self.flow_sync.execute_flow(
                     flow=flow,
                     task=task,

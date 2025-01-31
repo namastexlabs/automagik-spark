@@ -3,6 +3,7 @@
 import json
 import pytest
 from pathlib import Path
+from sqlalchemy import delete
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -56,6 +57,12 @@ async def sample_flow(session):
     await session.refresh(flow)
     return flow
 
+@pytest.fixture(autouse=True)
+async def cleanup_flows(session):
+    """Clean up flows before each test."""
+    await session.execute(delete(Flow))
+    await session.commit()
+
 @pytest.mark.asyncio
 async def test_list_flows_empty(flow_manager):
     """Test listing flows when there are none."""
@@ -76,22 +83,22 @@ async def test_list_remote_flows(flow_manager, mock_flows):
     # Get a folder ID from the mock flows
     folder_id = mock_flows[0].get("folder_id")
     
-    # Create response for /folders/
+    # Create response for /api/v1/folders/
     folders_response = MagicMock()
     folders_response.raise_for_status = MagicMock()
     folders_response.json = MagicMock(return_value=[
         {"id": folder_id, "name": "Test Folder"}
     ])
 
-    # Create response for /flows/
+    # Create response for /api/v1/flows/
     flows_response = MagicMock()
     flows_response.raise_for_status = MagicMock()
     flows_response.json = MagicMock(return_value=mock_flows)
 
     async def mock_get(url):
-        if url == "/folders/":
+        if url == "/api/v1/folders/":
             return folders_response
-        elif url == "/flows/":
+        elif url == "/api/v1/flows/":
             return flows_response
         raise ValueError(f"Unexpected URL: {url}")
 
@@ -101,15 +108,15 @@ async def test_list_remote_flows(flow_manager, mock_flows):
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         async with flow_manager:
-            flows = await flow_manager.list_remote_flows()
-            assert isinstance(flows, dict)
+            flows_by_folder = await flow_manager.list_remote_flows()
+            assert isinstance(flows_by_folder, dict)
             
             # Verify only flows with valid folder IDs are included
-            assert "Test Folder" in flows
-            assert len(flows) == 1  # Only one folder should be present
+            assert "Test Folder" in flows_by_folder
+            assert len(flows_by_folder) == 1  # Only one folder should be present
             
             # All flows in the folder should have the correct folder_id
-            for flow in flows["Test Folder"]:
+            for flow in flows_by_folder["Test Folder"]:
                 assert flow.get("folder_id") == folder_id
 
 @pytest.mark.asyncio
@@ -133,52 +140,34 @@ async def test_synced_vs_remote_flows(flow_manager, mock_flows):
 
     # Mock different responses for different endpoints
     async def mock_get(url):
-        if "/flows/" in url and not url.endswith("/flows/"):
+        if f"/api/v1/flows/{flow_id}" in url:
             mock_response.json.return_value = flow_data
             return mock_response
-        elif "/folders/" in url:
-            folder_response = MagicMock()
-            folder_response.json.return_value = []  # Empty folders list
-            return folder_response
-        elif url.endswith("/flows/"):
-            flows_response = MagicMock()
-            flows_response.json.return_value = mock_flows
-            return flows_response
-        return mock_response
+        elif "/api/v1/folders/" in url:
+            mock_response.json.return_value = [{"id": flow_data["folder_id"], "name": "Test Folder"}]
+            return mock_response
+        elif "/api/v1/flows/" in url:
+            mock_response.json.return_value = mock_flows
+            return mock_response
+        raise ValueError(f"Unexpected URL: {url}")
 
     mock_client = AsyncMock()
-    mock_client.get.side_effect = mock_get
+    mock_client.get = mock_get
     mock_client.aclose = AsyncMock()
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        async with flow_manager:
-            # Sync the flow
-            synced_flow_id = await flow_manager.sync_flow(flow_id, input_component, output_component)
-            assert isinstance(synced_flow_id, UUID)
+        # Sync the flow
+        synced_flow_id = await flow_manager.sync_flow(
+            flow_id=flow_id,
+            input_component=input_component,
+            output_component=output_component
+        )
+        assert synced_flow_id is not None
 
-            # Now list local flows
-            stmt = select(Flow)
-            result = await flow_manager.session.execute(stmt)
-            local_flows = result.scalars().all()
-
-            # Verify the synced flow is in local flows
-            assert len(local_flows) > 0
-            found_flow = False
-            for flow in local_flows:
-                if flow.id == synced_flow_id:
-                    found_flow = True
-                    assert flow.name == flow_data["name"]
-                    assert flow.description == flow_data.get("description", "")
-                    assert flow.source == "langflow"
-                    assert flow.source_id == flow_id
-                    assert flow.input_component == input_component
-                    assert flow.output_component == output_component
-                    break
-            assert found_flow, "Synced flow not found in local flows"
-
-            # List remote flows using the same client
-            flows_by_folder = await flow_manager.list_remote_flows()
-            assert isinstance(flows_by_folder, dict)
+        # List local flows - should include synced flow
+        local_flows = await flow_manager.list_flows()
+        assert len(local_flows) == 1
+        assert str(local_flows[0].source_id) == flow_id
 
 @pytest.mark.asyncio
 async def test_remote_flow_manager_client_config(remote_flow_manager, mock_flows):

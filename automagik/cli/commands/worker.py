@@ -145,6 +145,10 @@ async def process_schedule(session, schedule, flow_manager, now=None):
         now = datetime.now(timezone.utc)
         
     try:
+        # Log schedule parameters
+        logger.debug(f"Processing schedule {schedule.id} for flow {schedule.flow_id}")
+        logger.debug(f"Schedule parameters: {schedule.flow_params}")
+        
         # Create task
         task = Task(
             id=uuid.uuid4(),
@@ -160,6 +164,7 @@ async def process_schedule(session, schedule, flow_manager, now=None):
         await session.refresh(task)
         
         logger.info(f"Created task {task.id} for schedule {schedule.id}")
+        logger.debug(f"Task input data: {task.input_data}")
         
         # Run task
         success = await run_flow(flow_manager, task)

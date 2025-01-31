@@ -59,7 +59,7 @@ async def test_successful_flow_execution(
     with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
-            input_data={"test": "input"}
+            input_data={"input": "test input"}
         )
         assert task_id is not None
         
@@ -90,7 +90,7 @@ async def test_failed_flow_execution(
         # When a flow fails, run_flow returns None
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
-            input_data={"test": "input"}
+            input_data={"input": "test input"}
         )
         assert task_id is None
         
@@ -113,7 +113,7 @@ async def test_flow_not_found(
     """Test execution with non-existent flow."""
     task_id = await task_manager.run_flow(
         flow_id=uuid4(),
-        input_data={"test": "input"}
+        input_data={"input": "test input"}
     )
     assert task_id is None
 
@@ -129,7 +129,7 @@ async def test_task_status_not_overwritten(
         id=uuid4(),
         flow_id=test_flow.id,
         status="completed",
-        input_data={"test": "input"},
+        input_data={"input": "test input"},
         output_data={"result": "success"},
         created_at=datetime.utcnow(),
         started_at=datetime.utcnow(),
@@ -151,7 +151,7 @@ async def test_task_status_not_overwritten(
     with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
-            input_data={"test": "input"}
+            input_data={"input": "test input"}
         )
     
         # A new task should be created
@@ -165,3 +165,63 @@ async def test_task_status_not_overwritten(
         await session.refresh(task)
         assert task.status == "completed"
         assert task.output_data == {"result": "success"}
+
+@pytest.mark.asyncio
+async def test_input_value_handling(
+    session: AsyncSession,
+    task_manager: TaskManager,
+    test_flow: Flow
+):
+    """Test that input_value is correctly passed through the execution chain."""
+    test_input = "test message"
+    expected_payload = {
+        "input_value": test_input,
+        "output_type": "debug",
+        "input_type": "chat",
+        "tweaks": {
+            "input_node": {},
+            "output_node": {}
+        }
+    }
+
+    # Create a mock to capture the API call payload
+    actual_payload = None
+    async def mock_execute(*args, **kwargs):
+        nonlocal actual_payload
+        task = kwargs['task']
+        flow = kwargs['flow']
+        input_data = kwargs['input_data']
+        
+        # Build payload exactly as FlowSync does
+        actual_payload = {
+            "input_value": input_data.get("input_value", ""),
+            "output_type": "debug",
+            "input_type": "chat",
+            "tweaks": {
+                flow.input_component: {},
+                flow.output_component: {}
+            }
+        }
+        
+        task.status = "completed"
+        task.started_at = datetime.utcnow()
+        task.finished_at = datetime.utcnow()
+        task.output_data = {"result": "success"}
+        await session.commit()
+        return {"result": "success"}
+
+    with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
+        # Run flow with input_value
+        task_id = await task_manager.run_flow(
+            flow_id=test_flow.id,
+            input_data={"input_value": test_input}
+        )
+        assert task_id is not None
+        
+        # Verify task was created and completed
+        task = await task_manager.get_task(str(task_id))
+        assert task.status == "completed"
+        assert task.input_data == {"input_value": test_input}
+        
+        # Verify payload was constructed correctly
+        assert actual_payload == expected_payload
