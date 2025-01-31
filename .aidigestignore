@@ -76,5 +76,6 @@ instructions/codebase.md
 *.tar.gz
 *.zip
 
-
+*.lock
 /tests/mock_data/*
+logs/*
