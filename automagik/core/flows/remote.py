@@ -57,13 +57,13 @@ class RemoteFlowManager:
         try:
             await self._ensure_client()
             # Get folders first
-            folders_response = await self.client.get("/folders/")
+            folders_response = await self.client.get("/api/v1/folders/")
             folders_response.raise_for_status()
             folders_data = folders_response.json()
             folders = {folder["id"]: folder["name"] for folder in folders_data}
 
             # Get flows
-            flows_response = await self.client.get("/flows/")
+            flows_response = await self.client.get("/api/v1/flows/")
             flows_response.raise_for_status()
             flows = flows_response.json()
 
@@ -84,7 +84,7 @@ class RemoteFlowManager:
         """Get flow components from LangFlow API."""
         try:
             await self._ensure_client()
-            response = await self.client.get(f"/flows/{flow_id}")
+            response = await self.client.get(f"/api/v1/flows/{flow_id}")
             response.raise_for_status()
             flow_data = response.json()
 
@@ -112,7 +112,7 @@ class RemoteFlowManager:
         try:
             await self._ensure_client()
             # Get flow data from LangFlow API
-            response = await self.client.get(f"/flows/{flow_id}")
+            response = await self.client.get(f"/api/v1/flows/{flow_id}")
             response.raise_for_status()
             flow_data = response.json()
 

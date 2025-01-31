@@ -16,7 +16,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import LANGFLOW_API_URL
+from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 from ..database.models import Flow, FlowComponent, Task, TaskLog
 from ..database.session import get_session
 
@@ -68,7 +68,7 @@ class FlowSync:
 
             # Execute the flow
             response = await client.post(
-                f"/run/{flow.source_id}?stream=false",
+                f"/api/v1/run/{flow.source_id}?stream=false",
                 json=payload,
                 timeout=600  # 10 minutes
             )
@@ -143,8 +143,17 @@ class FlowSync:
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
         if self._client is None:
+            headers = {
+                'accept': 'application/json'
+            }
+            if LANGFLOW_API_KEY:
+                headers["x-api-key"] = LANGFLOW_API_KEY
+            logger.debug(f"Using LangFlow API URL: {self._get_base_url()}")
+            logger.debug(f"Headers: {headers}")
             self._client = httpx.AsyncClient(
                 base_url=self._get_base_url(),
+                headers=headers,
+                verify=False,
                 timeout=30.0
             )
         return self._client
