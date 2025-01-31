@@ -46,7 +46,7 @@ def handle_async_command(coro: Any) -> Any:
         if loop and not loop.is_closed():
             loop.close()
 
-@click.group(name='task')
+@click.group(name='tasks')
 def task_group():
     """Manage flow tasks."""
     pass

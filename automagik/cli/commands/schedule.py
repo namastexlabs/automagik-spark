@@ -23,7 +23,7 @@ from ...core.database.session import get_session
 
 logger = logging.getLogger(__name__)
 
-@click.group(name='schedule')
+@click.group(name='schedules')
 def schedule_group():
     """Manage flow schedules."""
     pass

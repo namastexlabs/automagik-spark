@@ -23,7 +23,7 @@ from ...core.database.models import Flow
 
 logger = logging.getLogger(__name__)
 
-@click.group(name='flow')
+@click.group(name='flows')
 def flow_group():
     """Manage flows."""
     pass

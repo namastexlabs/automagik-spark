@@ -457,7 +457,7 @@ def daemonize():
     with open(os.devnull, 'a+') as f:
         os.dup2(f.fileno(), sys.stderr.fileno())
 
-@click.group(name='worker')
+@click.group(name='workers')
 def worker_group():
     """Manage the worker process."""
     pass
