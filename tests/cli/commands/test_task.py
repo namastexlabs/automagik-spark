@@ -6,16 +6,16 @@ from uuid import uuid4
 from datetime import datetime
 
 from automagik.cli.commands.task import task_group, _view_task, _retry_task, _list_tasks
-from automagik.core.database import Task, Flow
+from automagik.core.database.models import Task, Workflow
 
 @pytest.fixture
 def test_flow():
     """Create a test flow."""
-    return Flow(
+    return Workflow(
         id='12345678-1234-5678-1234-567812345678',
         name='test_flow',
         source='test',
-        source_id='test_id'
+        remote_flow_id='test_id'
     )
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def test_task(test_flow):
     """Create a test task."""
     return Task(
         id='87654321-4321-8765-4321-876543210987',
-        flow=test_flow,
+        workflow=test_flow,
         status='failed',
         input_data={'test': 'data'},
         output_data=None,
@@ -43,7 +43,7 @@ def test_tasks(test_flow):
     task_data = [
         {
             "id": uuid4(),
-            "flow": test_flow,
+            "workflow": test_flow,
             "status": "pending",
             "input_data": {"test": "input1"},
             "output_data": None,
@@ -58,7 +58,7 @@ def test_tasks(test_flow):
         },
         {
             "id": uuid4(),
-            "flow": test_flow,
+            "workflow": test_flow,
             "status": "running",
             "input_data": {"test": "input2"},
             "output_data": None,
@@ -73,7 +73,7 @@ def test_tasks(test_flow):
         },
         {
             "id": uuid4(),
-            "flow": test_flow,
+            "workflow": test_flow,
             "status": "completed",
             "input_data": {"test": "input3"},
             "output_data": {"result": "success"},
@@ -88,7 +88,7 @@ def test_tasks(test_flow):
         },
         {
             "id": uuid4(),
-            "flow": test_flow,
+            "workflow": test_flow,
             "status": "failed",
             "input_data": {"test": "input4"},
             "output_data": None,
@@ -195,7 +195,7 @@ async def test_list_tasks(test_tasks):
         
         # Verify flow_manager was called correctly
         flow_manager_mock.task.list_tasks.assert_called_once_with(
-            flow_id=None,
+            workflow_id=None,
             status=None,
             limit=50
         )

@@ -5,12 +5,12 @@ import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from automagik.core.flows.manager import FlowManager
+from automagik.core.workflows.manager import WorkflowManager
 
 @pytest.fixture
 def flow_manager(session):
-    """Create a FlowManager instance."""
-    return FlowManager(session)
+    """Create a WorkflowManager instance."""
+    return WorkflowManager(session)
 
 @pytest.fixture
 def mock_data_dir():

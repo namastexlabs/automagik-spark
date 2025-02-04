@@ -4,22 +4,22 @@ import json
 import pytest
 from pathlib import Path
 from sqlalchemy import delete
+from sqlalchemy import select
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
-from automagik.core.flows.manager import FlowManager, RemoteFlowManager
-from automagik.core.database.models import Flow
-from sqlalchemy import select
+from automagik.core.workflows.manager import WorkflowManager, LangFlowManager
+from automagik.core.database.models import Workflow
 
 @pytest.fixture
 def flow_manager(session):
     """Create a FlowManager instance."""
-    return FlowManager(session)
+    return WorkflowManager(session)
 
 @pytest.fixture
 def remote_flow_manager(session):
     """Create a RemoteFlowManager instance."""
-    return RemoteFlowManager(session)
+    return LangFlowManager(session)
 
 @pytest.fixture
 def mock_data_dir():
@@ -41,26 +41,23 @@ def mock_flows(mock_data_dir):
 @pytest.fixture
 async def sample_flow(session):
     """Create a sample flow in the database."""
-    flow = Flow(
+    workflow = Workflow(
         id=uuid4(),
+        remote_flow_id="test-flow-1",
         name="Test Flow",
-        description="A test flow",
-        data={"nodes": []},
+        description="Test flow for testing",
         source="langflow",
-        source_id="test-flow-1",
-        flow_version=1,
-        input_component="input-1",
-        output_component="output-1"
+        data={"nodes": []}
     )
-    session.add(flow)
+    session.add(workflow)
     await session.commit()
-    await session.refresh(flow)
-    return flow
+    await session.refresh(workflow)
+    return workflow
 
 @pytest.fixture(autouse=True)
 async def cleanup_flows(session):
     """Clean up flows before each test."""
-    await session.execute(delete(Flow))
+    await session.execute(delete(Workflow))
     await session.commit()
 
 @pytest.mark.asyncio
@@ -167,7 +164,7 @@ async def test_synced_vs_remote_flows(flow_manager, mock_flows):
         # List local flows - should include synced flow
         local_flows = await flow_manager.list_flows()
         assert len(local_flows) == 1
-        assert str(local_flows[0].source_id) == flow_id
+        assert str(local_flows[0].remote_flow_id) == flow_id
 
 @pytest.mark.asyncio
 async def test_remote_flow_manager_client_config(remote_flow_manager, mock_flows):

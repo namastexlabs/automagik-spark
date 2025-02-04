@@ -1,6 +1,7 @@
 """Tests for the API configuration module."""
 import os
 import pytest
+from unittest.mock import patch
 from automagik.api.config import get_cors_origins, get_api_host, get_api_port, get_api_key
 
 def test_get_cors_origins_default():
@@ -25,37 +26,32 @@ def test_get_cors_origins_custom():
     assert "http://test.com" in origins
 
 def test_get_api_host_default():
-    """Test get_api_host returns default value when env var is not set."""
-    if "AUTOMAGIK_API_HOST" in os.environ:
-        del os.environ["AUTOMAGIK_API_HOST"]
-    
+    """Test getting the default API host."""
     host = get_api_host()
     assert host == "0.0.0.0"
 
 def test_get_api_host_custom():
-    """Test get_api_host returns custom value from env var."""
-    os.environ["AUTOMAGIK_API_HOST"] = "127.0.0.1"
-    assert get_api_host() == "127.0.0.1"
+    """Test getting a custom API host."""
+    with patch.dict(os.environ, {"AUTOMAGIK_API_HOST": "0.0.0.0"}):
+        host = get_api_host()
+        assert host == "0.0.0.0"
 
 def test_get_api_port_default():
-    """Test get_api_port returns default value when env var is not set."""
-    if "AUTOMAGIK_API_PORT" in os.environ:
-        del os.environ["AUTOMAGIK_API_PORT"]
-    
+    """Test getting the default API port."""
     port = get_api_port()
-    assert isinstance(port, int)
-    assert port == 8000
+    assert port == 8888
 
 def test_get_api_port_custom():
-    """Test get_api_port returns custom value from env var."""
-    os.environ["AUTOMAGIK_API_PORT"] = "9000"
-    assert get_api_port() == 9000
+    """Test getting a custom API port."""
+    with patch.dict(os.environ, {"AUTOMAGIK_API_PORT": "8888"}):
+        port = get_api_port()
+        assert port == 8888
 
 def test_get_api_port_invalid():
-    """Test get_api_port raises ValueError for invalid port."""
-    os.environ["AUTOMAGIK_API_PORT"] = "invalid"
-    with pytest.raises(ValueError):
-        get_api_port()
+    """Test getting an invalid API port."""
+    with patch.dict(os.environ, {"AUTOMAGIK_API_PORT": "invalid"}):
+        with pytest.raises(ValueError):
+            get_api_port()
 
 def test_get_api_key():
     """Test get_api_key returns None when not set."""

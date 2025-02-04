@@ -5,7 +5,7 @@ import pytest
 import httpx
 from uuid import uuid4
 
-from automagik.core.flows.remote import RemoteFlowManager
+from automagik.core.workflows.remote import LangFlowManager
 from automagik.core.config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 
 pytestmark = pytest.mark.integration
@@ -21,7 +21,7 @@ def requires_api_config(func):
 @requires_api_config
 async def test_remote_api_connection(session):
     """Test that we can connect to the remote API."""
-    async with RemoteFlowManager(session) as remote:
+    async with LangFlowManager(session) as remote:
         # Test basic connection
         response = await remote.client.get("/health-check")
         response.raise_for_status()
@@ -31,7 +31,7 @@ async def test_remote_api_connection(session):
 @requires_api_config
 async def test_remote_flow_operations(session):
     """Test full flow operations with remote API."""
-    async with RemoteFlowManager(session) as remote:
+    async with LangFlowManager(session) as remote:
         # List flows
         flows = await remote.list_remote_flows()
         assert isinstance(flows, dict)
@@ -54,7 +54,7 @@ async def test_remote_flow_operations(session):
 @requires_api_config
 async def test_remote_folder_operations(session):
     """Test folder operations with remote API."""
-    async with RemoteFlowManager(session) as remote:
+    async with LangFlowManager(session) as remote:
         # Create a test folder
         test_folder_name = f"test_folder_{uuid4().hex[:8]}"
         response = await remote.client.post("/folders/", json={

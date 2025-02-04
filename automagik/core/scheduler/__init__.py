@@ -1,11 +1,11 @@
 """
-Scheduler Package
+Workflow scheduler package.
 
 Provides functionality for scheduling and executing flows.
 """
 
-from .scheduler import FlowScheduler
-from .task_runner import TaskRunner
 from .manager import SchedulerManager
+from .scheduler import WorkflowScheduler
+from .task_runner import TaskRunner
 
-__all__ = ['FlowScheduler', 'TaskRunner', 'SchedulerManager']
+__all__ = ["SchedulerManager", "WorkflowScheduler", "TaskRunner"]

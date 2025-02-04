@@ -8,8 +8,7 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ engine = create_async_engine(
 )
 
 # Create session factory
-async_session = sessionmaker(
+async_session = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False
@@ -45,13 +44,21 @@ async_session = sessionmaker(
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a database session."""
-    session: AsyncSession = async_session()
-    try:
-        yield session
-    finally:
-        await session.close()
-
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency for getting a database session."""
     async with async_session() as session:
+        try:
+            yield session
+            await session.commit()
+        except:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+def get_engine():
+    """Get the database engine."""
+    return engine
+
+async def get_async_session():
+    """FastAPI dependency for getting a database session."""
+    async with get_session() as session:
         yield session

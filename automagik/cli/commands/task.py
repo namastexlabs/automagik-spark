@@ -15,15 +15,16 @@ import logging
 import sys
 from typing import Optional, Any, Callable, List, Dict
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID
 from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from rich.console import Console
 from rich.table import Table
 
-from ...core.flows import FlowManager
-from ...core.database import get_session, Task, Flow
+from ...core.database import get_session, Task, Workflow
+from ...core.workflows.workflow import LocalWorkflowManager as FlowManager
+from ...core.workflows import WorkflowManager
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,80 +49,64 @@ def handle_async_command(coro: Any) -> Any:
 
 @click.group(name='tasks')
 def task_group():
-    """Manage flow tasks."""
+    """Manage workflow tasks."""
     pass
 
-async def _list_tasks(flow_id: Optional[str], status: Optional[str], limit: int, all: bool) -> None:
-    """List flow execution tasks."""
+async def _list_tasks(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
+    """List tasks."""
     try:
+        session: AsyncSession
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            
-            # If not showing all tasks, limit to most recent
-            if not all:
-                limit = min(limit, 50)
-            
-            tasks = await flow_manager.task.list_tasks(
-                flow_id=flow_id,
+            workflow_manager = FlowManager(session)
+            tasks = await workflow_manager.task.list_tasks(
+                workflow_id=workflow_id,
                 status=status,
-                limit=None if all else limit
+                limit=limit
             )
-            
+
             if not tasks:
                 click.echo("No tasks found")
                 return
-            
-            # For testing environment, use simple output
-            if 'pytest' in sys.modules:
-                click.echo("\nTasks:")
-                # Reverse tasks to show most recent at bottom
-                for task in reversed(tasks):
-                    click.echo(f"{str(task.id)[:8]} - {task.status:8} - "
-                                f"{task.flow.name} - {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-                return
-            
-            # Use rich table for normal output
-            table = Table(title="Tasks", show_header=True)
-            table.add_column("ID", style="cyan")
-            table.add_column("Flow", style="green")
-            table.add_column("Status", style="yellow")
-            table.add_column("Created", style="magenta")
-            table.add_column("Updated", style="magenta")
-            table.add_column("Tries", justify="right", style="red")
-            
-            # Reverse tasks to show most recent at bottom
-            for task in reversed(tasks):
-                # Color status based on value
-                status_style = {
-                    'completed': 'green',
-                    'failed': 'red',
-                    'pending': 'yellow',
-                    'running': 'blue'
-                }.get(task.status, 'white')
-                
-                table.add_row(
+
+            table = Table(title="Tasks")
+            table.add_column("ID", style="cyan", no_wrap=True)
+            table.add_column("Workflow", style="magenta")
+            table.add_column("Status", style="green")
+            table.add_column("Created", style="blue")
+            table.add_column("Updated", style="blue")
+            if show_logs:
+                table.add_column("Logs", style="yellow")
+
+            for task in tasks:
+                row = [
                     str(task.id),
-                    task.flow.name if task.flow else "Unknown",
-                    f"[{status_style}]{task.status}[/]",
+                    task.workflow.name if task.workflow else "N/A",
+                    task.status,
                     task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    task.updated_at.strftime("%Y-%m-%d %H:%M:%S") if task.updated_at else "",
-                    str(task.tries)
-                )
-            
+                    task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                ]
+                if show_logs:
+                    row.append("\n".join([log.message for log in task.logs]))
+                table.add_row(*row)
+
             console = Console()
             console.print(table)
-            
+
+    except SQLAlchemyError as e:
+        logger.error(f"Database error: {str(e)}")
+        raise click.ClickException(f"Database error: {str(e)}")
     except Exception as e:
-        click.echo(f"Error listing tasks: {e}", err=True)
+        logger.error(f"Error listing tasks: {str(e)}")
+        raise click.ClickException(str(e))
 
 @task_group.command(name='list')
-@click.option('--flow-id', help='Filter tasks by flow ID')
+@click.option('--workflow-id', help='Filter tasks by workflow ID')
 @click.option('--status', help='Filter tasks by status')
 @click.option('--limit', default=50, help='Maximum number of tasks to show')
-@click.option('--all', is_flag=True, help='Show all tasks (ignore limit)')
-def list_tasks(flow_id: Optional[str], status: Optional[str], limit: int, all: bool):
-    """List flow execution tasks."""
-    return handle_async_command(_list_tasks(flow_id, status, limit, all))
+@click.option('--show-logs', is_flag=True, help='Show task logs')
+def list_tasks(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
+    """List tasks."""
+    return handle_async_command(_list_tasks(workflow_id, status, limit, show_logs))
 
 async def _view_task(task_id: str) -> int:
     """View task details."""
@@ -140,11 +125,11 @@ async def _view_task(task_id: str) -> int:
                 raise click.ClickException(f"Task {task_id} not found")
             
             # Load relationships
-            await session.refresh(task, ['flow'])
+            await session.refresh(task, ['workflow'])
             
             click.echo("\nTask Details:")
             click.echo(f"ID: {task.id}")
-            click.echo(f"Flow: {task.flow.name}")
+            click.echo(f"Workflow: {task.workflow.name}")
             click.echo(f"Status: {task.status}")
             click.echo(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
             click.echo(f"Updated: {task.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -197,8 +182,8 @@ async def _retry_task(task_id: str) -> int:
                 logger.error(f"Task {task_id} not found")
                 raise click.ClickException(f"Task {task_id} not found")
             
-            flow_manager = FlowManager(session)
-            retried_task = await flow_manager.retry_task(str(task.id))
+            workflow_manager = WorkflowManager(session)
+            retried_task = await workflow_manager.retry_task(str(task.id))
             
             if retried_task:
                 click.echo(f"Task {task_id} queued for retry")
@@ -220,21 +205,21 @@ def retry_task(task_id: str):
     """Retry a failed task."""
     return handle_async_command(_retry_task(task_id))
 
-async def _create_task(flow_id: str, input_data: Optional[str] = None, max_retries: int = 3, run: bool = False) -> int:
-    """Create a new task for a flow."""
+async def _create_task(workflow_id: str, input_data: Optional[str] = None, max_retries: int = 3, run: bool = False) -> int:
+    """Create a new task for a workflow."""
     try:
         session: AsyncSession
         async with get_session() as session:
-            # Get flow by ID or prefix
-            stmt = select(Flow).where(
-                cast(Flow.id, String).startswith(flow_id.lower())
+            # Get workflow by ID or prefix
+            stmt = select(Workflow).where(
+                cast(Workflow.id, String).startswith(workflow_id.lower())
             )
             result = await session.execute(stmt)
-            flow = result.scalar_one_or_none()
+            workflow = result.scalar_one_or_none()
             
-            if not flow:
-                logger.error(f"Flow {flow_id} not found")
-                raise click.ClickException(f"Flow {flow_id} not found")
+            if not workflow:
+                logger.error(f"Workflow {workflow_id} not found")
+                raise click.ClickException(f"Workflow {workflow_id} not found")
             
             # Parse input data if provided
             input_dict = None
@@ -246,23 +231,23 @@ async def _create_task(flow_id: str, input_data: Optional[str] = None, max_retri
                     logger.error(msg)
                     raise click.ClickException(msg)
             
-            flow_manager = FlowManager(session)
-            task = await flow_manager.create_task(
-                flow_id=str(flow.id),
+            workflow_manager = WorkflowManager(session)
+            task = await workflow_manager.create_task(
+                workflow_id=str(workflow.id),
                 input_data=input_dict,
                 max_retries=max_retries
             )
             
             if not task:
-                msg = f"Failed to create task for flow {flow_id}"
+                msg = f"Failed to create task for workflow {workflow_id}"
                 logger.error(msg)
                 raise click.ClickException(msg)
             
-            click.echo(f"Created task {str(task.id)[:8]} for flow {flow.name}")
+            click.echo(f"Created task {str(task.id)[:8]} for workflow {workflow.name}")
             
             if run:
                 click.echo("Running task...")
-                await flow_manager.run_task(str(task.id))
+                await workflow_manager.run_task(str(task.id))
                 click.echo("Task started")
             
             return 0
@@ -274,10 +259,10 @@ async def _create_task(flow_id: str, input_data: Optional[str] = None, max_retri
         raise click.ClickException(str(e))
 
 @task_group.command(name='create')
-@click.argument('flow-id')
+@click.argument('workflow-id')
 @click.option('--input-data', help='JSON input data')
 @click.option('--max-retries', default=3, help='Maximum number of retries')
 @click.option('--run', is_flag=True, help='Run the task immediately')
-def create_task(flow_id: str, input_data: Optional[str] = None, max_retries: int = 3, run: bool = False):
-    """Create a new task for a flow."""
-    return handle_async_command(_create_task(flow_id, input_data, max_retries, run))
+def create_task(workflow_id: str, input_data: Optional[str] = None, max_retries: int = 3, run: bool = False):
+    """Create a new task for a workflow."""
+    return handle_async_command(_create_task(workflow_id, input_data, max_retries, run))

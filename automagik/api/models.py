@@ -12,7 +12,7 @@ class ErrorResponse(BaseModel):
 
 class TaskBase(BaseModel):
     """Base model for task operations."""
-    flow_id: str = Field(..., description="ID of the flow this task belongs to")
+    workflow_id: str = Field(..., description="ID of the workflow this task belongs to")
     input_data: Dict[str, Any] = Field(default_factory=dict, description="Task input data")
     output_data: Optional[Dict[str, Any]] = Field(None, description="Task output data")
     error: Optional[str] = Field(None, description="Task error message")
@@ -43,7 +43,7 @@ class TaskResponse(TaskBase):
         if hasattr(obj, "__dict__"):
             data = {
                 "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
-                "flow_id": str(obj.flow_id) if isinstance(obj.flow_id, UUID) else obj.flow_id,
+                "workflow_id": str(obj.workflow_id) if isinstance(obj.workflow_id, UUID) else obj.workflow_id,
                 "status": obj.status,
                 "input_data": obj.input_data,
                 "output_data": obj.output_data,
@@ -61,49 +61,49 @@ class TaskResponse(TaskBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-class FlowBase(BaseModel):
-    """Base model for flow operations."""
-    name: str = Field(..., description="Flow name")
-    description: Optional[str] = Field(None, description="Flow description")
+class WorkflowBase(BaseModel):
+    """Base model for workflow operations."""
+    name: str = Field(..., description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
     source: str = Field(..., description="Source system name")
-    source_id: str = Field(..., description="ID in the source system")
+    remote_flow_id: str = Field(..., description="ID of the remote flow")
     flow_version: Optional[int] = Field(1, description="Flow version")
     input_component: Optional[str] = Field(None, description="Input component ID")
     output_component: Optional[str] = Field(None, description="Output component ID")
-    is_component: Optional[bool] = Field(False, description="Whether the flow is a component")
+    is_component: Optional[bool] = Field(False, description="Whether the workflow is a component")
     folder_id: Optional[str] = Field(None, description="Folder ID")
     folder_name: Optional[str] = Field(None, description="Folder name")
     icon: Optional[str] = Field(None, description="Icon name")
     icon_bg_color: Optional[str] = Field(None, description="Icon background color")
     gradient: Optional[bool] = Field(False, description="Whether to use gradient")
-    liked: Optional[bool] = Field(False, description="Whether the flow is liked")
-    tags: Optional[List[str]] = Field(default_factory=list, description="Flow tags")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Flow data")
+    liked: Optional[bool] = Field(False, description="Whether the workflow is liked")
+    tags: Optional[List[str]] = Field(default_factory=list, description="Workflow tags")
+    data: Dict[str, Any] = Field(default_factory=dict, description="Workflow data")
 
     model_config = ConfigDict(from_attributes=True)
 
-class FlowCreate(FlowBase):
-    """Model for creating a new flow."""
+class WorkflowCreate(WorkflowBase):
+    """Model for creating a new workflow."""
     pass
 
     model_config = ConfigDict(from_attributes=True)
 
-class FlowResponse(FlowBase):
-    """Model for flow response."""
-    id: str = Field(..., description="Flow ID")
-    created_at: datetime = Field(..., description="Flow creation timestamp")
-    updated_at: datetime = Field(..., description="Flow last update timestamp")
+class WorkflowResponse(WorkflowBase):
+    """Model for workflow response."""
+    id: str = Field(..., description="Workflow ID")
+    created_at: datetime = Field(..., description="Workflow creation timestamp")
+    updated_at: datetime = Field(..., description="Workflow last update timestamp")
 
     @classmethod
-    def model_validate(cls, obj: Any) -> "FlowResponse":
-        """Convert a Flow object to FlowResponse."""
+    def model_validate(cls, obj: Any) -> "WorkflowResponse":
+        """Convert a Workflow object to WorkflowResponse."""
         if hasattr(obj, "__dict__"):
             data = {
                 "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
                 "name": obj.name,
                 "description": obj.description,
                 "source": obj.source,
-                "source_id": obj.source_id,
+                "remote_flow_id": obj.remote_flow_id,
                 "flow_version": obj.flow_version,
                 "input_component": obj.input_component,
                 "output_component": obj.output_component,
@@ -115,7 +115,7 @@ class FlowResponse(FlowBase):
                 "gradient": obj.gradient,
                 "liked": obj.liked,
                 "tags": obj.tags,
-                "data": obj.data or {},
+                "data": obj.data,
                 "created_at": obj.created_at,
                 "updated_at": obj.updated_at
             }
@@ -126,7 +126,7 @@ class FlowResponse(FlowBase):
 
 class ScheduleBase(BaseModel):
     """Base model for schedule operations."""
-    flow_id: str = Field(..., description="ID of the flow this schedule belongs to")
+    workflow_id: str = Field(..., description="ID of the workflow this schedule belongs to")
     schedule_type: str = Field(..., description="Type of schedule")
     schedule_expr: str = Field(..., description="Schedule expression")
     flow_params: Dict[str, Any] = Field(default_factory=dict, description="Flow parameters")
@@ -153,7 +153,7 @@ class ScheduleResponse(ScheduleBase):
         if hasattr(obj, "__dict__"):
             data = {
                 "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
-                "flow_id": str(obj.flow_id) if isinstance(obj.flow_id, UUID) else obj.flow_id,
+                "workflow_id": str(obj.workflow_id) if isinstance(obj.workflow_id, UUID) else obj.workflow_id,
                 "schedule_type": obj.schedule_type,
                 "schedule_expr": obj.schedule_expr,
                 "flow_params": obj.flow_params or {},

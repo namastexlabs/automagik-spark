@@ -16,18 +16,18 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-class Flow(Base):
-    """Flow model."""
-    __tablename__ = "flows"
+class Workflow(Base):
+    """Workflow model."""
+    __tablename__ = "workflows"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    data = Column(JSON)  # Additional flow data
+    data = Column(JSON)  # Additional workflow data
     
     # Source system info
     source = Column(String(50), nullable=False)  # e.g., "langflow"
-    source_id = Column(String(255), nullable=False)  # ID in the source system (UUID)
+    remote_flow_id = Column(String(255), nullable=False)  # ID of the remote flow (UUID)
     flow_version = Column(Integer, default=1)
     
     # Component info
@@ -49,17 +49,17 @@ class Flow(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
-    tasks = relationship("Task", back_populates="flow")
-    schedules = relationship("Schedule", back_populates="flow")
-    components = relationship("FlowComponent", back_populates="flow")
+    tasks = relationship("Task", back_populates="workflow")
+    schedules = relationship("Schedule", back_populates="workflow")
+    components = relationship("WorkflowComponent", back_populates="workflow")
 
 
-class FlowComponent(Base):
-    """Flow component model."""
-    __tablename__ = "flow_components"
+class WorkflowComponent(Base):
+    """Workflow component model."""
+    __tablename__ = "workflow_components"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey("flows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     
     # Component info
     component_id = Column(String(255), nullable=False)  # ID in source system (e.g., "ChatOutput-WHzRB")
@@ -76,7 +76,7 @@ class FlowComponent(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
-    flow = relationship("Flow", back_populates="components")
+    workflow = relationship("Workflow", back_populates="components")
 
 
 class Task(Base):
@@ -84,7 +84,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey("flows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     
     # Execution info
     status = Column(String(50), nullable=False, default="pending")
@@ -104,7 +104,7 @@ class Task(Base):
     finished_at = Column(DateTime(timezone=True))
 
     # Relationships
-    flow = relationship("Flow", back_populates="tasks")
+    workflow = relationship("Workflow", back_populates="tasks")
     logs = relationship("TaskLog", back_populates="task", order_by="TaskLog.created_at")
 
 
@@ -132,12 +132,12 @@ class Schedule(Base):
     __tablename__ = "schedules"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    flow_id = Column(UUID(as_uuid=True), ForeignKey("flows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     
     # Schedule info
     schedule_type = Column(String(50), nullable=False)  # e.g., "cron", "interval"
     schedule_expr = Column(String(255), nullable=False)  # e.g., "* * * * *" for cron, "1h" for interval
-    flow_params = Column(JSON)  # Parameters to pass to the flow
+    workflow_params = Column(JSON)  # Parameters to pass to the workflow
     status = Column(String(50), nullable=False, default="active")  # active, paused, disabled
     next_run_at = Column(DateTime(timezone=True))
     
@@ -146,7 +146,7 @@ class Schedule(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
-    flow = relationship("Flow", back_populates="schedules")
+    workflow = relationship("Workflow", back_populates="schedules")
 
 
 class Worker(Base):

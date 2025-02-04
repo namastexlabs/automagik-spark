@@ -1,8 +1,8 @@
 """
-Flow synchronization module.
+Workflow synchronization module.
 
-Handles synchronization of flows between LangFlow and Automagik.
-Provides functionality for fetching, filtering, and syncing flows.
+Handles synchronization of workflows between LangFlow and Automagik.
+Provides functionality for fetching, filtering, and syncing workflows.
 """
 
 import asyncio
@@ -17,38 +17,38 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
-from ..database.models import Flow, FlowComponent, Task, TaskLog
+from ..database.models import Workflow, WorkflowComponent, Task, TaskLog
 from ..database.session import get_session
 
 logger = logging.getLogger(__name__)
 
 
-class FlowSync:
-    """Flow synchronization class."""
+class WorkflowSync:
+    """Workflow synchronization class."""
     
     def __init__(self, session: AsyncSession):
-        """Initialize flow sync."""
+        """Initialize workflow sync."""
         self.session = session
         self._client = None
         self._base_url = None
 
-    async def execute_flow(
+    async def execute_workflow(
         self,
-        flow: Flow,
+        workflow: Workflow,
         task: Task,
         input_data: Dict[str, Any],
         debug: bool = True  # This parameter is kept for backward compatibility
     ) -> Dict[str, Any]:
-        """Execute a flow with the given input data.
+        """Execute a workflow with the given input data.
         
         Args:
-            flow: Flow to execute
+            workflow: Workflow to execute
             task: Task being executed
-            input_data: Input data for the flow
+            input_data: Input data for the workflow
             debug: Whether to run in debug mode (always True)
         
         Returns:
-            Dict containing the flow output
+            Dict containing the workflow output
         """
         # Get the client
         client = await self._get_client()
@@ -59,8 +59,8 @@ class FlowSync:
             "output_type": "debug",
             "input_type": "chat",
             "tweaks": {
-                flow.input_component: {},
-                flow.output_component: {}
+                workflow.input_component: {},
+                workflow.output_component: {}
             }
         }
         
@@ -70,11 +70,11 @@ class FlowSync:
             task.started_at = datetime.utcnow()
             await self.session.commit()
 
-            # Execute the flow
-            logger.debug(f"Executing flow {flow.source_id} with input_data: {input_data}")
+            # Execute the workflow
+            logger.debug(f"Executing workflow {workflow.source_id} with input_data: {input_data}")
             logger.debug(f"API payload: {payload}")
             response = await client.post(
-                f"/api/v1/run/{flow.source_id}?stream=false",
+                f"/api/v1/run/{workflow.source_id}?stream=false",
                 json=payload,
                 timeout=600  # 10 minutes
             )
@@ -87,7 +87,7 @@ class FlowSync:
                 raise
                 
             result = response.json()
-            logger.debug(f"Flow execution result: {result}")
+            logger.debug(f"Workflow execution result: {result}")
 
             # Update task with output
             if result.get("outputs"):

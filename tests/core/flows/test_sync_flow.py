@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from sqlalchemy import select
 import httpx
 
-from automagik.core.flows import FlowManager
-from automagik.core.database.models import Flow
+from automagik.core.workflows import WorkflowManager
+from automagik.core.database.models import Workflow
 
 
 def create_mock_response(data, url="http://test/api/v1/flows/test"):
@@ -52,7 +52,7 @@ async def test_sync_new_flow(session):
     ]
     
     with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_manager = FlowManager(session)
+        flow_manager = WorkflowManager(session)
         # Mock get_flow_components
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
@@ -61,12 +61,12 @@ async def test_sync_new_flow(session):
         assert result is not None
         
         # Verify flow was created
-        stmt = select(Flow).where(Flow.id == result)
+        stmt = select(Workflow).where(Workflow.id == result)
         result = await session.execute(stmt)
         flow = result.scalar_one()
         assert flow is not None
         assert flow.name == "Test Flow"
-        assert flow.source_id == flow_id
+        assert flow.remote_flow_id == flow_id
         assert flow.flow_version == 1
 
 
@@ -75,13 +75,13 @@ async def test_sync_existing_flow(session):
     """Test syncing an existing flow."""
     # Create existing flow
     flow_id = str(uuid4())
-    existing_flow = Flow(
+    existing_flow = Workflow(
         id=uuid4(),
         name="Old Name",
         description="Old Description",
         data={"old": "data"},
         source="langflow",
-        source_id=flow_id,
+        remote_flow_id=flow_id,
         flow_version=1,
         input_component="old_input",
         output_component="old_output"
@@ -117,7 +117,7 @@ async def test_sync_existing_flow(session):
     ]
     
     with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_manager = FlowManager(session)
+        flow_manager = WorkflowManager(session)
         # Mock get_flow_components
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
@@ -126,7 +126,7 @@ async def test_sync_existing_flow(session):
         assert result == existing_id
         
         # Verify flow was updated
-        stmt = select(Flow).where(Flow.id == existing_id)
+        stmt = select(Workflow).where(Workflow.id == existing_id)
         result = await session.execute(stmt)
         flow = result.scalar_one()
         assert flow is not None
@@ -163,7 +163,7 @@ async def test_sync_flow_with_invalid_components(session):
     ]
     
     with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_manager = FlowManager(session)
+        flow_manager = WorkflowManager(session)
         # Mock get_flow_components
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
@@ -172,7 +172,7 @@ async def test_sync_flow_with_invalid_components(session):
         assert result is not None  # Flow should still be created
         
         # Verify flow was created with invalid components
-        stmt = select(Flow).where(Flow.id == result)
+        stmt = select(Workflow).where(Workflow.id == result)
         result = await session.execute(stmt)
         flow = result.scalar_one()
         assert flow is not None

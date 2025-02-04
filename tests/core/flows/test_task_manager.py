@@ -6,8 +6,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from automagik.core.flows import TaskManager
-from automagik.core.database.models import Task, Flow, TaskLog
+from automagik.core.workflows import TaskManager
+from automagik.core.database.models import Task, Workflow, TaskLog
 
 @pytest.fixture
 async def task_manager(session):
@@ -17,9 +17,9 @@ async def task_manager(session):
 @pytest.fixture
 async def test_flow(session):
     """Create a test flow."""
-    flow = Flow(
+    flow = Workflow(
         id=uuid4(),
-        source_id=str(uuid4()),
+        remote_flow_id=str(uuid4()),
         name="Test Flow",
         description="A test flow",
         source="langflow",  # Required field
@@ -35,7 +35,7 @@ async def failed_task(session, test_flow):
     """Create a failed task."""
     task = Task(
         id=uuid4(),
-        flow_id=test_flow.id,
+        workflow_id=test_flow.id,
         status="failed",
         error="Test error",
         input_data={"test": "data"},

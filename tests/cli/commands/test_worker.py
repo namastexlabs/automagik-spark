@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from automagik.cli.commands.worker import process_schedules, parse_interval
-from automagik.core.database.models import Flow, Schedule, Task, TaskLog
+from automagik.core.database.models import Workflow, Schedule, Task, TaskLog
 
 @pytest.fixture(autouse=True)
 async def cleanup_db(session):
@@ -16,22 +16,20 @@ async def cleanup_db(session):
     await session.execute(text("DELETE FROM task_logs"))
     await session.execute(text("DELETE FROM tasks"))
     await session.execute(text("DELETE FROM schedules"))
-    await session.execute(text("DELETE FROM flow_components"))
-    await session.execute(text("DELETE FROM flows"))
+    await session.execute(text("DELETE FROM workflow_components"))
+    await session.execute(text("DELETE FROM workflows"))
     await session.commit()
 
 @pytest.fixture
 async def sample_flow(session):
     """Create a sample flow for testing."""
-    flow = Flow(
+    flow = Workflow(
         id=uuid4(),
+        remote_flow_id="test-flow",
         name="Test Flow",
-        description="Test Flow Description",
-        input_component="input",
-        output_component="output",
-        source="test",
-        source_id="test-flow",
-        data={"test": "data"}
+        description="Test flow for testing",
+        source="langflow",
+        data={"nodes": []}
     )
     session.add(flow)
     await session.commit()
@@ -43,10 +41,10 @@ async def future_schedule(session, sample_flow):
     next_run = datetime.now(timezone.utc) + timedelta(hours=1)
     schedule = Schedule(
         id=uuid4(),
-        flow_id=sample_flow.id,
+        workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="60m",  # 60 minutes
-        flow_params={"test": "params"},
+        workflow_params={"test": "params"},
         status="active",
         next_run_at=next_run
     )
@@ -60,10 +58,10 @@ async def past_schedule(session, sample_flow):
     next_run = datetime.now(timezone.utc) - timedelta(minutes=5)
     schedule = Schedule(
         id=uuid4(),
-        flow_id=sample_flow.id,
+        workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="30m",  # 30 minutes
-        flow_params={"test": "params"},
+        workflow_params={"test": "params"},
         status="active",
         next_run_at=next_run
     )
@@ -77,10 +75,10 @@ async def inactive_schedule(session, sample_flow):
     next_run = datetime.now(timezone.utc) - timedelta(minutes=5)
     schedule = Schedule(
         id=uuid4(),
-        flow_id=sample_flow.id,
+        workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        flow_params={"test": "params"},
+        workflow_params={"test": "params"},
         status="paused",  
         next_run_at=next_run
     )
@@ -95,7 +93,7 @@ async def test_process_schedules_future(session, future_schedule):
     async def mock_execute(*args, **kwargs):
         result = MagicMock()
         query = str(args[0]).upper()
-        if "SCHEDULE" in query and "FLOW" in query:
+        if "SCHEDULE" in query and "WORKFLOW" in query:
             # For list_schedules query
             scalar_result = MagicMock()
             scalar_result.all.return_value = [future_schedule]
@@ -104,7 +102,7 @@ async def test_process_schedules_future(session, future_schedule):
             # For counting tasks
             result.scalar.return_value = 0
         else:
-            result.scalar.return_value = None
+            result.scalar_return_value = None
             scalar_result = MagicMock()
             scalar_result.all.return_value = []
             result.scalars.return_value = scalar_result
@@ -129,7 +127,7 @@ async def test_process_schedules_past(session, past_schedule):
         result = MagicMock()
         query = str(args[0]).upper()
         
-        if "SCHEDULE" in query and "FLOW" in query:
+        if "SCHEDULE" in query and "WORKFLOW" in query:
             # For list_schedules query
             scalar_result = MagicMock()
             scalar_result.all.return_value = [past_schedule]
@@ -144,7 +142,7 @@ async def test_process_schedules_past(session, past_schedule):
             result.scalars.return_value = scalar_result
         else:
             # For other queries
-            result.scalar.return_value = None
+            result.scalar_return_value = None
             scalar_result = MagicMock()
             scalar_result.all.return_value = []
             result.scalars.return_value = scalar_result
@@ -174,7 +172,7 @@ async def test_process_schedules_inactive(session, inactive_schedule):
     async def mock_execute(*args, **kwargs):
         result = MagicMock()
         query = str(args[0]).upper()
-        if "SCHEDULE" in query and "FLOW" in query:
+        if "SCHEDULE" in query and "WORKFLOW" in query:
             # For list_schedules query
             scalar_result = MagicMock()
             scalar_result.all.return_value = [inactive_schedule]
@@ -207,44 +205,45 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
     """
     Test processing multiple schedules.
     We fix the "MagicMock flow_id" problem by:
-      1) Giving each schedule a real Flow object with a real UUID (and setting schedule.flow_id properly).
+      1) Giving each schedule a real Workflow object with a real UUID (and setting schedule.flow_id properly).
       2) Ensuring our mocks for session.execute(...) only return real objects or real UUIDs (never MagicMock).
     """
 
-    # 1) Give each schedule a distinct, real Flow relationship & flow_id:
-    past_flow = Flow(
+    # 1) Give each schedule a distinct, real Workflow relationship & flow_id:
+    past_flow = Workflow(
         id=uuid4(),
-        name="Test Flow Past",
-        source_id="some-past-source",
+        remote_flow_id="some-past-source",
+        name="Past Flow",
+        description="A flow that should have run in the past",
         source="langflow",
+        data={"nodes": []}
     )
-    future_flow = Flow(
+    future_flow = Workflow(
         id=uuid4(),
-        name="Test Flow Future",
-        source_id="some-future-source",
+        remote_flow_id="some-future-source",
+        name="Future Flow",
+        description="A flow that should run in the future",
         source="langflow",
+        data={"nodes": []}
     )
-    inactive_flow = Flow(
+    inactive_flow = Workflow(
         id=uuid4(),
-        name="Test Flow Inactive",
-        source_id="some-inactive-source",
+        remote_flow_id="some-inactive-source",
+        name="Inactive Flow",
+        description="A flow that is inactive",
         source="langflow",
+        data={"nodes": []}
     )
 
     # Attach them to the schedules:
-    past_schedule.flow = past_flow
-    past_schedule.flow_id = past_flow.id
+    past_schedule.workflow_id = past_flow.id
+    future_schedule.workflow_id = future_flow.id
+    inactive_schedule.workflow_id = inactive_flow.id
 
-    future_schedule.flow = future_flow
-    future_schedule.flow_id = future_flow.id
-
-    inactive_schedule.flow = inactive_flow
-    inactive_schedule.flow_id = inactive_flow.id
-
-    # Create a real Task object with a real flow_id
+    # Create a real Task object with a real workflow_id
     mock_task = Task(
         id=uuid4(),
-        flow_id=past_flow.id,  # Use real UUID from past_flow
+        workflow_id=past_flow.id,  # Use real UUID from past_flow
         status='pending',
         input_data={},
         created_at=datetime.now(timezone.utc),
@@ -259,15 +258,15 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
 
         # Add scalar_one method that returns real objects
         def mock_scalar_one():
-            if "FROM FLOWS" in query_str:
+            if "FROM WORKFLOWS" in query_str:
                 return past_flow
             elif "FROM TASKS" in query_str:
                 return mock_task
             return None
         result.scalar_one.side_effect = mock_scalar_one
 
-        if "FROM SCHEDULES" in query_str and "FLOW" in query_str:
-            # Return our three schedules with real Flow objects
+        if "FROM SCHEDULES" in query_str and "WORKFLOW" in query_str:
+            # Return our three schedules with real Workflow objects
             mock_scalars = MagicMock()
             mock_scalars.all.return_value = [future_schedule, past_schedule, inactive_schedule]
             result.scalars.return_value = mock_scalars
@@ -282,8 +281,8 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
             result.scalars.return_value = mock_scalars
             result.scalar.return_value = None
 
-        elif "FROM FLOWS" in query_str:
-            # Return past_flow for Flow queries
+        elif "FROM WORKFLOWS" in query_str:
+            # Return past_flow for Workflow queries
             result.scalar.return_value = past_flow
             mock_scalars = MagicMock()
             mock_scalars.all.return_value = [past_flow]
@@ -294,20 +293,20 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
             mock_scalars = MagicMock()
             mock_scalars.all.return_value = [mock_task]
             result.scalars.return_value = mock_scalars
-            result.scalar.return_value = mock_task.flow_id  # Return the real flow_id
+            result.scalar.return_value = mock_task.workflow_id  # Return the real workflow_id
 
         else:
             # Default: return empty results
-            result.scalar.return_value = None
+            result.scalar_return_value = None
             mock_scalars = MagicMock()
             mock_scalars.all.return_value = []
             result.scalars.return_value = mock_scalars
 
         return result
 
-    # Mock session.get to return real Flow objects
+    # Mock session.get to return real Workflow objects
     async def mock_session_get(model_class, primary_key):
-        if model_class is Flow:
+        if model_class is Workflow:
             if primary_key == past_flow.id:
                 return past_flow
             elif primary_key == future_flow.id:
@@ -330,12 +329,12 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
         
         # Verify task was created for the right flow
         result = await session.execute(
-            select(Task.flow_id)
+            select(Task.workflow_id)
             .order_by(Task.created_at.desc())
             .limit(1)
         )
-        task_flow_id = result.scalar()
-        assert task_flow_id == past_schedule.flow_id
+        task_workflow_id = result.scalar()
+        assert task_workflow_id == past_schedule.workflow_id
 
 def test_parse_interval():
     """Test interval string parsing."""

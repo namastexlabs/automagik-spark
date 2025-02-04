@@ -1,4 +1,4 @@
 """API routers package."""
-from . import tasks, flows, schedules
+from . import tasks, workflows, schedules
 
-__all__ = ['tasks', 'flows', 'schedules']
+__all__ = ['tasks', 'workflows', 'schedules']

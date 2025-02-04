@@ -6,12 +6,12 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
-from automagik.core.flows.manager import FlowManager
+from automagik.core.workflows.manager import WorkflowManager
 
 @pytest.fixture
 def flow_manager(session):
-    """Create a FlowManager instance."""
-    return FlowManager(session)
+    """Create a WorkflowManager instance."""
+    return WorkflowManager(session)
 
 @pytest.fixture
 def mock_data_dir():
@@ -56,7 +56,7 @@ async def test_sync_flow_success(flow_manager, mock_flows):
         assert flow.name == flow_data["name"]
         assert flow.description == flow_data.get("description", "")
         assert flow.source == "langflow"
-        assert flow.source_id == flow_id
+        assert flow.remote_flow_id == flow_id
         assert flow.input_component == input_component
         assert flow.output_component == output_component
         assert flow.folder_id == flow_data.get("folder_id")

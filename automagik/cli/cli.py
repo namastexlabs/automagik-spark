@@ -1,4 +1,4 @@
-"""CLI entry point for automagik."""
+"""Main CLI entry point."""
 
 import os
 import click
@@ -9,13 +9,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .commands import (
-    flow_group,
-    schedule_group,
-    task_group,
+    api_group,
     db_group,
     worker_group,
-    api
+    workflow_group,
+    schedule_group,
+    task_group,
 )
+
 
 @click.group()
 @click.option('--debug/--no-debug', default=False, help='Enable debug mode')
@@ -35,12 +36,12 @@ def main(debug):
         logging.getLogger().setLevel(logging.INFO)
 
 # Add command groups
-main.add_command(flow_group)
-main.add_command(schedule_group)
-main.add_command(worker_group)
-main.add_command(task_group)
+main.add_command(api_group)
 main.add_command(db_group)
-main.add_command(api)
+main.add_command(worker_group)
+main.add_command(workflow_group)
+main.add_command(schedule_group)
+main.add_command(task_group)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

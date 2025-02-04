@@ -4,30 +4,30 @@ import pytest
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from automagik.core.flows import FlowManager
+from automagik.core.workflows import WorkflowManager
 from automagik.core.scheduler import SchedulerManager
-from automagik.core.database.models import Flow, Schedule
+from automagik.core.database.models import Workflow, Schedule
 
 @pytest.fixture
 def flow_manager(session):
-    """Create a FlowManager instance."""
-    return FlowManager(session)
+    """Create a WorkflowManager instance."""
+    return WorkflowManager(session)
 
 @pytest.fixture
-async def scheduler_manager(flow_manager: FlowManager):
+async def scheduler_manager(flow_manager: WorkflowManager):
     """Create a scheduler manager for testing."""
     return SchedulerManager(flow_manager.session, flow_manager)
 
 @pytest.fixture
 async def sample_flow(session):
     """Create a sample flow in the database."""
-    flow = Flow(
+    flow = Workflow(
         id=uuid4(),
         name="Test Flow",
         description="A test flow",
         data={"nodes": []},
-        source="langflow",
-        source_id="test-flow-1",
+        source="test",
+        remote_flow_id="test_id",
         flow_version=1,
         input_component="input-1",
         output_component="output-1"

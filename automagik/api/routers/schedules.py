@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Security, Depends
 from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse
 from ..dependencies import verify_api_key, get_session
-from ...core.flows.manager import FlowManager
+from ...core.workflows.manager import WorkflowManager
 from ...core.scheduler.manager import SchedulerManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +16,8 @@ router = APIRouter(
 
 async def get_scheduler_manager(session: AsyncSession = Depends(get_session)) -> SchedulerManager:
     """Get scheduler manager instance."""
-    flow_manager = FlowManager(session)
-    return SchedulerManager(session, flow_manager)
+    workflow_manager = WorkflowManager(session)
+    return SchedulerManager(session, workflow_manager)
 
 @router.post("", response_model=ScheduleResponse)
 async def create_schedule(

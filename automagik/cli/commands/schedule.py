@@ -1,7 +1,7 @@
 """
 Schedule Management Commands
 
-Provides CLI commands for managing flow schedules:
+Provides CLI commands for managing workflow schedules:
 - Create schedules
 - List schedules
 - Update schedule status (pause/resume/stop)
@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from croniter import croniter
 
-from ...core.flows import FlowManager
+from ...core.workflows import WorkflowManager
 from ...core.scheduler import SchedulerManager
 from ...core.database.session import get_session
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @click.group(name='schedules')
 def schedule_group():
-    """Manage flow schedules."""
+    """Manage workflow schedules."""
     pass
 
 @schedule_group.command()
@@ -33,27 +33,27 @@ def create():
     """Create a new schedule."""
     async def _create_schedule():
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            scheduler_manager = SchedulerManager(session, flow_manager)
-            flows = await flow_manager.list_flows()
+            workflow_manager = WorkflowManager(session)
+            scheduler_manager = SchedulerManager(session, workflow_manager)
+            workflows = await workflow_manager.list_workflows()
             
-            if not flows:
-                click.echo("No flows available")
+            if not workflows:
+                click.echo("No workflows available")
                 return
             
-            # Show available flows
-            click.echo("\nAvailable Flows:")
-            for i, flow in enumerate(flows):
-                schedule_count = len(flow.schedules)
-                click.echo(f"{i}: {flow.name} ({schedule_count} schedules)")
+            # Show available workflows
+            click.echo("\nAvailable Workflows:")
+            for i, workflow in enumerate(workflows):
+                schedule_count = len(workflow.schedules)
+                click.echo(f"{i}: {workflow.name} ({schedule_count} schedules)")
             
-            # Get flow selection
-            flow_idx = click.prompt("\nSelect a flow", type=int, default=0)
-            if flow_idx < 0 or flow_idx >= len(flows):
-                click.echo("Invalid flow selection")
+            # Get workflow selection
+            workflow_idx = click.prompt("\nSelect a workflow", type=int, default=0)
+            if workflow_idx < 0 or workflow_idx >= len(workflows):
+                click.echo("Invalid workflow selection")
                 return
             
-            flow = flows[flow_idx]
+            workflow = workflows[workflow_idx]
             
             # Get schedule type
             click.echo("\nSchedule Type:")
@@ -129,7 +129,7 @@ def create():
             
             # Create schedule
             schedule = await scheduler_manager.create_schedule(
-                flow.id,
+                workflow.id,
                 schedule_type,
                 schedule_expr,
                 {'input_value': input_value}
@@ -137,7 +137,7 @@ def create():
             
             if schedule:
                 click.echo("\nSchedule created successfully!")
-                click.echo(f"Flow: {flow.name}")
+                click.echo(f"Workflow: {workflow.name}")
                 click.echo(f"Type: {schedule_type}")
                 
                 if schedule_type == 'interval':
@@ -157,8 +157,8 @@ def list():
     """List all schedules."""
     async def _list_schedules():
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            scheduler_manager = SchedulerManager(session, flow_manager)
+            workflow_manager = WorkflowManager(session)
+            scheduler_manager = SchedulerManager(session, workflow_manager)
             schedules = await scheduler_manager.list_schedules()
             
             if not schedules:
@@ -168,7 +168,7 @@ def list():
             # Prepare table data
             rows = []
             for schedule in schedules:
-                flow_name = schedule.flow.name if schedule.flow else "Unknown"
+                workflow_name = schedule.workflow.name if schedule.workflow else "Unknown"
                 schedule_type = schedule.schedule_type
                 schedule_expr = schedule.schedule_expr
                 status = schedule.status
@@ -176,7 +176,7 @@ def list():
                 
                 rows.append([
                     str(schedule.id),
-                    flow_name,
+                    workflow_name,
                     schedule_type,
                     schedule_expr,
                     status,
@@ -184,7 +184,7 @@ def list():
                 ])
             
             # Display table
-            headers = ['ID', 'Flow', 'Type', 'Expression', 'Status', 'Next Run']
+            headers = ['ID', 'Workflow', 'Type', 'Expression', 'Status', 'Next Run']
             click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
     
     asyncio.run(_list_schedules())
@@ -196,8 +196,8 @@ def update(schedule_id: str, action: str):
     """Update schedule status."""
     async def _update_schedule():
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            scheduler_manager = SchedulerManager(session, flow_manager)
+            workflow_manager = WorkflowManager(session)
+            scheduler_manager = SchedulerManager(session, workflow_manager)
             result = await scheduler_manager.update_schedule_status(schedule_id, action)
             
             if result:
@@ -214,8 +214,8 @@ def set_expression(schedule_id: str, expression: str):
     """Update schedule expression."""
     async def _update_expression():
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            scheduler_manager = SchedulerManager(session, flow_manager)
+            workflow_manager = WorkflowManager(session)
+            scheduler_manager = SchedulerManager(session, workflow_manager)
             result = await scheduler_manager.update_schedule_expression(schedule_id, expression)
             
             if result:
@@ -231,8 +231,8 @@ def delete(schedule_id: str):
     """Delete a schedule."""
     async def _delete_schedule():
         async with get_session() as session:
-            flow_manager = FlowManager(session)
-            scheduler_manager = SchedulerManager(session, flow_manager)
+            workflow_manager = WorkflowManager(session)
+            scheduler_manager = SchedulerManager(session, workflow_manager)
             result = await scheduler_manager.delete_schedule(UUID(schedule_id))
             
             if result:

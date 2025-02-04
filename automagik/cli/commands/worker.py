@@ -1,27 +1,30 @@
 """
 Worker Command Module
 
-Provides CLI commands for running the worker that executes scheduled flows.
+Provides CLI commands for running the worker that executes scheduled workflows.
 """
 
 import asyncio
 import click
 import logging
 import os
-import socket
-from pathlib import Path
-import psutil
-from datetime import datetime, timezone, timedelta
 import signal
 import sys
-import uuid
 import re
-from sqlalchemy import select
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+from uuid import UUID
 
-from ...core.flows import FlowManager
-from ...core.scheduler import SchedulerManager
+import psutil
+from tabulate import tabulate
+
+from ...core.database.models import Worker, Task, TaskLog, Schedule, Workflow
 from ...core.database.session import get_session
-from ...core.database.models import Task, TaskLog, Worker
+from ...core.workflows.workflow import LocalWorkflowManager as WorkflowManager
+from ...core.workflows.task import TaskManager
+from ...core.scheduler.scheduler import WorkflowScheduler as SchedulerManager
+from sqlalchemy import select
+from sqlalchemy import func
 
 # Initialize logger with basic configuration
 logger = logging.getLogger(__name__)
@@ -67,94 +70,51 @@ def configure_logging():
     
     return log_path
 
-async def run_flow(flow_manager: FlowManager, task: Task) -> bool:
-    """Run a flow."""
+async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
+    """Run a workflow."""
     try:
-        # Get flow
-        flow = await flow_manager.get_flow(str(task.flow_id))
-        if not flow:
-            logger.error(f"Flow {task.flow_id} not found")
+        # Get workflow
+        workflow = await workflow_manager.get_workflow(str(task.workflow_id))
+        if not workflow:
+            logger.error(f"Workflow {task.workflow_id} not found")
             return False
         
         # Update task status
         task.status = 'running'
         task.started_at = datetime.now(timezone.utc)
-        await flow_manager.session.commit()
+        await workflow_manager.session.commit()
         
-        # Run flow using source_id for API call
-        logger.info(f"Running flow {flow.name} (source_id: {flow.source_id}) for task {task.id}")
-        result = await flow_manager.run_flow(flow.source_id, task.input_data)
+        # Run workflow using source_id for API call
+        logger.info(f"Running workflow {workflow.name} (source_id: {workflow.source_id}) for task {task.id}")
+        result = await workflow_manager.run_workflow(workflow.source_id, task.input_data)
         
-        # Task status is managed by run_flow
+        # Task status is managed by run_workflow
         return result is not None
         
     except Exception as e:
-        logger.error(f"Failed to run flow: {str(e)}")
+        logger.error(f"Failed to run workflow: {str(e)}")
         task.status = 'failed'
         task.error = str(e)
         task.finished_at = datetime.now(timezone.utc)
-        await flow_manager.session.commit()
+        await workflow_manager.session.commit()
         return False
 
-def parse_interval(interval_str: str) -> timedelta:
-    """Parse an interval string into a timedelta.
-    
-    Supported formats:
-    - Xm: X minutes (e.g., "30m")
-    - Xh: X hours (e.g., "1h")
-    - Xd: X days (e.g., "7d")
-    
-    Args:
-        interval_str: Interval string to parse
-        
-    Returns:
-        timedelta object
-        
-    Raises:
-        ValueError: If the interval format is invalid
-    """
-    if not interval_str:
-        raise ValueError("Interval cannot be empty")
-        
-    match = re.match(r'^(\d+)([mhd])$', interval_str)
-    if not match:
-        raise ValueError(
-            f"Invalid interval format: {interval_str}. "
-            "Must be a number followed by 'm' (minutes), 'h' (hours), or 'd' (days). "
-            "Examples: '30m', '1h', '7d'"
-        )
-    
-    value, unit = match.groups()
-    value = int(value)
-    
-    if value <= 0:
-        raise ValueError("Interval must be positive")
-    
-    if unit == 'm':
-        return timedelta(minutes=value)
-    elif unit == 'h':
-        return timedelta(hours=value)
-    elif unit == 'd':
-        return timedelta(days=value)
-    else:
-        raise ValueError(f"Invalid interval unit: {unit}")
-
-async def process_schedule(session, schedule, flow_manager, now=None):
+async def process_schedule(session, schedule, workflow_manager, now=None):
     """Process a single schedule."""
     if now is None:
         now = datetime.now(timezone.utc)
         
     try:
         # Log schedule parameters
-        logger.debug(f"Processing schedule {schedule.id} for flow {schedule.flow_id}")
-        logger.debug(f"Schedule parameters: {schedule.flow_params}")
+        logger.debug(f"Processing schedule {schedule.id} for workflow {schedule.workflow_id}")
+        logger.debug(f"Schedule parameters: {schedule.workflow_params}")
         
         # Create task
         task = Task(
             id=uuid.uuid4(),
-            flow_id=schedule.flow_id,
+            workflow_id=schedule.workflow_id,
             status='pending',
-            input_data=schedule.flow_params or {},
+            input_data=schedule.workflow_params or {},
             created_at=now,
             tries=0,
             max_retries=3  # Configure max retries
@@ -167,14 +127,14 @@ async def process_schedule(session, schedule, flow_manager, now=None):
         logger.debug(f"Task input data: {task.input_data}")
         
         # Run task
-        success = await run_flow(flow_manager, task)
+        success = await run_workflow(workflow_manager, task)
         
         if success:
-            logger.info(f"Successfully executed flow '{schedule.flow.name}'")
+            logger.info(f"Successfully executed workflow '{schedule.workflow.name}'")
             task.status = 'completed'
             task.finished_at = datetime.now(timezone.utc)
         else:
-            logger.error(f"Failed to execute flow '{schedule.flow.name}'")
+            logger.error(f"Failed to execute workflow '{schedule.workflow.name}'")
             # Only retry if we haven't exceeded max retries
             if task.tries < task.max_retries:
                 task.status = 'pending'
@@ -218,64 +178,88 @@ async def process_schedule(session, schedule, flow_manager, now=None):
             logger.error(f"Failed to create error log: {str(log_error)}")
         return False
 
+def parse_interval(interval_str: str) -> timedelta:
+    """Parse an interval string into a timedelta.
+    
+    Args:
+        interval_str: String in format like "30m", "1h", "7d"
+        
+    Returns:
+        timedelta object
+        
+    Raises:
+        ValueError: If interval format is invalid
+    """
+    if not interval_str:
+        raise ValueError("Interval string cannot be empty")
+        
+    units = {
+        's': 'seconds',
+        'm': 'minutes',
+        'h': 'hours',
+        'd': 'days',
+        'w': 'weeks'
+    }
+    
+    # Extract number and unit
+    match = re.match(r'^(\d+)([smhdw])$', interval_str)
+    if not match:
+        raise ValueError(f"Invalid interval format: {interval_str}")
+        
+    value, unit = match.groups()
+    value = int(value)
+    
+    if value < 1:
+        raise ValueError(f"Interval value must be positive: {value}")
+        
+    # Convert to timedelta
+    return timedelta(**{units[unit]: value})
+
 async def process_schedules(session):
     """Process due schedules."""
     now = datetime.now(timezone.utc)
-    
-    flow_manager = FlowManager(session)
-    scheduler_manager = SchedulerManager(session, flow_manager)
-    
-    # First, check for any failed tasks that need to be retried
-    retry_query = select(Task).where(
-        Task.status == 'pending',
-        Task.next_retry_at <= now,
-        Task.tries < Task.max_retries
+
+    workflow_manager = WorkflowManager(session)
+    task_manager = TaskManager(session)
+
+    # Get active schedules that are due
+    stmt = select(Schedule).join(Workflow).where(
+        Schedule.status == "active",
+        Schedule.next_run_at <= now
     )
-    retry_tasks = await session.execute(retry_query)
-    for task in retry_tasks.scalars():
-        logger.info(f"Retrying failed task {task.id} (attempt {task.tries + 1}/{task.max_retries})")
-        await run_flow(flow_manager, task)
-    
-    # Now process schedules
-    schedules = await scheduler_manager.list_schedules()
-    active_schedules = [s for s in schedules if s.status == 'active']
-    logger.info(f"Found {len(active_schedules)} active schedules")
-    
-    # Sort schedules by next run time
-    active_schedules.sort(key=lambda s: s.next_run_at or datetime.max.replace(tzinfo=timezone.utc))
-    
-    # Show only the next 5 schedules
-    for i, schedule in enumerate(active_schedules):
-        if i >= 5:  # Skip logging after first 5
-            break
-            
-        # Convert next_run_at to UTC if it's naive
-        next_run = schedule.next_run_at
-        if next_run and next_run.tzinfo is None:
-            next_run = next_run.replace(tzinfo=timezone.utc)
-            schedule.next_run_at = next_run
-            
-        if not next_run:
-            logger.warning(f"Schedule {schedule.id} has no next run time")
-            continue
-            
-        time_until = next_run - now
-        total_seconds = int(time_until.total_seconds())
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        seconds = total_seconds % 60
-        
-        if next_run > now:
-            logger.info(f"Schedule '{schedule.flow.name}' will run in {hours}h {minutes}m {seconds}s (at {next_run.strftime('%H:%M:%S UTC')})")
-            continue
-            
-        logger.info(f"Executing schedule {schedule.id} for flow '{schedule.flow.name}'")
-        await process_schedule(session, schedule, flow_manager, now)
-            
-    # Process all schedules regardless of display limit
-    for schedule in active_schedules[5:]:
-        if schedule.next_run_at and schedule.next_run_at <= now:
-            await process_schedule(session, schedule, flow_manager, now)
+    result = await session.execute(stmt)
+    schedules = result.scalars().all()
+
+    for schedule in schedules:
+        # Check if there are any running tasks for this workflow
+        stmt = select(func.count()).select_from(Task).where(
+            Task.workflow_id == schedule.workflow_id,
+            Task.status.in_(["running", "pending"])
+        )
+        result = await session.execute(stmt)
+        running_tasks = result.scalar()
+
+        if running_tasks == 0:
+            # Create a new task
+            await task_manager.create_task({
+                "workflow_id": schedule.workflow_id,
+                "input_data": schedule.workflow_params or {},
+                "status": "pending",
+                "tries": 0,
+                "max_retries": 3,
+                "created_at": now,
+                "updated_at": now
+            })
+
+            # Update next run time based on schedule type
+            if schedule.schedule_type == "interval":
+                interval = parse_interval(schedule.schedule_expr)
+                schedule.next_run_at = now + interval
+            elif schedule.schedule_type == "cron":
+                # TODO: Implement cron schedule support
+                pass
+
+            await session.commit()
 
 async def worker_loop():
     """Worker loop."""
@@ -457,14 +441,12 @@ def daemonize():
     with open(os.devnull, 'a+') as f:
         os.dup2(f.fileno(), sys.stderr.fileno())
 
-@click.group(name='workers')
-def worker_group():
-    """Manage the worker process."""
-    pass
+worker_group = click.Group(name="worker", help="Worker management commands")
 
-@worker_group.command(name='start')
-def start_worker():
-    """Start the worker process."""
+@worker_group.command("start")
+@click.option("--threads", default=1, help="Number of worker threads")
+def start_worker(threads: int):
+    """Start worker process."""
     # Configure logging first
     log_path = configure_logging()
     logger.info(f"Worker logs will be written to {log_path}")
@@ -492,9 +474,10 @@ def start_worker():
         logger.exception("Worker failed")
         sys.exit(1)
 
-@worker_group.command(name='stop')
-def stop_worker_command():
-    """Stop the worker process."""
+@worker_group.command("stop")
+@click.argument("worker_id", required=False)
+def stop_worker_command(worker_id: Optional[str]):
+    """Stop worker process."""
     if not is_worker_running():
         click.echo("No worker process is running")
         return
@@ -503,13 +486,58 @@ def stop_worker_command():
     stop_worker()
     click.echo("Worker process stopped")
 
-@worker_group.command(name='status')
+@worker_group.command("status")
 def worker_status():
-    """Check if the worker process is running."""
-    if is_worker_running():
-        click.echo("Worker process is running")
-    else:
-        click.echo("Worker process is not running")
+    """Get worker status."""
+    async def _status():
+        async with get_session() as session:
+            # Get all workers
+            result = await session.execute(
+                select(Worker).order_by(Worker.created_at.desc())
+            )
+            workers = result.scalars().all()
+
+            if not workers:
+                click.echo("No workers found")
+                return
+
+            # Format for display
+            now = datetime.now(timezone.utc)
+            rows = []
+            for w in workers:
+                # Check if process is running
+                try:
+                    proc = psutil.Process(w.pid)
+                    running = proc.is_running()
+                except psutil.NoSuchProcess:
+                    running = False
+
+                # Format last heartbeat
+                if w.last_heartbeat:
+                    last_hb = (now - w.last_heartbeat).total_seconds()
+                    last_hb = f"{int(last_hb)}s ago"
+                else:
+                    last_hb = "Never"
+
+                rows.append([
+                    str(w.id)[:8],
+                    w.hostname,
+                    w.pid,
+                    "Running" if running else "Dead",
+                    w.status,
+                    str(w.current_task_id)[:8] if w.current_task_id else "",
+                    last_hb
+                ])
+
+            if rows:
+                headers = ["ID", "Hostname", "PID", "State", "Status", "Task", "Last HB"]
+                click.echo(tabulate(rows, headers=headers))
+
+    try:
+        asyncio.run(_status())
+    except Exception as e:
+        click.echo(f"Error getting worker status: {e}")
+        return 1
 
 if __name__ == "__main__":
     worker_group()

@@ -8,9 +8,9 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from automagik.core.flows.task import TaskManager
-from automagik.core.database.models import Task, Flow
-from automagik.core.flows.sync import FlowSync
+from automagik.core.workflows.task import TaskManager
+from automagik.core.database.models import Task, Workflow
+from automagik.core.workflows.sync import WorkflowSync
 
 @pytest.fixture
 async def task_manager(session: AsyncSession) -> TaskManager:
@@ -18,13 +18,13 @@ async def task_manager(session: AsyncSession) -> TaskManager:
     return TaskManager(session)
 
 @pytest.fixture
-async def test_flow(session: AsyncSession) -> Flow:
+async def test_flow(session: AsyncSession) -> Workflow:
     """Create a test flow."""
-    flow = Flow(
+    flow = Workflow(
         id=uuid4(),
         name="Test Flow",
         source="test",
-        source_id=str(uuid4()),
+        remote_flow_id="test_id",
         input_component="input_node",
         output_component="output_node",
         data={"test": "data"},
@@ -42,10 +42,10 @@ async def test_flow(session: AsyncSession) -> Flow:
 async def test_successful_flow_execution(
     session: AsyncSession,
     task_manager: TaskManager,
-    test_flow: Flow
+    test_flow: Workflow
 ):
     """Test successful flow execution."""
-    # Mock the execute_flow method of FlowSync
+    # Mock the execute_flow method of WorkflowSync
     mock_output = {"result": "success"}
     async def mock_execute(*args, **kwargs):
         task = kwargs['task']
@@ -56,7 +56,7 @@ async def test_successful_flow_execution(
         await session.commit()
         return mock_output
 
-    with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
+    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
             input_data={"input": "test input"}
@@ -73,7 +73,7 @@ async def test_successful_flow_execution(
 async def test_failed_flow_execution(
     session: AsyncSession,
     task_manager: TaskManager,
-    test_flow: Flow
+    test_flow: Workflow
 ):
     """Test failed flow execution."""
     error_message = "Test error"
@@ -86,7 +86,7 @@ async def test_failed_flow_execution(
         await session.commit()
         raise Exception(error_message)
 
-    with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
+    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
         # When a flow fails, run_flow returns None
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
@@ -96,7 +96,7 @@ async def test_failed_flow_execution(
         
         # But the task should still be created and marked as failed
         result = await session.execute(
-            select(Task).where(Task.flow_id == test_flow.id)
+            select(Task).where(Task.workflow_id == test_flow.id)
             .order_by(Task.created_at.desc())
         )
         task = result.scalar_one()
@@ -121,13 +121,13 @@ async def test_flow_not_found(
 async def test_task_status_not_overwritten(
     session: AsyncSession,
     task_manager: TaskManager,
-    test_flow: Flow
+    test_flow: Workflow
 ):
     """Test that completed tasks are not re-run."""
     # Create a completed task
     task = Task(
         id=uuid4(),
-        flow_id=test_flow.id,
+        workflow_id=test_flow.id,
         status="completed",
         input_data={"input": "test input"},
         output_data={"result": "success"},
@@ -148,7 +148,7 @@ async def test_task_status_not_overwritten(
         return True
     
     # Try to run a new task for the same flow
-    with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
+    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,
             input_data={"input": "test input"}
@@ -170,7 +170,7 @@ async def test_task_status_not_overwritten(
 async def test_input_value_handling(
     session: AsyncSession,
     task_manager: TaskManager,
-    test_flow: Flow
+    test_flow: Workflow
 ):
     """Test that input_value is correctly passed through the execution chain."""
     test_input = "test message"
@@ -192,7 +192,7 @@ async def test_input_value_handling(
         flow = kwargs['flow']
         input_data = kwargs['input_data']
         
-        # Build payload exactly as FlowSync does
+        # Build payload exactly as WorkflowSync does
         actual_payload = {
             "input_value": input_data.get("input_value", ""),
             "output_type": "debug",
@@ -210,7 +210,7 @@ async def test_input_value_handling(
         await session.commit()
         return {"result": "success"}
 
-    with patch('automagik.core.flows.sync.FlowSync.execute_flow', new=mock_execute):
+    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
         # Run flow with input_value
         task_id = await task_manager.run_flow(
             flow_id=test_flow.id,

@@ -1,7 +1,7 @@
 """
 Scheduler management module.
 
-Provides the main interface for managing schedules and running scheduled flows.
+Provides the main interface for managing schedules and running scheduled workflows.
 """
 
 import logging
@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from ..database.models import Schedule, Task, Flow
-from ..flows.manager import FlowManager
-from .scheduler import FlowScheduler
+from ..database.models import Schedule, Task, Workflow
+from ..workflows.manager import WorkflowManager
+from .scheduler import WorkflowScheduler
 from .task_runner import TaskRunner
 
 logger = logging.getLogger(__name__)
@@ -27,18 +27,18 @@ logger = logging.getLogger(__name__)
 class SchedulerManager:
     """Scheduler management class."""
     
-    def __init__(self, session: AsyncSession, flow_manager: FlowManager):
+    def __init__(self, session: AsyncSession, workflow_manager: WorkflowManager):
         """
         Initialize scheduler manager.
         
         Args:
             session: Database session
-            flow_manager: Flow manager instance for executing flows
+            workflow_manager: Workflow manager instance for executing workflows
         """
         self.session = session
-        self.flow_manager = flow_manager
-        self.scheduler = FlowScheduler(session, flow_manager)
-        self.task_runner = TaskRunner(session, flow_manager)
+        self.workflow_manager = workflow_manager
+        self.scheduler = WorkflowScheduler(session, workflow_manager)
+        self.task_runner = TaskRunner(session, workflow_manager)
 
     async def __aenter__(self):
         """Enter context manager."""
@@ -159,20 +159,20 @@ class SchedulerManager:
     # Schedule database operations
     async def create_schedule(
         self,
-        flow_id: UUID,
+        workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        flow_params: Optional[Dict[str, Any]] = None
+        workflow_params: Optional[Dict[str, Any]] = None
     ) -> Optional[Schedule]:
-        """Create a schedule for a flow."""
+        """Create a schedule for a workflow."""
         try:
-            # Check if flow exists
+            # Check if workflow exists
             result = await self.session.execute(
-                select(Flow).where(Flow.id == flow_id)
+                select(Workflow).where(Workflow.id == workflow_id)
             )
-            flow = result.scalar_one_or_none()
-            if not flow:
-                logger.error(f"Flow {flow_id} not found")
+            workflow = result.scalar_one_or_none()
+            if not workflow:
+                logger.error(f"Workflow {workflow_id} not found")
                 return None
 
             # Validate schedule type
@@ -188,10 +188,10 @@ class SchedulerManager:
 
             schedule = Schedule(
                 id=uuid4(),
-                flow_id=flow_id,
+                workflow_id=workflow_id,
                 schedule_type=schedule_type,
                 schedule_expr=schedule_expr,
-                flow_params=flow_params or {},
+                workflow_params=workflow_params or {},
                 next_run_at=next_run
             )
             
@@ -210,7 +210,7 @@ class SchedulerManager:
         """List all schedules from database."""
         result = await self.session.execute(
             select(Schedule)
-            .options(joinedload(Schedule.flow))
+            .options(joinedload(Schedule.workflow))
             .order_by(Schedule.created_at)
         )
         return list(result.scalars().all())
