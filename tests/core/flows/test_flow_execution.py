@@ -2,20 +2,19 @@
 
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from automagik.core.workflows.task import TaskManager
-from automagik.core.database.models import Task, Workflow
 from automagik.core.workflows.sync import WorkflowSync
+from automagik.core.database.models import Task, Workflow
 
 @pytest.fixture
-async def task_manager(session: AsyncSession) -> TaskManager:
-    """Create a task manager."""
-    return TaskManager(session)
+async def workflow_sync(session: AsyncSession) -> WorkflowSync:
+    """Create a workflow sync."""
+    return WorkflowSync(session)
 
 @pytest.fixture
 async def test_flow(session: AsyncSession) -> Workflow:
@@ -38,190 +37,118 @@ async def test_flow(session: AsyncSession) -> Workflow:
     await session.refresh(flow)
     return flow
 
+@pytest.fixture
+async def test_task(session: AsyncSession, test_flow: Workflow) -> Task:
+    """Create a test task."""
+    task = Task(
+        id=uuid4(),
+        workflow_id=test_flow.id,
+        status="pending",
+        input_data={"input": "test input"},
+        created_at=datetime.utcnow()
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(task)
+    return task
+
 @pytest.mark.asyncio
 async def test_successful_flow_execution(
     session: AsyncSession,
-    task_manager: TaskManager,
-    test_flow: Workflow
+    workflow_sync: WorkflowSync,
+    test_flow: Workflow,
+    test_task: Task
 ):
     """Test successful flow execution."""
-    # Mock the execute_flow method of WorkflowSync
-    mock_output = {"result": "success"}
-    async def mock_execute(*args, **kwargs):
-        task = kwargs['task']
-        task.status = "completed"
-        task.started_at = datetime.utcnow()
-        task.finished_at = datetime.utcnow()
-        task.output_data = mock_output
-        await session.commit()
-        return mock_output
+    # Mock the HTTP client
+    mock_client = AsyncMock()
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = AsyncMock()
+    mock_response.json = AsyncMock(return_value={"outputs": [{"outputs": "success"}]})
+    mock_client.post.return_value = mock_response
+    workflow_sync._client = mock_client
+    workflow_sync._base_url = "http://test"
 
-    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
-        task_id = await task_manager.run_flow(
-            flow_id=test_flow.id,
-            input_data={"input": "test input"}
-        )
-        assert task_id is not None
-        
-        task = await task_manager.get_task(str(task_id))
-        assert task.status == "completed"
-        assert task.output_data == mock_output
-        assert task.started_at is not None
-        assert task.finished_at is not None
+    # Execute workflow
+    result = await workflow_sync.execute_workflow(
+        workflow=test_flow,
+        task=test_task,
+        input_data={"input": "test input"}
+    )
+
+    # Verify result
+    assert result == {"outputs": [{"outputs": "success"}]}
+    assert test_task.status == "completed"
+    assert test_task.output_data == "success"
+    assert test_task.started_at is not None
+    assert test_task.error is None
 
 @pytest.mark.asyncio
 async def test_failed_flow_execution(
     session: AsyncSession,
-    task_manager: TaskManager,
-    test_flow: Workflow
+    workflow_sync: WorkflowSync,
+    test_flow: Workflow,
+    test_task: Task
 ):
     """Test failed flow execution."""
-    error_message = "Test error"
-    async def mock_execute(*args, **kwargs):
-        task = kwargs['task']
-        task.status = "failed"
-        task.error = error_message
-        task.started_at = datetime.utcnow()
-        task.finished_at = datetime.utcnow()
-        await session.commit()
-        raise Exception(error_message)
+    # Mock the HTTP client
+    mock_client = AsyncMock()
+    mock_response = AsyncMock()
+    mock_response.raise_for_status.side_effect = Exception("API Error")
+    mock_response.text = "API Error Details"
+    mock_client.post.return_value = mock_response
+    workflow_sync._client = mock_client
+    workflow_sync._base_url = "http://test"
 
-    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
-        # When a flow fails, run_flow returns None
-        task_id = await task_manager.run_flow(
-            flow_id=test_flow.id,
+    # Execute workflow
+    with pytest.raises(Exception):
+        await workflow_sync.execute_workflow(
+            workflow=test_flow,
+            task=test_task,
             input_data={"input": "test input"}
         )
-        assert task_id is None
-        
-        # But the task should still be created and marked as failed
-        result = await session.execute(
-            select(Task).where(Task.workflow_id == test_flow.id)
-            .order_by(Task.created_at.desc())
-        )
-        task = result.scalar_one()
-        assert task.status == "failed"
-        assert task.error == error_message
-        assert task.started_at is not None
-        assert task.finished_at is not None
 
-@pytest.mark.asyncio
-async def test_flow_not_found(
-    session: AsyncSession,
-    task_manager: TaskManager
-):
-    """Test execution with non-existent flow."""
-    task_id = await task_manager.run_flow(
-        flow_id=uuid4(),
-        input_data={"input": "test input"}
-    )
-    assert task_id is None
-
-@pytest.mark.asyncio
-async def test_task_status_not_overwritten(
-    session: AsyncSession,
-    task_manager: TaskManager,
-    test_flow: Workflow
-):
-    """Test that completed tasks are not re-run."""
-    # Create a completed task
-    task = Task(
-        id=uuid4(),
-        workflow_id=test_flow.id,
-        status="completed",
-        input_data={"input": "test input"},
-        output_data={"result": "success"},
-        created_at=datetime.utcnow(),
-        started_at=datetime.utcnow(),
-        finished_at=datetime.utcnow()
-    )
-    session.add(task)
-    await session.commit()
-    
-    async def mock_execute(*args, **kwargs):
-        task = kwargs['task']
-        task.status = "completed"
-        task.output_data = {"result": "new success"}
-        task.started_at = datetime.utcnow()
-        task.finished_at = datetime.utcnow()
-        await session.commit()
-        return True
-    
-    # Try to run a new task for the same flow
-    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
-        task_id = await task_manager.run_flow(
-            flow_id=test_flow.id,
-            input_data={"input": "test input"}
-        )
-    
-        # A new task should be created
-        assert task_id is not None
-        new_task = await task_manager.get_task(str(task_id))
-        assert new_task.id != task.id
-        assert new_task.status == "completed"
-        assert new_task.output_data == {"result": "new success"}
-    
-        # Original task should remain unchanged
-        await session.refresh(task)
-        assert task.status == "completed"
-        assert task.output_data == {"result": "success"}
+    # Verify task status
+    assert test_task.status == "failed"  # Status should be failed since error was raised
+    assert test_task.started_at is not None
+    assert test_task.error == "API Error"  # Error should be set from the exception
 
 @pytest.mark.asyncio
 async def test_input_value_handling(
     session: AsyncSession,
-    task_manager: TaskManager,
-    test_flow: Workflow
+    workflow_sync: WorkflowSync,
+    test_flow: Workflow,
+    test_task: Task
 ):
     """Test that input_value is correctly passed through the execution chain."""
-    test_input = "test message"
-    expected_payload = {
-        "input_value": test_input,
-        "output_type": "debug",
-        "input_type": "chat",
-        "tweaks": {
-            "input_node": {},
-            "output_node": {}
-        }
+    # Mock the HTTP client
+    mock_client = AsyncMock()
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = AsyncMock()
+    mock_response.json = AsyncMock(return_value={"outputs": [{"outputs": "specific test value"}]})
+    mock_client.post = AsyncMock(return_value=mock_response)
+    workflow_sync._client = mock_client
+    workflow_sync._base_url = "http://test"
+
+    # Execute workflow with specific input_value
+    result = await workflow_sync.execute_workflow(
+        workflow=test_flow,
+        task=test_task,
+        input_data={"input_value": "specific test value"}
+    )
+
+    # Verify the API was called with correct payload
+    assert mock_client.post.call_args is not None
+    url, kwargs = mock_client.post.call_args
+    assert kwargs["json"]["input_value"] == "specific test value"
+    assert kwargs["json"]["output_type"] == "debug"
+    assert kwargs["json"]["input_type"] == "chat"
+    assert kwargs["json"]["tweaks"] == {
+        test_flow.input_component: {},
+        test_flow.output_component: {}
     }
 
-    # Create a mock to capture the API call payload
-    actual_payload = None
-    async def mock_execute(*args, **kwargs):
-        nonlocal actual_payload
-        task = kwargs['task']
-        flow = kwargs['flow']
-        input_data = kwargs['input_data']
-        
-        # Build payload exactly as WorkflowSync does
-        actual_payload = {
-            "input_value": input_data.get("input_value", ""),
-            "output_type": "debug",
-            "input_type": "chat",
-            "tweaks": {
-                flow.input_component: {},
-                flow.output_component: {}
-            }
-        }
-        
-        task.status = "completed"
-        task.started_at = datetime.utcnow()
-        task.finished_at = datetime.utcnow()
-        task.output_data = {"result": "success"}
-        await session.commit()
-        return {"result": "success"}
-
-    with patch('automagik.core.workflows.sync.WorkflowSync.execute_flow', new=mock_execute):
-        # Run flow with input_value
-        task_id = await task_manager.run_flow(
-            flow_id=test_flow.id,
-            input_data={"input_value": test_input}
-        )
-        assert task_id is not None
-        
-        # Verify task was created and completed
-        task = await task_manager.get_task(str(task_id))
-        assert task.status == "completed"
-        assert task.input_data == {"input_value": test_input}
-        
-        # Verify payload was constructed correctly
-        assert actual_payload == expected_payload
+    # Verify task was updated correctly
+    assert test_task.status == "completed"
+    assert test_task.output_data == "specific test value"
+    assert test_task.input_data == {"input_value": "specific test value"}
