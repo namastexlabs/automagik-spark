@@ -4,6 +4,7 @@ Database models for the application.
 
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+from uuid import uuid4
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
 from sqlalchemy.orm import relationship
@@ -109,21 +110,17 @@ class Task(Base):
 
 
 class TaskLog(Base):
-    """Task execution log model."""
+    """Task log entry."""
+
     __tablename__ = "task_logs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False)
-    
-    level = Column(String(20), nullable=False)
-    message = Column(Text, nullable=False)
-    component_id = Column(String(255))
-    data = Column(JSON)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    
-    # Relationships
+    level = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    component_id = Column(String)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+
     task = relationship("Task", back_populates="logs")
 
 
@@ -131,19 +128,16 @@ class Schedule(Base):
     """Schedule model."""
     __tablename__ = "schedules"
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
-    
-    # Schedule info
-    schedule_type = Column(String(50), nullable=False)  # e.g., "cron", "interval"
-    schedule_expr = Column(String(255), nullable=False)  # e.g., "* * * * *" for cron, "1h" for interval
-    workflow_params = Column(JSON)  # Parameters to pass to the workflow
-    status = Column(String(50), nullable=False, default="active")  # active, paused, disabled
+    schedule_type = Column(String, nullable=False)
+    schedule_expr = Column(String, nullable=False)
+    workflow_params = Column(JSON, nullable=True)
+    params = Column(JSON, nullable=True)
+    status = Column(String, nullable=False, default="active")
     next_run_at = Column(DateTime(timezone=True))
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="schedules")

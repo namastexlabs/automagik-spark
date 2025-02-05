@@ -162,49 +162,18 @@ class SchedulerManager:
         workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        workflow_params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Schedule]:
-        """Create a schedule for a workflow."""
-        try:
-            # Check if workflow exists
-            result = await self.session.execute(
-                select(Workflow).where(Workflow.id == workflow_id)
-            )
-            workflow = result.scalar_one_or_none()
-            if not workflow:
-                logger.error(f"Workflow {workflow_id} not found")
-                return None
-
-            # Validate schedule type
-            if schedule_type not in ["interval", "cron"]:
-                logger.error(f"Invalid schedule type: {schedule_type}")
-                return None
-
-            # Calculate next run time
-            next_run = self._calculate_next_run(schedule_type, schedule_expr)
-            if next_run is None:
-                logger.error(f"Invalid schedule expression: {schedule_expr}")
-                return None
-
-            schedule = Schedule(
-                id=uuid4(),
-                workflow_id=workflow_id,
-                schedule_type=schedule_type,
-                schedule_expr=schedule_expr,
-                workflow_params=workflow_params or {},
-                next_run_at=next_run
-            )
-            
-            self.session.add(schedule)
-            await self.session.commit()
-            await self.session.refresh(schedule)
-            
-            return schedule
-            
-        except Exception as e:
-            logger.error(f"Error creating schedule: {e}")
-            await self.session.rollback()
-            return None
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Schedule:
+        """Create a new schedule."""
+        schedule = Schedule(
+            workflow_id=workflow_id,
+            schedule_type=schedule_type,
+            schedule_expr=schedule_expr,
+            params=params,
+        )
+        self.session.add(schedule)
+        await self.session.commit()
+        return schedule
 
     async def list_schedules(self) -> List[Schedule]:
         """List all schedules from database."""

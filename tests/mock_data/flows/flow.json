@@ -1,0 +1,29 @@
+{
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Test Flow",
+    "description": "Test flow description",
+    "data": {
+        "nodes": [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "type": "ChatInput",
+                "data": {
+                    "value": "test"
+                }
+            }
+        ],
+        "edges": []
+    },
+    "source": "langflow",
+    "remote_flow_id": "123e4567-e89b-12d3-a456-426614174000",
+    "flow_version": 1,
+    "input_component": null,
+    "output_component": null,
+    "is_component": false,
+    "folder_id": null,
+    "folder_name": null,
+    "icon": null,
+    "icon_bg_color": null,
+    "gradient": false,
+    "liked": false
+}

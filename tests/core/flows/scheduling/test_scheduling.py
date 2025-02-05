@@ -41,17 +41,17 @@ async def sample_flow(session):
 async def test_create_schedule(scheduler_manager, sample_flow):
     """Test creating a schedule for a flow."""
     schedule = await scheduler_manager.create_schedule(
-        flow_id=sample_flow.id,
+        workflow_id=sample_flow.id,
         schedule_type="cron",
         schedule_expr="0 0 * * *",
-        flow_params={"input": "test"}
+        params={"input": "test"}
     )
     
     assert schedule is not None
-    assert schedule.flow_id == sample_flow.id
+    assert schedule.workflow_id == sample_flow.id
     assert schedule.schedule_type == "cron"
     assert schedule.schedule_expr == "0 0 * * *"
-    assert schedule.flow_params == {"input": "test"}
+    assert schedule.params == {"input": "test"}
 
 @pytest.mark.asyncio
 async def test_delete_schedule(scheduler_manager, sample_flow):
@@ -59,17 +59,17 @@ async def test_delete_schedule(scheduler_manager, sample_flow):
     # Create a schedule first
     schedule = Schedule(
         id=uuid4(),
-        flow_id=sample_flow.id,
+        workflow_id=sample_flow.id,
         schedule_type="cron",
         schedule_expr="0 0 * * *",
-        flow_params={"input": "test"}
+        params={"input": "test"}
     )
     scheduler_manager.session.add(schedule)
     await scheduler_manager.session.commit()
     
     # Now delete it
-    result = await scheduler_manager.delete_schedule(schedule.id)
-    assert result is True
+    deleted = await scheduler_manager.delete_schedule(schedule.id)
+    assert deleted is True
     
     # Verify it's gone
     result = await scheduler_manager.get_schedule(schedule.id)
@@ -78,5 +78,5 @@ async def test_delete_schedule(scheduler_manager, sample_flow):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_schedule(scheduler_manager):
     """Test deleting a schedule that doesn't exist."""
-    result = await scheduler_manager.delete_schedule(uuid4())
-    assert result is False
+    deleted = await scheduler_manager.delete_schedule(uuid4())
+    assert deleted is False

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from sqlalchemy import select
@@ -20,8 +20,15 @@ class TaskManager:
         """Initialize task manager."""
         self.session = session
 
-    async def get_task(self, task_id: str) -> Optional[Task]:
+    def _to_uuid(self, id_: Union[str, UUID]) -> UUID:
+        """Convert string to UUID if needed."""
+        if isinstance(id_, str):
+            return UUID(id_)
+        return id_
+
+    async def get_task(self, task_id: Union[str, UUID]) -> Optional[Task]:
         """Get task by ID."""
+        task_id = self._to_uuid(task_id)
         result = await self.session.execute(
             select(Task).where(Task.id == task_id)
         )
@@ -29,7 +36,7 @@ class TaskManager:
 
     async def list_tasks(
         self,
-        workflow_id: Optional[str] = None,
+        workflow_id: Optional[Union[str, UUID]] = None,
         status: Optional[str] = None,
         limit: int = 50
     ) -> List[Task]:
@@ -37,6 +44,7 @@ class TaskManager:
         query = select(Task)
         
         if workflow_id:
+            workflow_id = self._to_uuid(workflow_id)
             query = query.where(Task.workflow_id == workflow_id)
         if status:
             query = query.where(Task.status == status)
@@ -47,16 +55,22 @@ class TaskManager:
 
     async def create_task(self, task: Dict[str, Any]) -> Task:
         """Create task."""
+        if 'workflow_id' in task and isinstance(task['workflow_id'], str):
+            task['workflow_id'] = UUID(task['workflow_id'])
         new_task = Task(**task)
         self.session.add(new_task)
         await self.session.commit()
         return new_task
 
-    async def update_task(self, task_id: str, task: Dict[str, Any]) -> Optional[Task]:
+    async def update_task(self, task_id: Union[str, UUID], task: Dict[str, Any]) -> Optional[Task]:
         """Update task."""
+        task_id = self._to_uuid(task_id)
         existing = await self.get_task(task_id)
         if not existing:
             return None
+
+        if 'workflow_id' in task and isinstance(task['workflow_id'], str):
+            task['workflow_id'] = UUID(task['workflow_id'])
 
         for key, value in task.items():
             setattr(existing, key, value)
@@ -64,8 +78,9 @@ class TaskManager:
         await self.session.commit()
         return existing
 
-    async def delete_task(self, task_id: str) -> bool:
+    async def delete_task(self, task_id: Union[str, UUID]) -> bool:
         """Delete task."""
+        task_id = self._to_uuid(task_id)
         task = await self.get_task(task_id)
         if not task:
             return False
@@ -110,8 +125,9 @@ class TaskManager:
         )
         return result.scalars().all()
 
-    async def get_tasks_by_workflow(self, workflow_id: str) -> List[Task]:
+    async def get_tasks_by_workflow(self, workflow_id: Union[str, UUID]) -> List[Task]:
         """Get tasks by workflow ID."""
+        workflow_id = self._to_uuid(workflow_id)
         result = await self.session.execute(
             select(Task)
             .where(Task.workflow_id == workflow_id)
@@ -119,8 +135,10 @@ class TaskManager:
         )
         return result.scalars().all()
 
-    async def retry_task(self, task_id: str) -> Optional[Task]:
+    async def retry_task(self, task_id: Union[str, UUID]) -> Optional[Task]:
         """Retry a failed task."""
+        task_id = self._to_uuid(task_id)
+        
         # Get task
         result = await self.session.execute(
             select(Task).filter(Task.id == task_id)
@@ -141,16 +159,17 @@ class TaskManager:
         if task.error:
             log = TaskLog(
                 task_id=task.id,
-                error=task.error,
-                tries=task.tries
+                level="error",
+                message=task.error,
+                created_at=datetime.now(timezone.utc)
             )
             self.session.add(log)
             
         # Update task for retry
         task.status = "pending"
         task.error = None
-        task.next_retry_at = datetime.utcnow() + timedelta(minutes=5 * (2 ** (task.tries - 1)))
-        task.updated_at = datetime.utcnow()
+        task.next_retry_at = datetime.now(timezone.utc) + timedelta(minutes=5 * (2 ** (task.tries - 1)))
+        task.updated_at = datetime.now(timezone.utc)
         task.tries += 1
         
         await self.session.commit()

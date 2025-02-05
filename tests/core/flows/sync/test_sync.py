@@ -1,105 +1,136 @@
-"""Tests for flow sync functionality."""
-
-import json
+"""Test flow synchronization functionality."""
 import pytest
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import uuid4
 
+import httpx
+import json
+
+from automagik.core.database.models import Workflow
+from automagik.core.workflows.remote import LangFlowManager
 from automagik.core.workflows.manager import WorkflowManager
+from conftest import AsyncClientMock  # Import AsyncClientMock from conftest.py
+
 
 @pytest.fixture
 def flow_manager(session):
-    """Create a WorkflowManager instance."""
+    """Create a workflow manager for testing."""
     return WorkflowManager(session)
 
-@pytest.fixture
-def mock_data_dir():
-    """Get the mock data directory."""
-    return Path(__file__).parent.parent.parent.parent / "mock_data" / "flows"
 
 @pytest.fixture
-def mock_flows(mock_data_dir):
-    """Load mock flow data."""
-    with open(mock_data_dir / "flows.json") as f:
-        return json.load(f)
+def mock_flow():
+    """Create a mock flow."""
+    return {
+        "id": str(uuid4()),
+        "name": "Test Flow",
+        "description": "Test flow description",
+        "data": {
+            "nodes": [
+                {
+                    "id": "node1",
+                    "type": "input",
+                    "data": {"value": "test"}
+                }
+            ],
+            "edges": []
+        }
+    }
+
+
+@pytest.fixture
+def mock_http_client():
+    """Create a mock HTTP client."""
+    return AsyncClientMock()  # Use AsyncClientMock from conftest.py
+
 
 @pytest.mark.asyncio
-async def test_sync_flow_success(flow_manager, mock_flows):
-    """Test successful flow sync."""
-    # Use the first flow from our mock data
-    flow_data = mock_flows[0]
-    flow_id = flow_data["id"]
-    
-    # Get input/output components from the flow
-    nodes = flow_data["data"]["nodes"]
-    input_node = next(n for n in nodes if "ChatInput" in n["data"]["type"])
-    output_node = next(n for n in nodes if "ChatOutput" in n["data"]["type"])
-    input_component = input_node["id"]
-    output_component = output_node["id"]
+async def test_sync_flow(mock_httpx_client, flow_manager):
+    """Test syncing a flow from LangFlow API."""
+    # Load mock data
+    with open("tests/mock_data/flows/flow.json") as f:
+        mock_data = json.load(f)
 
+    # Set a proper UUID for the flow
+    flow_id = str(uuid4())
+    mock_data["id"] = flow_id
+
+    # Mock the response
     mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(return_value=flow_data)
+    mock_response.status_code = 200
+    mock_response.json.return_value = mock_data
+    mock_response.raise_for_status.return_value = None
 
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=mock_response)
-    mock_client.aclose = AsyncMock()
+    mock_httpx_client.get.return_value = mock_response
 
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_uuid = await flow_manager.sync_flow(flow_id, input_component, output_component)
-        assert isinstance(flow_uuid, UUID)
+    # Test syncing a flow
+    async with flow_manager:
+        workflow = await flow_manager.sync_flow(flow_id)
 
-        # Verify flow was created correctly
-        flow = await flow_manager.get_flow(flow_uuid)
-        assert flow is not None
-        assert flow.name == flow_data["name"]
-        assert flow.description == flow_data.get("description", "")
-        assert flow.source == "langflow"
-        assert flow.remote_flow_id == flow_id
-        assert flow.input_component == input_component
-        assert flow.output_component == output_component
-        assert flow.folder_id == flow_data.get("folder_id")
-        assert flow.folder_name == flow_data.get("folder_name")
+        assert workflow is not None
+        assert str(workflow.remote_flow_id) == flow_id
+        assert workflow.name == mock_data["name"]
+        assert workflow.description == mock_data["description"]
+        assert workflow.data == mock_data["data"]
+
+        # Verify the API calls
+        assert mock_httpx_client.get.call_count == 2
+        mock_httpx_client.get.assert_any_call(f"/api/v1/flows/{flow_id}")
+
 
 @pytest.mark.asyncio
-async def test_sync_flow_invalid_component(flow_manager, mock_flows):
-    """Test flow sync with invalid component IDs."""
-    # Use the first flow from our mock data but with invalid components
-    flow_data = mock_flows[0]
-    flow_id = flow_data["id"]
-    input_component = "invalid-input"
-    output_component = "invalid-output"
+async def test_sync_flow_invalid_component(mock_httpx_client, flow_manager):
+    """Test flow sync with invalid component."""
+    # Load mock data
+    with open("tests/mock_data/flows/flow.json") as f:
+        mock_data = json.load(f)
 
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(return_value=flow_data)
+    # Set a proper UUID for the flow
+    flow_id = str(uuid4())
+    mock_data["id"] = flow_id
 
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=mock_response)
-    mock_client.aclose = AsyncMock()
+    # Add invalid component
+    mock_data["data"]["nodes"].append({
+        "id": "node2",
+        "type": "invalid_type",
+        "data": {}
+    })
 
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_uuid = await flow_manager.sync_flow(flow_id, input_component, output_component)
-        assert isinstance(flow_uuid, UUID)  # Flow should be created even with invalid components
-        
-        # Verify flow was created with invalid components
-        flow = await flow_manager.get_flow(flow_uuid)
-        assert flow is not None
-        assert flow.input_component == input_component
-        assert flow.output_component == output_component
+    # Mock the flow response
+    mock_flow_response = MagicMock()
+    mock_flow_response.status_code = 200
+    mock_flow_response.json.return_value = mock_data
+    mock_flow_response.raise_for_status.return_value = None
+
+    # Mock the component response
+    mock_component_response = MagicMock()
+    mock_component_response.status_code = 404
+    mock_component_response.raise_for_status.side_effect = httpx.HTTPError("Not found")
+
+    # Set up mock responses
+    def get_mock_response(url):
+        if "components" in url:
+            return mock_component_response
+        return mock_flow_response
+
+    mock_httpx_client.get.side_effect = get_mock_response
+
+    # Test syncing a flow with invalid component
+    async with flow_manager:
+        with pytest.raises(ValueError, match="Invalid component type"):
+            await flow_manager.sync_flow(flow_id)
+
 
 @pytest.mark.asyncio
-async def test_sync_flow_http_error(flow_manager):
+@patch('automagik.core.workflows.remote.LANGFLOW_API_URL', 'http://test/api/v1')
+async def test_sync_flow_http_error(mock_httpx_client, flow_manager):
     """Test flow sync with HTTP error."""
-    flow_id = "test-flow-1"
-    input_component = "comp-1"
-    output_component = "comp-2"
+    # Mock the response
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPError("Test error")
+    mock_httpx_client.get.return_value = mock_response
 
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(side_effect=Exception("HTTP Error"))
-    mock_client.aclose = AsyncMock()
-
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        flow_uuid = await flow_manager.sync_flow(flow_id, input_component, output_component)
-        assert flow_uuid is None
+    # Test syncing a flow
+    async with flow_manager:
+        result = await flow_manager.sync_flow("nonexistent-id")
+        assert result is None

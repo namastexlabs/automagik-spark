@@ -99,9 +99,15 @@ class LangFlowManager:
             for node in flow_data.get("data", {}).get("nodes", []):
                 component_type = node.get("type")
                 if component_type:
-                    response = await self.client.get(f"/api/v1/components/{component_type}")
-                    response.raise_for_status()
-                    components.append(response.json())
+                    try:
+                        response = await self.client.get(f"/api/v1/components/{component_type}")
+                        response.raise_for_status()
+                        component_data = response.json()
+                        if not component_data:
+                            raise ValueError(f"Invalid component type: {component_type}")
+                        components.append(component_data)
+                    except httpx.HTTPError:
+                        raise ValueError(f"Invalid component type: {component_type}")
             return components
         except httpx.HTTPError as e:
             logger.error(f"Failed to get flow components: {e}")

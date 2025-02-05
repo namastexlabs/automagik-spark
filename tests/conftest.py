@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from contextlib import asynccontextmanager
+import httpx
 
 # Use in-memory SQLite for testing with a shared connection
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -92,3 +93,10 @@ async def client(override_get_session) -> AsyncGenerator[TestClient, None]:
     """Create a test client with an overridden database session."""
     with TestClient(app) as client:
         yield client
+
+@pytest.fixture
+def mock_httpx_client(mocker):
+    """Mock httpx client."""
+    mock_client = mocker.AsyncMock()
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+    return mock_client
