@@ -7,46 +7,43 @@ from sqlalchemy.orm import sessionmaker
 
 from automagik.core.database.models import Base
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-    
-    asyncio.set_event_loop(loop)
-    yield loop
-    try:
-        loop.close()
-    except RuntimeError:
-        pass
+# Note: We're not defining event_loop fixture anymore as we're using pytest-asyncio's built-in one
+# with the loop scope configured in pytest.ini
 
 @pytest.fixture(scope="session")
 async def engine():
     """Create a test database engine."""
-    # Use an in-memory SQLite database for tests
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    
+    # Create an in-memory SQLite database for testing
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+        future=True,
+    )
+
+    # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
-    try:
-        yield engine
-    finally:
-        await engine.dispose()
 
-@pytest.fixture
+    yield engine
+
+    # Drop all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    # Close the engine
+    await engine.dispose()
+
+
+@pytest.fixture(scope="session")
 async def session(engine):
     """Create a test database session."""
     async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
     )
-    
+
     async with async_session() as session:
-        try:
-            yield session
-        finally:
-            await session.rollback()
-            await session.close()
+        yield session
+        await session.rollback()
+        await session.close()
