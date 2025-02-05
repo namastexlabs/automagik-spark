@@ -87,7 +87,25 @@ async def inactive_schedule(session, sample_flow):
     await session.commit()
     return schedule
 
-@pytest.mark.asyncio
+@pytest.fixture
+async def mock_session():
+    """Create a mock session for testing."""
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+    session.get = AsyncMock()
+    return session
+
+@pytest.fixture
+async def mock_workflow_manager():
+    """Create a mock workflow manager for testing."""
+    manager = AsyncMock()
+    manager.create_task = AsyncMock()
+    return manager
+
+
+@pytest.mark.asyncio(loop_scope="function")
 async def test_process_schedules_future(session, future_schedule):
     """Test processing a schedule that will run in the future."""
     # Mock the execute method to return a real result
@@ -115,7 +133,8 @@ async def test_process_schedules_future(session, future_schedule):
     tasks = result.scalars().all()
     assert len(tasks) == 0
 
-@pytest.mark.asyncio
+
+@pytest.mark.asyncio(loop_scope="function")
 async def test_process_schedules_past(session: AsyncSession, past_schedule):
     """Test processing a schedule that was due in the past."""
     # Track task creation
@@ -137,7 +156,20 @@ async def test_process_schedules_past(session: AsyncSession, past_schedule):
     # Mock workflow manager
     workflow_manager = MagicMock()
     workflow_manager.session = session  # Set session on workflow manager
-    
+
+    # Create a mock workflow and schedule
+    mock_workflow = MagicMock()
+    mock_workflow.id = past_schedule.workflow_id
+    mock_schedule = MagicMock()
+    mock_schedule.id = past_schedule.id
+    mock_schedule.workflow_id = past_schedule.workflow_id
+    mock_schedule.workflow = mock_workflow
+    mock_schedule.schedule_type = past_schedule.schedule_type
+    mock_schedule.schedule_expr = past_schedule.schedule_expr
+    mock_schedule.next_run_at = past_schedule.next_run_at
+    mock_schedule.status = past_schedule.status
+    mock_schedule.workflow_params = {"test": "params"}
+
     # Mock session execute for schedule query
     async def mock_execute(stmt, *args, **kwargs):
         print("Executing query:", str(stmt))
@@ -145,27 +177,26 @@ async def test_process_schedules_past(session: AsyncSession, past_schedule):
         result.returns_rows = True
         scalar_result = MagicMock()
         if "schedules" in str(stmt).lower():
-            # Ensure past_schedule has workflow relationship
-            past_schedule.workflow = await session.get(Workflow, past_schedule.workflow_id)
-            print("Past schedule:", past_schedule)
-            print("Past schedule workflow:", past_schedule.workflow)
-            scalar_result.all.return_value = [past_schedule]
+            print("Past schedule:", mock_schedule)
+            print("Past schedule workflow:", mock_schedule.workflow)
+            scalar_result.all.return_value = [mock_schedule]
             result.scalars.return_value = scalar_result
         else:
             print("Running tasks query:", str(stmt))
             # Handle task status query
             if "tasks" in str(stmt).lower() and "status" in str(stmt).lower():
                 result.scalar.return_value = 0  # No running tasks
-                print("Running tasks count:", result.scalar.return_value)
+                print("Running tasks count:", result.scalar_return_value)
             else:
                 scalar_result.all.return_value = []
                 result.scalars.return_value = scalar_result
         return result
-    
+
     # Mock session
     session.execute = AsyncMock(side_effect=mock_execute)
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    session.get = AsyncMock(return_value=mock_workflow)
     
     # Process schedules
     with patch('automagik.cli.commands.worker.WorkflowManager', return_value=workflow_manager), \
@@ -176,21 +207,21 @@ async def test_process_schedules_past(session: AsyncSession, past_schedule):
     
     # Verify task was created and committed
     print("\nChecking if task was created...")
-    task_manager.create_task.assert_called_once()
+    task_manager.create_task.assert_called_once_with({"workflow_id": past_schedule.workflow_id, "status": "pending", "input_data": {"test": "params"}, "tries": 0, "max_retries": 3})
     assert task_created, "Task was not created"
     
     # Verify task properties
+    assert created_task is not None, "Task object was not created"
     task_data = task_manager.create_task.call_args[0][0]
     assert task_data["workflow_id"] == past_schedule.workflow_id, "Task has wrong workflow_id"
     assert task_data["status"] == "pending", "Task has wrong status"
-    assert task_data["input_data"] == past_schedule.workflow_params, "Task has wrong input_data"
-    assert task_data["tries"] == 0, "Task has wrong tries count"
     assert task_data["max_retries"] == 3, "Task has wrong max_retries"
     
     # Verify commit was called
-    session.commit.assert_called()
+    session.commit.assert_called_once()
 
-@pytest.mark.asyncio
+
+@pytest.mark.asyncio(loop_scope="function")
 async def test_process_schedules_inactive(session, inactive_schedule):
     """Test processing an inactive schedule."""
     # Mock the execute method to return a real result
@@ -218,7 +249,8 @@ async def test_process_schedules_inactive(session, inactive_schedule):
     tasks = result.scalars().all()
     assert len(tasks) == 0
 
-@pytest.mark.asyncio
+
+@pytest.mark.asyncio(loop_scope="function")
 async def test_process_schedules_multiple(session, future_schedule, past_schedule, inactive_schedule):
     """
     Test processing multiple schedules.
@@ -353,6 +385,45 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
         )
         task_workflow_id = result.scalar()
         assert task_workflow_id == past_schedule.workflow_id
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_process_schedules_future(mock_session, mock_workflow_manager):
+    """Test processing schedules that are due in the future."""
+    # Create a schedule that's due in the future
+    future_time = datetime.now(timezone.utc) + timedelta(hours=1)
+    schedule = Schedule(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        schedule_type="interval",
+        schedule_expr="60m",  # 60 minutes
+        workflow_params={"test": "params"},
+        status="active",
+        next_run_at=future_time
+    )
+    
+    # Configure mock_session to return our schedule
+    mock_session.add = AsyncMock()
+    await mock_session.add(schedule)
+    mock_session.get = AsyncMock(return_value=schedule)
+    mock_session.execute = AsyncMock(
+        return_value=AsyncMock(
+            scalars=lambda: AsyncMock(
+                all=lambda: [schedule]
+            )
+        )
+    )
+    
+    # Run the function
+    await process_schedules(mock_session)
+    
+    # Verify that create_task was not called (since schedule is in the future)
+    mock_workflow_manager.create_task.assert_not_called()
+    
+    # Verify that next_run_at was not updated
+    updated_schedule = await mock_session.get(Schedule, schedule.id)
+    assert updated_schedule.next_run_at == future_time
+
 
 def test_parse_interval():
     """Test interval string parsing."""

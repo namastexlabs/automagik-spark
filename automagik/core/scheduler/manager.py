@@ -163,13 +163,35 @@ class SchedulerManager:
         schedule_type: str,
         schedule_expr: str,
         params: Optional[Dict[str, Any]] = None,
-    ) -> Schedule:
+    ) -> Optional[Schedule]:
         """Create a new schedule."""
+        # Validate workflow exists
+        workflow = await self.session.get(Workflow, workflow_id)
+        if not workflow:
+            return None
+
+        # Validate schedule type and expression
+        if schedule_type == "interval":
+            if not self._validate_interval(schedule_expr):
+                return None
+        elif schedule_type == "cron":
+            if not self._validate_cron(schedule_expr):
+                return None
+        else:
+            return None
+
+        # Calculate next run time
+        next_run = self._calculate_next_run(schedule_type, schedule_expr)
+        if not next_run:
+            return None
+
         schedule = Schedule(
             workflow_id=workflow_id,
             schedule_type=schedule_type,
             schedule_expr=schedule_expr,
             params=params,
+            next_run_at=next_run,
+            status="active"
         )
         self.session.add(schedule)
         await self.session.commit()

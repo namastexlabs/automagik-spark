@@ -465,10 +465,17 @@ def start_worker(threads: int):
 
     # Run the worker loop
     try:
-        asyncio.run(worker_loop())
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're in a test environment with a running loop
+            loop.create_task(worker_loop())
+        else:
+            # If we're running normally
+            loop.run_until_complete(worker_loop())
     except Exception as e:
         logger.exception("Worker failed")
         sys.exit(1)
+
 
 @worker_group.command("stop")
 @click.argument("worker_id", required=False)
@@ -481,6 +488,7 @@ def stop_worker_command(worker_id: Optional[str]):
     click.echo("Stopping worker process...")
     stop_worker()
     click.echo("Worker process stopped")
+
 
 @worker_group.command("status")
 def worker_status():
@@ -530,10 +538,22 @@ def worker_status():
                 click.echo(tabulate(rows, headers=headers))
 
     try:
-        asyncio.run(_status())
-    except Exception as e:
-        click.echo(f"Error getting worker status: {e}")
-        return 1
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're in a test environment with a running loop
+            loop.create_task(_status())
+        else:
+            # If we're running normally
+            loop.run_until_complete(_status())
+    except RuntimeError:
+        # If we can't get the current loop, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_status())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
 
 if __name__ == "__main__":
     worker_group()

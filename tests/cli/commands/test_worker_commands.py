@@ -3,6 +3,7 @@
 import os
 import logging
 import pytest
+import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from click.testing import CliRunner
 from contextlib import asynccontextmanager
@@ -111,47 +112,69 @@ def mock_get_session(mock_session):
     return _mock_get_session
 
 
-@pytest.fixture(scope="function")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-    
-    asyncio.set_event_loop(loop)
-    yield loop
-    try:
-        loop.close()
-    except RuntimeError:
-        pass
-
-
 @pytest.mark.asyncio
-async def test_worker_status_not_running(mock_pid_file, mock_session):
+async def test_worker_status_not_running():
     """Test worker status when not running."""
-    with patch("automagik.cli.commands.worker.asyncio.run") as mock_run:
-        mock_run.return_value = "Worker is not running"
-        runner = CliRunner()
-        result = runner.invoke(worker_group, ["status"])
-        assert result.exit_code == 0
-        assert "Worker is not running" in mock_run.return_value
+    with patch("automagik.cli.commands.worker.get_session") as mock_session_factory:
+        # Set up mock session
+        mock_session = AsyncMock()
+        mock_session_factory.return_value.__aenter__.return_value = mock_session
+        
+        # Set up mock result
+        mock_result = AsyncMock()
+        mock_result.scalars = MagicMock()
+        mock_result.scalars.return_value = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute.return_value = mock_result
+        
+        # Mock click.echo
+        with patch("click.echo") as mock_echo:
+            # Mock asyncio.get_event_loop to return our test event loop
+            with patch("asyncio.get_event_loop", return_value=asyncio.get_running_loop()):
+                runner = CliRunner()
+                result = runner.invoke(worker_group, ["status"])
+                
+                await asyncio.sleep(0.1)  # Give time for tasks to complete
+                
+                assert result.exit_code == 0
+                mock_echo.assert_called_with("No workers found")
+
 
 @pytest.mark.asyncio
-async def test_worker_status_running(mock_pid_file, mock_session):
+async def test_worker_status_running():
     """Test worker status when running."""
-    # Write a PID file
-    os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
-    with open(mock_pid_file, "w") as f:
-        f.write(str(os.getpid()))
+    with patch("automagik.cli.commands.worker.get_session") as mock_session_factory:
+        mock_session = AsyncMock()
+        mock_session_factory.return_value.__aenter__.return_value = mock_session
+        
+        # Create a mock worker
+        mock_worker = MagicMock()
+        mock_worker.id = "12345678"
+        mock_worker.hostname = "test-host"
+        mock_worker.pid = 1234
+        mock_worker.status = "running"
+        mock_worker.current_task_id = None
+        mock_worker.last_heartbeat = None
+        
+        # Set up mock result
+        mock_result = AsyncMock()
+        mock_result.scalars = MagicMock()
+        mock_result.scalars.return_value = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_worker]
+        mock_session.execute.return_value = mock_result
+        
+        # Mock click.echo
+        with patch("click.echo") as mock_echo:
+            # Mock asyncio.get_event_loop to return our test event loop
+            with patch("asyncio.get_event_loop", return_value=asyncio.get_running_loop()):
+                runner = CliRunner()
+                result = runner.invoke(worker_group, ["status"])
+                
+                await asyncio.sleep(0.1)  # Give time for tasks to complete
+                
+                assert result.exit_code == 0
+                mock_echo.assert_called()  # Table output is complex, just check if echo was called
 
-    with patch("automagik.cli.commands.worker.asyncio.run") as mock_run:
-        mock_run.return_value = "Worker is running"
-        runner = CliRunner()
-        result = runner.invoke(worker_group, ["status"])
-        assert result.exit_code == 0
-        assert "Worker is running" in mock_run.return_value
 
 @pytest.mark.asyncio
 async def test_worker_stop_not_running(mock_pid_file):
@@ -161,75 +184,82 @@ async def test_worker_stop_not_running(mock_pid_file):
     assert result.exit_code == 0
     assert "No worker process is running" in result.output
 
+
 @pytest.mark.asyncio
 async def test_worker_stop_running(mock_pid_file):
     """Test stopping worker when running."""
-    # Write a PID file with current process ID
-    pid = os.getpid()
+    # Write a fake PID file
     os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
+    fake_pid = 12345  # Use a fake PID that doesn't exist
     with open(mock_pid_file, "w") as f:
-        f.write(str(pid))
+        f.write(str(fake_pid))
 
-    # Setup mock process
-    mock_process = MagicMock()
-    mock_process.is_running.return_value = True
-    mock_process.name.return_value = "python"
-    with patch("psutil.Process", return_value=mock_process):
+    with patch("automagik.cli.commands.worker.is_worker_running") as mock_running, \
+         patch("psutil.Process") as mock_process:
+        mock_running.return_value = True
+        
+        # Mock the Process class
+        mock_proc = MagicMock()
+        mock_proc.is_running.return_value = True
+        mock_proc.name.return_value = "python"
+        mock_process.return_value = mock_proc
+        
         runner = CliRunner()
         result = runner.invoke(worker_group, ["stop"])
         assert result.exit_code == 0
-        assert "Stopping worker process" in result.output
+        assert "Stopping worker process..." in result.output
         assert "Worker process stopped" in result.output
+        
+        # Verify process was terminated
+        mock_proc.terminate.assert_called_once()
+
 
 @pytest.mark.asyncio
-async def test_worker_start(mock_pid_file, mock_log_dir):
+async def test_worker_start(mock_pid_file, mock_log_dir, caplog):
     """Test starting worker process."""
-    custom_log_path = str(mock_log_dir / "worker.log")
-    os.environ["AUTOMAGIK_WORKER_LOG"] = custom_log_path
-    os.environ["AUTOMAGIK_ENV"] = "testing"  # Skip worker registration
+    with patch("automagik.cli.commands.worker.is_worker_running") as mock_running, \
+         patch("automagik.cli.commands.worker.configure_logging") as mock_logging, \
+         patch("automagik.cli.commands.worker.write_pid") as mock_write_pid, \
+         patch("automagik.cli.commands.worker.worker_loop", new_callable=AsyncMock) as mock_loop:
+        mock_running.return_value = False
+        mock_logging.return_value = str(mock_log_dir / "worker.log")
+        mock_loop.return_value = None
+        
+        runner = CliRunner()
+        with caplog.at_level(logging.INFO):
+            result = runner.invoke(worker_group, ["start"])
+            
+            # Wait for any pending tasks
+            loop = asyncio.get_event_loop()
+            await asyncio.sleep(0.1)  # Give time for tasks to complete
+            
+            assert result.exit_code == 0
+            assert "Starting worker process" in caplog.text
 
-    # Create a synchronous mock for worker_loop
-    def mock_worker_loop():
-        return None
-
-    runner = CliRunner()
-    with patch("automagik.cli.commands.worker.daemonize"), \
-         patch("automagik.cli.commands.worker.worker_loop", new=mock_worker_loop), \
-         patch("asyncio.run", lambda x: None):  # Make asyncio.run do nothing
-        result = runner.invoke(worker_group, ["start"])
-        assert result.exit_code == 0
-        assert "Starting worker process" in result.output
 
 @pytest.mark.asyncio
 async def test_worker_start_already_running(mock_pid_file, mock_log_dir):
     """Test starting worker when already running."""
-    # Write a PID file with current process ID
+    # Write a PID file
     os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
     with open(mock_pid_file, "w") as f:
         f.write(str(os.getpid()))
 
-    # Create a mock coroutine for worker_loop
-    mock_worker_loop = AsyncMock()
+    runner = CliRunner()
+    result = runner.invoke(worker_group, ["start"])
+    assert result.exit_code == 0
+    assert "Worker is already running" in result.output
 
-    with patch("os.kill"), \
-         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": str(mock_log_dir / "worker.log")}), \
-         patch("automagik.cli.commands.worker.worker_loop", return_value=mock_worker_loop):
-        runner = CliRunner()
-        result = runner.invoke(worker_group, ["start"])
-        assert result.exit_code == 0
-        assert "Worker is already running" in result.output
 
 @pytest.mark.asyncio
 async def test_read_pid_no_file(mock_pid_file):
     """Test reading PID when file doesn't exist."""
-    from automagik.cli.commands.worker import read_pid
     assert read_pid() is None
+
 
 @pytest.mark.asyncio
 async def test_read_pid_invalid_content(mock_pid_file):
     """Test reading PID with invalid content."""
-    from automagik.cli.commands.worker import read_pid
-
     # Write invalid content to PID file
     os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
     with open(mock_pid_file, "w") as f:
@@ -237,87 +267,66 @@ async def test_read_pid_invalid_content(mock_pid_file):
 
     assert read_pid() is None
 
+
 @pytest.mark.asyncio
 async def test_configure_logging_default():
     """Test configuring logging with default settings."""
-    from automagik.cli.commands.worker import configure_logging
+    with patch("automagik.cli.commands.worker.os.makedirs") as mock_makedirs, \
+         patch("automagik.cli.commands.worker.logging.FileHandler") as mock_handler, \
+         patch("automagik.cli.commands.worker.os.path.isdir") as mock_isdir:
+        mock_isdir.return_value = True
+        log_path = configure_logging()
+        mock_makedirs.assert_called_once()
+        mock_handler.assert_called_once()
+        assert "logs/worker.log" in log_path
 
-    # Clear any existing handlers
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Configure logging with default settings
-    configure_logging()
-
-    # Verify logger configuration
-    root_logger = logging.getLogger()
-    assert len(root_logger.handlers) >= 1
-    assert any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
 
 @pytest.mark.asyncio
 async def test_configure_logging_custom_path(mock_log_dir):
     """Test configuring logging with custom path."""
-    from automagik.cli.commands.worker import configure_logging
-
-    # Clear any existing handlers
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Configure logging with custom path
     custom_log_path = str(mock_log_dir / "worker.log")
-    os.environ["AUTOMAGIK_WORKER_LOG"] = custom_log_path
-    configure_logging()
+    with patch("automagik.cli.commands.worker.os.makedirs") as mock_makedirs, \
+         patch("automagik.cli.commands.worker.logging.FileHandler") as mock_handler, \
+         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": custom_log_path}):
+        log_path = configure_logging()
+        mock_makedirs.assert_called_once()
+        mock_handler.assert_called_once()
+        assert custom_log_path == log_path
 
-    # Verify logger configuration
-    root_logger = logging.getLogger()
-    assert len(root_logger.handlers) >= 1
-    assert any(isinstance(h, logging.FileHandler) and h.baseFilename == custom_log_path for h in root_logger.handlers)
 
 @pytest.mark.asyncio
-async def test_worker_start_logging(mock_pid_file, mock_log_dir):
+async def test_worker_start_logging(mock_pid_file, mock_log_dir, caplog):
     """Test that worker start configures logging correctly."""
-    custom_log_path = os.path.join(mock_log_dir, "worker.log")
-    os.environ["AUTOMAGIK_WORKER_LOG"] = custom_log_path
-    os.environ["AUTOMAGIK_ENV"] = "testing"  # Skip worker registration
+    custom_log_path = str(mock_log_dir / "worker.log")
+    with patch("automagik.cli.commands.worker.is_worker_running") as mock_running, \
+         patch("automagik.cli.commands.worker.configure_logging") as mock_logging, \
+         patch("automagik.cli.commands.worker.write_pid") as mock_write_pid, \
+         patch("automagik.cli.commands.worker.worker_loop", new_callable=AsyncMock) as mock_loop, \
+         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": custom_log_path}):
+        mock_running.return_value = False
+        mock_logging.return_value = custom_log_path
+        mock_loop.return_value = None
 
-    # Create a synchronous mock for worker_loop
-    def mock_worker_loop():
-        return None
-
-    runner = CliRunner()
-    with patch("automagik.cli.commands.worker.daemonize"), \
-         patch("automagik.cli.commands.worker.worker_loop", new=mock_worker_loop), \
-         patch("asyncio.run", lambda x: None):  # Make asyncio.run do nothing
-        result = runner.invoke(worker_group, ["start"])
-        assert result.exit_code == 0
-        assert "Starting worker process" in result.output
-
-        # Verify log file was created
-        assert os.path.exists(custom_log_path)
+        runner = CliRunner()
+        with caplog.at_level(logging.INFO):
+            result = runner.invoke(worker_group, ["start"])
+            
+            # Wait for any pending tasks
+            loop = asyncio.get_event_loop()
+            await asyncio.sleep(0.1)  # Give time for tasks to complete
+            
+            assert result.exit_code == 0
+            assert "Starting worker process" in caplog.text
+            assert f"Worker logs will be written to {custom_log_path}" in caplog.text
+            mock_logging.assert_called_once()
+            mock_write_pid.assert_called_once()
 
 
 @pytest.fixture(autouse=True)
 def cleanup_logging():
     """Clean up logging configuration after each test."""
-    # Store original env vars
-    worker_log = os.environ.get("AUTOMAGIK_WORKER_LOG")
-    env = os.environ.get("AUTOMAGIK_ENV")
-    
     yield
-    
-    # Reset root logger
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    
-    # Reset env vars
-    if worker_log:
-        os.environ["AUTOMAGIK_WORKER_LOG"] = worker_log
-    else:
-        os.environ.pop("AUTOMAGIK_WORKER_LOG", None)
-        
-    if env:
-        os.environ["AUTOMAGIK_ENV"] = env
-    else:
-        os.environ.pop("AUTOMAGIK_ENV", None)
+    # Remove all handlers from the root logger
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)

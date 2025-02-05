@@ -42,14 +42,14 @@ async def test_create_schedule_with_valid_interval(scheduler_manager, sample_wor
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",  # 30 minutes
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is not None
     assert schedule.workflow_id == sample_workflow.id
     assert schedule.schedule_type == "interval"
     assert schedule.schedule_expr == "30m"
-    assert schedule.workflow_params == {"input": "test"}
+    assert schedule.params == {"input": "test"}
     assert schedule.next_run_at is not None
 
 
@@ -61,14 +61,14 @@ async def test_create_schedule_with_valid_cron(scheduler_manager, sample_workflo
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr=cron_expr,
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is not None
     assert schedule.workflow_id == sample_workflow.id
     assert schedule.schedule_type == "cron"
     assert schedule.schedule_expr == cron_expr
-    assert schedule.workflow_params == {"input": "test"}
+    assert schedule.params == {"input": "test"}
     
     # Verify next_run_at is calculated correctly
     # Note: We need to use a timezone-aware datetime for both values
@@ -87,7 +87,7 @@ async def test_create_schedule_with_invalid_interval(scheduler_manager, sample_w
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="invalid",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is None
@@ -100,7 +100,7 @@ async def test_create_schedule_with_invalid_cron(scheduler_manager, sample_workf
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr="invalid",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is None
@@ -113,7 +113,7 @@ async def test_create_schedule_with_nonexistent_workflow(scheduler_manager):
         workflow_id=uuid4(),
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is None
@@ -140,7 +140,7 @@ async def test_create_schedule_with_invalid_interval_formats(scheduler_manager, 
             workflow_id=sample_workflow.id,
             schedule_type="interval",
             schedule_expr=interval,
-            workflow_params={"input": "test"}
+            params={"input": "test"}
         )
         assert schedule is None, f"Schedule with invalid interval '{interval}' should not be created"
 
@@ -162,7 +162,7 @@ async def test_create_schedule_with_valid_interval_formats(scheduler_manager, sa
             workflow_id=sample_workflow.id,
             schedule_type="interval",
             schedule_expr=interval,
-            workflow_params={"input": "test"}
+            params={"input": "test"}
         )
         assert schedule is not None, f"Schedule with valid interval '{interval}' should be created"
         assert schedule.schedule_expr == interval
@@ -177,7 +177,7 @@ async def test_update_schedule_status(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
     assert schedule is not None
     assert schedule.status == "active"
@@ -209,7 +209,7 @@ async def test_update_schedule_status_invalid_action(scheduler_manager, sample_w
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is not None
@@ -234,13 +234,13 @@ async def test_list_schedules(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"input": "test1"}
+        params={"input": "test1"}
     )
     schedule2 = await scheduler_manager.create_schedule(
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr="0 8 * * *",
-        workflow_params={"input": "test2"}
+        params={"input": "test2"}
     )
 
     # List schedules
@@ -261,7 +261,7 @@ async def test_delete_schedule(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"input": "test"}
+        params={"input": "test"}
     )
 
     assert schedule is not None
