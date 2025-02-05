@@ -61,17 +61,50 @@ class WorkflowManager:
             return None
 
         flow_data = result["flow"]
-        workflow = Workflow(
-            id=UUID(flow_data["id"]),
-            name=flow_data["name"],
-            description=flow_data.get("description"),
-            data=flow_data["data"],
-            source="langflow",
-            remote_flow_id=flow_data["id"],
-            input_component=input_component,
-            output_component=output_component
-        )
-        self.session.add(workflow)
+
+        # Check if workflow already exists
+        stmt = select(Workflow).where(Workflow.remote_flow_id == flow_id)
+        result = await self.session.execute(stmt)
+        existing_workflow = result.scalar_one_or_none()
+
+        if existing_workflow:
+            # Update existing workflow
+            existing_workflow.name = flow_data["name"]
+            existing_workflow.description = flow_data.get("description")
+            existing_workflow.data = flow_data["data"]
+            existing_workflow.folder_id = flow_data.get("folder_id")
+            existing_workflow.folder_name = flow_data.get("folder_name")
+            existing_workflow.icon = flow_data.get("icon")
+            existing_workflow.icon_bg_color = flow_data.get("icon_bg_color")
+            existing_workflow.gradient = flow_data.get("gradient", False)
+            existing_workflow.liked = flow_data.get("liked", False)
+            existing_workflow.tags = flow_data.get("tags", [])
+            if input_component:
+                existing_workflow.input_component = input_component
+            if output_component:
+                existing_workflow.output_component = output_component
+            workflow = existing_workflow
+        else:
+            # Create new workflow
+            workflow = Workflow(
+                id=UUID(flow_data["id"]),
+                name=flow_data["name"],
+                description=flow_data.get("description"),
+                data=flow_data["data"],
+                source="langflow",
+                remote_flow_id=flow_data["id"],
+                input_component=input_component,
+                output_component=output_component,
+                folder_id=flow_data.get("folder_id"),
+                folder_name=flow_data.get("folder_name"),
+                icon=flow_data.get("icon"),
+                icon_bg_color=flow_data.get("icon_bg_color"),
+                gradient=flow_data.get("gradient", False),
+                liked=flow_data.get("liked", False),
+                tags=flow_data.get("tags", [])
+            )
+            self.session.add(workflow)
+
         await self.session.commit()
         return workflow
 

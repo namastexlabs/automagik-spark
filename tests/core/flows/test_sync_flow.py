@@ -28,6 +28,7 @@ async def test_sync_new_flow(session):
     # Mock LangFlow response
     flow_id = str(uuid4())
     mock_flow_data = {
+        "id": flow_id,
         "name": "Test Flow",
         "description": "Test Description",
         "data": {"test": "data"},
@@ -57,11 +58,13 @@ async def test_sync_new_flow(session):
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
         # Sync flow
-        result = await flow_manager.sync_flow(flow_id, "input1", "output1")
-        assert result is not None
+        async with flow_manager as manager:
+            result = await manager.sync_flow(flow_id, "input1", "output1")
+            assert result is not None
+            assert isinstance(result, Workflow)
         
         # Verify flow was created
-        stmt = select(Workflow).where(Workflow.id == result)
+        stmt = select(Workflow).where(Workflow.id == result.id)
         result = await session.execute(stmt)
         flow = result.scalar_one()
         assert flow is not None
@@ -122,8 +125,11 @@ async def test_sync_existing_flow(session):
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
         # Sync flow
-        result = await flow_manager.sync_flow(flow_id, "new_input", "new_output")
-        assert result == existing_id
+        async with flow_manager as manager:
+            result = await manager.sync_flow(flow_id, "new_input", "new_output")
+            assert result is not None
+            assert isinstance(result, Workflow)
+            assert result.id == existing_id
         
         # Verify flow was updated
         stmt = select(Workflow).where(Workflow.id == existing_id)
@@ -146,9 +152,17 @@ async def test_sync_flow_with_invalid_components(session):
     # Mock LangFlow response
     flow_id = str(uuid4())
     mock_flow_data = {
+        "id": flow_id,
         "name": "Test Flow",
         "description": "Test Description",
-        "data": {"test": "data"}
+        "data": {"test": "data"},
+        "folder_id": "folder1",
+        "folder_name": "Test Folder",
+        "icon": "test-icon",
+        "icon_bg_color": "#000000",
+        "gradient": True,
+        "liked": True,
+        "tags": ["test"]
     }
     
     # Mock HTTP client
@@ -168,11 +182,13 @@ async def test_sync_flow_with_invalid_components(session):
         flow_manager.get_flow_components = AsyncMock(return_value=mock_components)
         
         # Sync flow with invalid component IDs
-        result = await flow_manager.sync_flow(flow_id, "input1", "output1")
-        assert result is not None  # Flow should still be created
+        async with flow_manager as manager:
+            result = await manager.sync_flow(flow_id, "input1", "output1")
+            assert result is not None
+            assert isinstance(result, Workflow)
         
         # Verify flow was created with invalid components
-        stmt = select(Workflow).where(Workflow.id == result)
+        stmt = select(Workflow).where(Workflow.id == result.id)
         result = await session.execute(stmt)
         flow = result.scalar_one()
         assert flow is not None
