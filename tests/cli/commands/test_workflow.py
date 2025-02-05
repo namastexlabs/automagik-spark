@@ -13,8 +13,8 @@ def test_sync_flow_with_id(capsys, event_loop):
     mock_session = AsyncMock()
     mock_manager = AsyncMock()
     mock_manager.get_flow_components.return_value = [
-        {"id": "input1", "type": "input"},
-        {"id": "output1", "type": "output"},
+        {"node_id": "input", "type": "input"},
+        {"node_id": "output", "type": "output"},
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 
@@ -34,8 +34,8 @@ def test_sync_flow_with_id(capsys, event_loop):
         mock_manager.get_flow_components.assert_called_once_with("test-flow-id")
         mock_manager.sync_flow.assert_called_once_with(
             flow_id="test-flow-id",
-            input_component="input1",
-            output_component="output1"
+            input_component="input",
+            output_component="output"
         )
 
 
@@ -49,9 +49,9 @@ def test_sync_flow_interactive(capsys, event_loop):
         {"id": "flow2", "name": "Flow 2"},
     ]
     mock_manager.get_flow_components.return_value = [
-        {"id": "input1", "type": "input"},
-        {"id": "process", "type": "process"},
-        {"id": "output1", "type": "output"},
+        {"node_id": "input", "type": "input"},
+        {"node_id": "process", "type": "process"},
+        {"node_id": "output", "type": "output"},
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 
@@ -72,8 +72,8 @@ def test_sync_flow_interactive(capsys, event_loop):
         mock_manager.get_flow_components.assert_called_once_with("flow1")
         mock_manager.sync_flow.assert_called_once_with(
             flow_id="flow1",
-            input_component="input1",
-            output_component="output1"
+            input_component="input",
+            output_component="output"
         )
 
 
@@ -121,7 +121,7 @@ def test_sync_flow_invalid_selection(capsys, event_loop):
 
         # Run command with invalid selection
         runner = CliRunner()
-        result = runner.invoke(workflow_group, ["sync"], input="99\n")
+        result = runner.invoke(workflow_group, ["sync"], input="999\n")
 
         # Verify result
         assert result.exit_code == 0
@@ -139,7 +139,7 @@ def test_sync_flow_invalid_component_response(capsys, event_loop):
         {"id": "flow1", "name": "Flow 1"},
     ]
     mock_manager.get_flow_components.return_value = [
-        {"id": "node1", "type": "genericNode", "data": {}}
+        {"node_id": "node1", "type": "genericNode", "data": {}}
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 

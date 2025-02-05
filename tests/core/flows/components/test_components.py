@@ -34,68 +34,54 @@ async def test_get_flow_components(flow_manager, mock_flows):
                 {
                     "type": "ChatInput",
                     "id": "ChatInput-1",
+                    "data": {
+                        "node": {
+                            "id": "input1",
+                            "type": "ChatInput",
+                            "name": "Chat Input",
+                            "description": "A chat input component"
+                        }
+                    }
                 },
                 {
                     "type": "ChatOutput",
                     "id": "ChatOutput-1",
+                    "data": {
+                        "node": {
+                            "id": "output1",
+                            "type": "ChatOutput",
+                            "name": "Chat Output",
+                            "description": "A chat output component"
+                        }
+                    }
                 },
                 {
                     "type": "Prompt",
                     "id": "Prompt-1",
+                    "data": {
+                        "node": {
+                            "id": "prompt1",
+                            "type": "Prompt",
+                            "name": "Prompt",
+                            "description": "A prompt component"
+                        }
+                    }
                 }
             ]
         }
     }
-    flow_id = flow_data["id"]
 
-    # Mock response for flow data
-    mock_flow_response = MagicMock()
-    mock_flow_response.raise_for_status = MagicMock()
-    mock_flow_response.json = MagicMock(return_value=flow_data)
+    # Get components
+    components = await flow_manager.langflow.get_flow_components(flow_data)
+    
+    # Verify the components
+    assert len(components) == 3  # We should get 3 components
+    assert all(isinstance(comp, dict) for comp in components)
+    assert all(comp.get("id") for comp in components)
+    assert all(comp.get("type") for comp in components)
+    assert all(comp.get("name") for comp in components)
+    assert all(comp.get("description") for comp in components)
 
-    # Mock response for component data
-    mock_component_response = MagicMock()
-    mock_component_response.raise_for_status = MagicMock()
-    mock_component_response.json = MagicMock(return_value={
-        "id": "test-component",
-        "type": "test",
-        "name": "Test Component",
-        "description": "A test component"
-    })
-
-    # Create responses for each component type
-    mock_responses = [mock_flow_response]
-    for _ in range(3):  # We have 3 components in our mock flow
-        mock_responses.append(mock_component_response)
-
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(side_effect=mock_responses)
-    mock_client.post = AsyncMock()
-    mock_client.aclose = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock()
-
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        async with flow_manager.langflow:
-            result = await flow_manager.langflow.sync_flow(flow_id)
-            assert result is not None
-            assert "flow" in result
-            assert "components" in result
-            
-            components = result["components"]
-            assert isinstance(components, list)
-            assert len(components) == 3  # We should get 3 components
-            for component in components:
-                assert "id" in component
-                assert "type" in component
-                assert "name" in component
-                assert "description" in component
-
-            # Verify the client was used correctly - first call should be to get the flow
-            assert mock_client.get.call_args_list[0] == call(f"/api/v1/flows/{flow_id}")
-            
-            # Verify subsequent calls are to get components
-            component_types = {"ChatInput", "ChatOutput", "Prompt"}
-            for call_args in mock_client.get.call_args_list[1:]:
-                component_type = call_args[0][0].split("/")[-1]
-                assert component_type in component_types
+    # Verify specific components
+    component_types = {comp["type"] for comp in components}
+    assert component_types == {"ChatInput", "ChatOutput", "Prompt"}

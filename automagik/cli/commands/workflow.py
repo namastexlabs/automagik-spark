@@ -111,30 +111,26 @@ async def _sync(flow_id: Optional[str]):
             # Show components and get input/output selection
             click.echo("\nFlow Components:")
             for i, comp in enumerate(components, 1):
-                click.echo(f"{i}. {comp['id']} ({comp['type']})")
+                comp_name = comp.get("display_name", comp.get("name", "Unknown"))
+                comp_type = comp.get("type", "Unknown")
+                click.echo(f"{i}. {comp_name} ({comp_type})")
             
             # Get component selections
             input_num = click.prompt(
                 "\nSelect input component number",
                 type=int,
                 default=1,
-                show_default=True
             )
-            
             output_num = click.prompt(
                 "Select output component number",
                 type=int,
-                default=len(components),
-                show_default=True
+                default=1,
             )
-            
-            if not (1 <= input_num <= len(components) and 1 <= output_num <= len(components)):
-                click.echo("Invalid component numbers")
-                return
-            
-            input_component = components[input_num - 1]['id']
-            output_component = components[output_num - 1]['id']
-            
+
+            # Get component IDs
+            input_component = components[input_num - 1].get("node_id", "input")
+            output_component = components[output_num - 1].get("node_id", "output")
+
             # Sync the flow
             workflow_id = await manager.sync_flow(
                 flow_id=flow_id,
@@ -167,27 +163,31 @@ def delete_workflow(workflow_id: str):
 @workflow_group.command(name="run")
 @click.argument("workflow_id")
 @click.option("--input", "-i", help="Input data as JSON string", default="{}")
-async def run_workflow(workflow_id: str, input: str):
+def run_workflow(workflow_id: str, input: str):
     """Run a workflow directly."""
-    try:
-        # Parse input data
-        input_data = json.loads(input)
-        
-        async with get_session() as session:
-            workflow_manager = WorkflowManager(session)
+    async def _run():
+        try:
+            # Parse input data
+            input_data = json.loads(input)
             
-            # Run workflow
-            task = await workflow_manager.run_workflow(UUID(workflow_id), input_data)
-            
-            if task:
-                click.echo(f"Task {task.id} completed successfully")
-                click.echo(f"Input: {json.dumps(task.input_data, indent=2)}")
-                click.echo(f"Output: {json.dumps(task.output_data, indent=2)}")
-            else:
-                click.echo("Workflow execution failed")
+            async with get_session() as session:
+                workflow_manager = WorkflowManager(session)
                 
-    except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
+                # Run workflow
+                task = await workflow_manager.run_workflow(UUID(workflow_id), input_data)
+                
+                if task:
+                    click.echo(f"Task {task.id} completed successfully")
+                    click.echo(f"Input: {json.dumps(task.input_data, indent=2)}")
+                    click.echo(f"Output: {json.dumps(task.output_data, indent=2)}")
+                else:
+                    click.echo("Workflow execution failed")
+                    
+        except Exception as e:
+            click.echo(f"Error: {str(e)}", err=True)
+    
+    run_async(_run())
+
 
 if __name__ == "__main__":
     workflow_group()

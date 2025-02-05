@@ -92,22 +92,13 @@ class LangFlowManager:
 
     async def get_flow_components(self, flow_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get components used in a flow."""
-        if not self.client:
-            raise RuntimeError("Must be used within async context manager")
         try:
             components = []
             for node in flow_data.get("data", {}).get("nodes", []):
-                component_type = node.get("type")
-                if component_type:
-                    try:
-                        response = await self.client.get(f"/api/v1/components/{component_type}")
-                        response.raise_for_status()
-                        components.append(response.json())
-                    except httpx.HTTPError as e:
-                        logger.error(f"Invalid component type {component_type}: {e}")
-                        raise ValueError(f"Invalid component type: {component_type}")
+                if node.get("data", {}).get("node"):
+                    components.append(node["data"]["node"])
             return components
-        except httpx.HTTPError as e:
+        except Exception as e:
             logger.error(f"Failed to get flow components: {e}")
             raise
 

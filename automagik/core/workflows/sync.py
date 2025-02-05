@@ -55,16 +55,14 @@ class WorkflowSync:
         
         # Build API payload
         payload = {
-            "input_value": input_data.get("input_value", ""),
-            "output_type": "debug",
-            "input_type": "chat",
+            "inputs": {"text": input_data.get("message", "")},  # Format input as expected by LangFlow
             "tweaks": {}
         }
         
         # Only add tweaks if input/output components are configured
         if workflow.input_component and workflow.output_component:
             payload["tweaks"] = {
-                workflow.input_component: {},
+                workflow.input_component: {"input": input_data.get("message", "")},
                 workflow.output_component: {}
             }
         
@@ -79,26 +77,22 @@ class WorkflowSync:
             logger.debug(f"Executing workflow {workflow.remote_flow_id} with input_data: {input_data}")
             logger.debug(f"API payload: {payload}")
             response = await client.post(
-                f"/api/v1/flows/{workflow.remote_flow_id}/run?stream=false",
+                f"/api/v1/run/{workflow.remote_flow_id}",  # Use the /run/{flow_id} endpoint
                 json=payload,
                 timeout=600  # 10 minutes
             )
-            try:
-                await response.raise_for_status()
-            except httpx.HTTPStatusError as e:
-                # Get error details from response
-                error_content = await response.text()
-                logger.error(f"LangFlow API error response: {error_content}")
-                raise
+            
+            if response.status_code >= 400:
+                error_text = response.text  # Get error text synchronously
+                logger.error(f"LangFlow API error response: {error_text}")
+                raise httpx.HTTPStatusError(f"HTTP {response.status_code}: {error_text}", request=response.request, response=response)
                 
-            result = await response.json()
+            result = response.json()  # Get JSON synchronously since we already have the response
             logger.debug(f"Workflow execution result: {result}")
 
             # Update task with output
-            if result.get("outputs"):
-                output = result["outputs"][0]
-                if "outputs" in output:
-                    task.output_data = output["outputs"]
+            if result.get("result"):  # Changed from outputs to result
+                task.output_data = result["result"]
 
             # Update task status
             task.status = "completed"
