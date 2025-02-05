@@ -240,27 +240,22 @@ async def process_schedules(session):
         running_tasks = result.scalar()
 
         if running_tasks == 0:
-            # Create a new task
-            await task_manager.create_task({
-                "id": uuid4(),
+            # Create task using TaskManager
+            task_data = {
                 "workflow_id": schedule.workflow_id,
-                "input_data": schedule.workflow_params or {},
                 "status": "pending",
+                "input_data": schedule.workflow_params or {},
                 "tries": 0,
-                "max_retries": 3,
-                "created_at": now,
-                "updated_at": now
-            })
+                "max_retries": 3  # Configure max retries
+            }
+            task = await task_manager.create_task(task_data)
+            logger.info(f"Created task {task.id} for schedule {schedule.id}")
 
-            # Update next run time based on schedule type
+            # Update next run time
             if schedule.schedule_type == "interval":
                 interval = parse_interval(schedule.schedule_expr)
                 schedule.next_run_at = now + interval
-            elif schedule.schedule_type == "cron":
-                # TODO: Implement cron schedule support
-                pass
-
-            await session.commit()
+                await session.commit()
 
 async def worker_loop():
     """Worker loop."""

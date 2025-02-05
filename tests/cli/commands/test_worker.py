@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 from sqlalchemy import text, select, func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from automagik.cli.commands.worker import process_schedules, parse_interval
@@ -115,49 +116,79 @@ async def test_process_schedules_future(session, future_schedule):
     assert len(tasks) == 0
 
 @pytest.mark.asyncio
-async def test_process_schedules_past(session, past_schedule):
+async def test_process_schedules_past(session: AsyncSession, past_schedule):
     """Test processing a schedule that was due in the past."""
-    task_created = None
+    # Track task creation
+    task_created = False
+    created_task = None
     
+    async def mock_create_task(task_data):
+        nonlocal task_created, created_task
+        task_created = True
+        created_task = Task(**task_data, id=uuid4())
+        print("Task created with data:", task_data)
+        return created_task
+    
+    # Mock task manager
+    task_manager = MagicMock()
+    task_manager.create_task = AsyncMock(side_effect=mock_create_task)
+    task_manager.session = session
+    
+    # Mock workflow manager
+    workflow_manager = MagicMock()
+    workflow_manager.session = session  # Set session on workflow manager
+    
+    # Mock session execute for schedule query
     async def mock_execute(stmt, *args, **kwargs):
-        nonlocal task_created
+        print("Executing query:", str(stmt))
         result = MagicMock()
-        
-        if isinstance(stmt, str) and "INSERT INTO tasks" in stmt:
-            # For task creation
-            task_created = Task(
-                workflow_id=past_schedule.workflow_id,
-                status="pending",
-                workflow_params=past_schedule.workflow_params
-            )
-            result.returns_rows = False
-            return result
-            
-        # For select statement
         result.returns_rows = True
         scalar_result = MagicMock()
         if "schedules" in str(stmt).lower():
-            # For list_schedules query
+            # Ensure past_schedule has workflow relationship
+            past_schedule.workflow = await session.get(Workflow, past_schedule.workflow_id)
+            print("Past schedule:", past_schedule)
+            print("Past schedule workflow:", past_schedule.workflow)
             scalar_result.all.return_value = [past_schedule]
+            result.scalars.return_value = scalar_result
         else:
-            # For task query
-            scalar_result.all.return_value = []
-        result.scalars.return_value = scalar_result
+            print("Running tasks query:", str(stmt))
+            # Handle task status query
+            if "tasks" in str(stmt).lower() and "status" in str(stmt).lower():
+                result.scalar.return_value = 0  # No running tasks
+                print("Running tasks count:", result.scalar.return_value)
+            else:
+                scalar_result.all.return_value = []
+                result.scalars.return_value = scalar_result
         return result
     
-    # Mock the session
+    # Mock session
     session.execute = AsyncMock(side_effect=mock_execute)
     session.commit = AsyncMock()
+    session.refresh = AsyncMock()
     
     # Process schedules
-    await process_schedules(session)
+    with patch('automagik.cli.commands.worker.WorkflowManager', return_value=workflow_manager), \
+         patch('automagik.cli.commands.worker.TaskManager', return_value=task_manager):
+        print("\nProcessing schedules...")
+        await process_schedules(session)
+        print("Done processing schedules")
     
-    # Verify task was created
-    assert task_created is not None
-    assert isinstance(task_created, Task)
-    assert task_created.workflow_id == past_schedule.workflow_id
-    assert task_created.status == "pending"
-    assert task_created.workflow_params == past_schedule.workflow_params
+    # Verify task was created and committed
+    print("\nChecking if task was created...")
+    task_manager.create_task.assert_called_once()
+    assert task_created, "Task was not created"
+    
+    # Verify task properties
+    task_data = task_manager.create_task.call_args[0][0]
+    assert task_data["workflow_id"] == past_schedule.workflow_id, "Task has wrong workflow_id"
+    assert task_data["status"] == "pending", "Task has wrong status"
+    assert task_data["input_data"] == past_schedule.workflow_params, "Task has wrong input_data"
+    assert task_data["tries"] == 0, "Task has wrong tries count"
+    assert task_data["max_retries"] == 3, "Task has wrong max_retries"
+    
+    # Verify commit was called
+    session.commit.assert_called()
 
 @pytest.mark.asyncio
 async def test_process_schedules_inactive(session, inactive_schedule):
