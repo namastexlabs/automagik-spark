@@ -12,8 +12,10 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy import cast
+from sqlalchemy import String
 
-from ..database.models import Workflow, Schedule, Task, WorkflowComponent
+from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog
 from .remote import LangFlowManager
 from .task import TaskManager
 
@@ -142,53 +144,70 @@ class WorkflowManager:
             return None
 
     async def delete_workflow(self, workflow_id: str) -> bool:
-        """Delete a workflow from local database."""
+        """Delete a workflow and all its related objects."""
+        # Validate UUID format
         if not workflow_id:
             raise ValueError("Invalid UUID format")
-
-        # Try to parse the UUID first to validate format
+        
+        # Try exact match first (for full UUID)
         try:
-            if len(workflow_id) < 8:
-                raise ValueError()
             if len(workflow_id) == 36:  # Full UUID
-                UUID(workflow_id)
-            elif not all(c in '0123456789abcdefABCDEF' for c in workflow_id):
-                raise ValueError()
+                uuid_obj = UUID(workflow_id)
+                exact_match = True
+            elif len(workflow_id) >= 8 and all(c in '0123456789abcdefABCDEF' for c in workflow_id):
+                exact_match = False
+            else:
+                raise ValueError("Invalid UUID format")
         except ValueError:
             raise ValueError("Invalid UUID format")
-
-        workflow = await self.get_workflow(workflow_id)
-        if not workflow:
-            return False
-
-        # Delete related schedules
-        result = await self.session.execute(
-            select(Schedule).where(Schedule.workflow_id == workflow.id)
-        )
-        schedules = result.scalars().all()
-        for schedule in schedules:
-            await self.session.delete(schedule)
         
-        # Delete related tasks
-        result = await self.session.execute(
-            select(Task).where(Task.workflow_id == workflow.id)
-        )
-        tasks = result.scalars().all()
-        for task in tasks:
-            await self.session.delete(task)
-
-        # Delete related components
-        result = await self.session.execute(
-            select(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
-        )
-        components = result.scalars().all()
-        for component in components:
-            await self.session.delete(component)
-
-        # Delete the workflow
-        await self.session.delete(workflow)
-        await self.session.commit()
-        return True
+        try:
+            # Build query based on match type
+            query = select(Workflow).options(
+                joinedload(Workflow.components),
+                joinedload(Workflow.schedules),
+                joinedload(Workflow.tasks).joinedload(Task.logs)
+            )
+            
+            if exact_match:
+                query = query.where(Workflow.id == uuid_obj)
+            else:
+                query = query.where(cast(Workflow.id, String).like(f"{workflow_id}%"))
+            
+            # Execute query
+            result = await self.session.execute(query)
+            workflow = result.unique().scalar_one_or_none()
+            
+            if not workflow:
+                return False
+            
+            # Delete related objects first
+            for task in workflow.tasks:
+                # Delete task logs
+                if task.logs:
+                    for log in task.logs:
+                        await self.session.delete(log)
+                # Delete task
+                await self.session.delete(task)
+            
+            # Delete schedules
+            for schedule in workflow.schedules:
+                await self.session.delete(schedule)
+            
+            # Delete components
+            for component in workflow.components:
+                await self.session.delete(component)
+            
+            # Finally delete the workflow
+            await self.session.delete(workflow)
+            await self.session.commit()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to delete workflow: {str(e)}")
+            await self.session.rollback()
+            return False
 
     # Task operations
     async def get_task(self, task_id: str) -> Optional[Task]:

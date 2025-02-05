@@ -1,10 +1,11 @@
 """Test delete workflow functionality."""
 import pytest
 from uuid import uuid4
-
+from datetime import datetime
+import pytz
 from sqlalchemy import select
 
-from automagik.core.database.models import Task, Workflow, Schedule, WorkflowComponent
+from automagik.core.database.models import Task, Workflow, Schedule, WorkflowComponent, TaskLog
 from automagik.core.workflows.manager import WorkflowManager
 
 
@@ -120,6 +121,66 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
 
     component_result = await session.execute(select(WorkflowComponent).where(WorkflowComponent.id == component.id))
     assert component_result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_delete_workflow_with_task_logs(workflow_manager, session):
+    """Test deleting a workflow that has tasks with logs."""
+    # Create test workflow
+    workflow = Workflow(
+        id=uuid4(),
+        name="Test Flow",
+        description="Test flow",
+        source="test",
+        remote_flow_id=str(uuid4())
+    )
+    session.add(workflow)
+
+    # Create related task
+    task = Task(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        status="completed",
+        input_data={"test": "data"}
+    )
+    session.add(task)
+
+    # Create task logs
+    task_log1 = TaskLog(
+        id=uuid4(),
+        task_id=task.id,
+        level="info",
+        message="Test log 1",
+        created_at=datetime.now(pytz.utc)
+    )
+    task_log2 = TaskLog(
+        id=uuid4(),
+        task_id=task.id,
+        level="error",
+        message="Test log 2",
+        created_at=datetime.now(pytz.utc)
+    )
+    session.add(task_log1)
+    session.add(task_log2)
+    await session.commit()
+
+    # Delete workflow
+    deleted = await workflow_manager.delete_workflow(str(workflow.id))
+    assert deleted is True
+
+    # Verify workflow, task and logs are deleted
+    workflow_result = await session.execute(
+        select(Workflow).where(Workflow.id == workflow.id)
+    )
+    assert workflow_result.scalar_one_or_none() is None
+
+    task_result = await session.execute(select(Task).where(Task.id == task.id))
+    assert task_result.scalar_one_or_none() is None
+
+    task_log_result = await session.execute(
+        select(TaskLog).where(TaskLog.task_id == task.id)
+    )
+    assert task_log_result.scalars().all() == []
 
 
 @pytest.mark.asyncio

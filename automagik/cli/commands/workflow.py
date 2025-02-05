@@ -33,25 +33,92 @@ def list_workflows(folder: Optional[str]):
                 if folder:
                     workflows = [w for w in workflows if w.folder_name == folder]
                 
-                # Format for display
-                rows = []
-                for w in workflows:
-                    rows.append([
-                        str(w.id),
-                        w.name,
-                        w.folder_name or "",
-                        w.source,
-                        w.remote_flow_id,
-                        len(w.tasks) if hasattr(w, 'tasks') else 0,
-                        len(w.schedules) if hasattr(w, 'schedules') else 0
-                    ])
-                
-                if not rows:
-                    click.echo("No workflows found")
+                if not workflows:
+                    click.secho("\n No workflows found", fg="yellow")
                     return
+
+                # Calculate column widths based on content
+                name_width = max(len(w.name) for w in workflows) + 2
+                name_width = min(name_width, 30)  # Cap at 30 chars
                 
-                headers = ["ID", "Name", "Folder", "Source", "Remote Flow ID", "Tasks", "Schedules"]
-                click.echo(tabulate(rows, headers=headers, tablefmt="grid"))
+                col_widths = {
+                    "id": 10,
+                    "name": name_width,
+                    "status": 15,
+                    "tasks": 10,
+                    "schedules": 10,
+                    "updated": 20
+                }
+                
+                total_width = sum(col_widths.values())
+                
+                click.secho("\n Workflows", fg="blue", bold=True)
+                click.echo("─" * total_width)
+                
+                # Print header
+                headers = ["ID", "Name", "Status", "Tasks", "Scheds", "Last Updated"]
+                widths = list(col_widths.values())
+                
+                # Print each header with proper width and color
+                for h, w in zip(headers, widths):
+                    click.secho(f"{h:<{w}}", fg="cyan", bold=True, nl=False)
+                click.echo()
+                
+                click.echo("─" * total_width)
+                
+                # Format and display each workflow
+                for w in workflows:
+                    tasks = getattr(w, 'tasks', [])
+                    schedules = getattr(w, 'schedules', [])
+                    latest_task = max(tasks, key=lambda t: t.created_at, default=None) if tasks else None
+                    
+                    # Format name with ellipsis if too long
+                    name = w.name
+                    if len(name) > col_widths["name"] - 3:
+                        name = name[:col_widths["name"] - 3] + "..."
+                    
+                    # Print each column with proper spacing
+                    click.echo(
+                        f"{str(w.id)[:8]:<{col_widths['id']}}"
+                        f"{name:<{col_widths['name']}}", 
+                        nl=False
+                    )
+                    
+                    # Status with color
+                    status = "Never Run"
+                    color = "yellow"
+                    if latest_task:
+                        if latest_task.status == "completed":
+                            status = "Completed"
+                            color = "green"
+                        elif latest_task.status == "failed":
+                            status = "Failed"
+                            color = "red"
+                        else:
+                            status = latest_task.status.title()
+                            color = "yellow"
+                    
+                    click.secho(f"{status:<{col_widths['status']}}", fg=color, nl=False)
+                    
+                    # Task and schedule counts
+                    click.secho(f"{len(tasks):<{col_widths['tasks']}}", fg="blue", bold=True, nl=False)
+                    click.secho(f"{len(schedules):<{col_widths['schedules']}}", fg="magenta", bold=True, nl=False)
+                    
+                    # Updated timestamp
+                    updated = w.updated_at.strftime("%Y-%m-%d %H:%M") if w.updated_at else "-"
+                    click.echo(f"{updated:<{col_widths['updated']}}")
+                
+                click.echo("─" * total_width)
+                
+                # Print summary
+                click.echo()
+                summary = (
+                    f"Total: {click.style(str(len(workflows)), bold=True)} workflow(s)"
+                )
+                if folder:
+                    summary += f" in folder {click.style(folder, fg='blue')}"
+                click.echo(summary)
+                click.echo()
     
     run_async(_list())
 
