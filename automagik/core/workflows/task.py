@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -138,7 +138,7 @@ class TaskManager:
     async def retry_task(self, task_id: Union[str, UUID]) -> Optional[Task]:
         """Retry a failed task."""
         task_id = self._to_uuid(task_id)
-        
+
         # Get task
         result = await self.session.execute(
             select(Task).filter(Task.id == task_id)
@@ -146,31 +146,34 @@ class TaskManager:
         task = result.scalars().first()
         if not task:
             raise ValueError(f"Task {task_id} not found")
-            
+
         # Check task status
         if task.status != "failed":
             raise ValueError("Task is not in failed state")
-            
+
         # Check max retries
         if task.tries >= task.max_retries:
             raise ValueError("Task has reached maximum retries")
-            
-        # Create task log
-        if task.error:
-            log = TaskLog(
-                task_id=task.id,
+
+        # Create a retry log preserving the previous error
+        previous_error = task.error
+        if previous_error:
+            task_log = TaskLog(
+                id=uuid4(),
+                task_id=task_id,
                 level="error",
-                message=task.error,
+                message=f"Previous error: {previous_error}",
                 created_at=datetime.now(timezone.utc)
             )
-            self.session.add(log)
-            
-        # Update task for retry
+            self.session.add(task_log)
+
+        # Reset task for retry with exponential backoff
         task.status = "pending"
-        task.error = None
-        task.next_retry_at = datetime.now(timezone.utc) + timedelta(minutes=5 * (2 ** (task.tries - 1)))
-        task.updated_at = datetime.now(timezone.utc)
         task.tries += 1
-        
+        task.error = None
+        task.started_at = None
+        task.finished_at = None
+        task.next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=2 ** task.tries)
+
         await self.session.commit()
         return task

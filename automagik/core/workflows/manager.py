@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Workflow, Schedule, Task
+from ..database.models import Workflow, Schedule, Task, WorkflowComponent
 from .remote import LangFlowManager
 from .task import TaskManager
 
@@ -83,16 +83,71 @@ class WorkflowManager:
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
         """Get a workflow by ID."""
-        return await self.session.get(Workflow, workflow_id)
+        if not workflow_id:
+            return None
+
+        if len(workflow_id) < 32:
+            # Handle truncated UUID by querying all workflows and matching prefix
+            result = await self.session.execute(select(Workflow))
+            workflows = result.scalars().all()
+            for workflow in workflows:
+                if str(workflow.id).startswith(workflow_id):
+                    return workflow
+            return None
+        try:
+            uuid_obj = UUID(workflow_id)
+            return await self.session.get(Workflow, uuid_obj)
+        except ValueError:
+            return None
 
     async def delete_workflow(self, workflow_id: str) -> bool:
         """Delete a workflow from local database."""
+        if not workflow_id:
+            raise ValueError("Invalid UUID format")
+
+        # Try to parse the UUID first to validate format
+        try:
+            if len(workflow_id) < 8:
+                raise ValueError()
+            if len(workflow_id) == 36:  # Full UUID
+                UUID(workflow_id)
+            elif not all(c in '0123456789abcdefABCDEF' for c in workflow_id):
+                raise ValueError()
+        except ValueError:
+            raise ValueError("Invalid UUID format")
+
         workflow = await self.get_workflow(workflow_id)
-        if workflow:
-            await self.session.delete(workflow)
-            await self.session.commit()
-            return True
-        return False
+        if not workflow:
+            return False
+
+        # Delete related schedules
+        result = await self.session.execute(
+            select(Schedule).where(Schedule.workflow_id == workflow.id)
+        )
+        schedules = result.scalars().all()
+        for schedule in schedules:
+            await self.session.delete(schedule)
+        
+        # Delete related tasks
+        result = await self.session.execute(
+            select(Task).where(Task.workflow_id == workflow.id)
+        )
+        tasks = result.scalars().all()
+        for task in tasks:
+            await self.session.delete(task)
+
+        # Delete related components
+        result = await self.session.execute(
+            select(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
+        )
+        components = result.scalars().all()
+        for component in components:
+            await self.session.delete(component)
+
+        # Delete the workflow
+        await self.session.delete(workflow)
+        await self.session.commit()
+        return True
 
     # Task operations
     async def get_task(self, task_id: str) -> Optional[Task]:
