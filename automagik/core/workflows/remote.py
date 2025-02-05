@@ -60,8 +60,8 @@ class LangFlowManager:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            logger.error(f"Failed to list remote flows: {e}")
-            return []
+            logger.error(f"Error listing remote flows: {e}")
+            raise
 
     async def sync_flow(self, flow_id: str, name: str = None, description: str = None, components: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """Sync a flow from LangFlow API."""
@@ -113,7 +113,7 @@ class LangFlowManager:
             logger.error(f"Failed to get flow components: {e}")
             return []
 
-    async def create_folder(self, name: str) -> Optional[Dict[str, Any]]:
+    async def create_folder(self, name: str) -> Dict[str, Any]:
         """Create a folder in LangFlow."""
         if not self.client:
             raise RuntimeError("Must be used within async context manager")
@@ -122,5 +122,5 @@ class LangFlowManager:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            logger.error(f"Failed to create folder: {e}")
-            return None
+            logger.error(f"Error creating folder {name}: {e}")
+            raise
