@@ -102,10 +102,13 @@ class LangFlowManager:
                     try:
                         response = await self.client.get(f"/api/v1/components/{component_type}")
                         response.raise_for_status()
-                        component_data = response.json()
-                        if not component_data:
-                            raise ValueError(f"Invalid component type: {component_type}")
-                        components.append(component_data)
+                        # Add component type to node data
+                        node_data = {
+                            "id": node.get("id"),
+                            "type": component_type,
+                            "data": node.get("data", {}),
+                        }
+                        components.append(node_data)
                     except httpx.HTTPError:
                         raise ValueError(f"Invalid component type: {component_type}")
             return components
