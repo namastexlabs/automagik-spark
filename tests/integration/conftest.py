@@ -11,9 +11,17 @@ from automagik.core.database.models import Base
 def event_loop():
     """Create an instance of the default event loop for the test session."""
     import asyncio
-    loop = asyncio.new_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    
+    asyncio.set_event_loop(loop)
     yield loop
-    loop.close()
+    try:
+        loop.close()
+    except RuntimeError:
+        pass
 
 @pytest.fixture(scope="session")
 async def engine():

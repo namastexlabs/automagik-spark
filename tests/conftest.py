@@ -35,13 +35,8 @@ def setup_test_env():
     os.environ.pop("AUTOMAGIK_API_KEY", None)
     os.environ.pop("DATABASE_URL", None)
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
+# Configure pytest-asyncio to use session scope for event loop
+pytest.mark.asyncio.loop_scope = "session"
 
 @pytest.fixture(scope="session")
 async def engine():
@@ -50,29 +45,26 @@ async def engine():
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
-        future=True,
-        echo=True  # Enable SQL logging for debugging
+        echo=False,
     )
     
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     
     try:
         yield engine
     finally:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
         await engine.dispose()
 
 @pytest.fixture(scope="session")
-async def test_session_factory(engine):
+def test_session_factory(engine):
     """Create a test session factory."""
     return sessionmaker(
-        engine,
+        bind=engine,
         class_=AsyncSession,
         expire_on_commit=False,
-        autoflush=False
+        autocommit=False,
+        autoflush=False,
     )
 
 @pytest.fixture
@@ -82,23 +74,21 @@ async def session(test_session_factory) -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
         finally:
+            await session.rollback()
             await session.close()
 
 @pytest.fixture
-async def override_get_session(session):
+async def override_get_session(session: AsyncSession):
     """Override the get_session dependency."""
-    async def _get_session():
+    async def _get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
-
-    return _get_session
+    
+    app.dependency_overrides[get_async_session] = _get_session
+    yield
+    del app.dependency_overrides[get_async_session]
 
 @pytest.fixture
 async def client(override_get_session) -> AsyncGenerator[TestClient, None]:
     """Create a test client with an overridden database session."""
-    app.dependency_overrides[get_session] = override_get_session
-    app.dependency_overrides[get_async_session] = override_get_session
-    
-    try:
-        yield TestClient(app)
-    finally:
-        app.dependency_overrides.clear()
+    with TestClient(app) as client:
+        yield client

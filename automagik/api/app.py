@@ -33,7 +33,11 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    current_time = datetime.datetime.now()
+    return {
+        "status": "healthy",
+        "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 
 @app.get("/")

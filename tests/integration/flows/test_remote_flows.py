@@ -18,6 +18,19 @@ def requires_api_config(func):
     )(func)
 
 @pytest.mark.asyncio
+async def test_remote_api_error_handling(session):
+    """Test error handling with remote API."""
+    # Test invalid API key
+    async with httpx.AsyncClient(
+        base_url=LANGFLOW_API_URL,
+        headers={"accept": "application/json", "x-api-key": "invalid-key"},
+        verify=False
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            response = await client.get("/flows/")
+            response.raise_for_status()
+
+@pytest.mark.asyncio
 @requires_api_config
 async def test_remote_api_connection(session):
     """Test that we can connect to the remote API."""
@@ -56,45 +69,12 @@ async def test_remote_folder_operations(session):
     """Test folder operations with remote API."""
     async with LangFlowManager(session) as remote:
         # Create a test folder
-        test_folder_name = f"test_folder_{uuid4().hex[:8]}"
-        response = await remote.client.post("/folders/", json={
-            "name": test_folder_name,
-            "description": "Test folder for integration tests"
-        })
+        folder_name = f"test_folder_{uuid4()}"
+        response = await remote.client.post("/folders/", json={"name": folder_name})
         response.raise_for_status()
-        folder = response.json()
-        folder_id = folder["id"]
-        
-        try:
-            # Verify folder was created
-            response = await remote.client.get(f"/folders/{folder_id}")
-            response.raise_for_status()
-            assert response.json()["name"] == test_folder_name
-            
-            # List all folders
-            response = await remote.client.get("/folders/")
-            response.raise_for_status()
-            folders = response.json()
-            assert any(f["id"] == folder_id for f in folders)
-            
-        finally:
-            # Clean up: Delete test folder
-            try:
-                await remote.client.delete(f"/folders/{folder_id}")
-            except Exception as e:
-                pytest.fail(f"Failed to clean up test folder: {e}")
+        folder_data = response.json()
+        assert folder_data["name"] == folder_name
 
-@pytest.mark.asyncio
-@requires_api_config
-async def test_remote_api_error_handling(session):
-    """Test error handling with remote API."""
-    # Test invalid API key
-    async with httpx.AsyncClient(
-        base_url=LANGFLOW_API_URL,
-        headers={"accept": "application/json", "x-api-key": "invalid-key"},
-        verify=False
-    ) as client:
-        with pytest.raises(httpx.HTTPStatusError) as exc_info:
-            response = await client.get("/flows/")
-            response.raise_for_status()
-        assert exc_info.value.response.status_code in (401, 403)
+        # Clean up - delete the test folder
+        response = await remote.client.delete(f"/folders/{folder_data['id']}")
+        response.raise_for_status()

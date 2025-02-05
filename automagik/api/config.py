@@ -30,14 +30,10 @@ def get_api_key() -> str | None:
     """Get API key from environment variable."""
     return os.getenv("AUTOMAGIK_API_KEY")
 
-# LangFlow API configuration
-LANGFLOW_API_URL = os.getenv("LANGFLOW_API_URL", "http://localhost:7860")
-LANGFLOW_API_KEY = os.getenv("LANGFLOW_API_KEY")
-
 def get_langflow_api_url() -> str:
     """Get LangFlow API URL."""
-    return LANGFLOW_API_URL
+    return os.getenv("LANGFLOW_API_URL", "http://localhost:7860")
 
-def get_langflow_api_key() -> str:
+def get_langflow_api_key() -> str | None:
     """Get LangFlow API key."""
-    return LANGFLOW_API_KEY
+    return os.getenv("LANGFLOW_API_KEY")

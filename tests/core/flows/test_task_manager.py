@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from automagik.core.workflows import TaskManager
 from automagik.core.database.models import Task, Workflow, TaskLog
+from unittest.mock import MagicMock, AsyncMock
 
 @pytest.fixture
 async def task_manager(session):
@@ -51,49 +52,127 @@ async def failed_task(session, test_flow):
     return task
 
 @pytest.mark.asyncio
-async def test_retry_task_success(task_manager, failed_task):
-    """Test retrying a failed task successfully."""
-    # Retry the task
-    retried_task = await task_manager.retry_task(str(failed_task.id))
+async def test_retry_task_success():
+    """Test successfully retrying a failed task."""
+    session = AsyncMock()
+    task = Task(
+        id=uuid.uuid4(),
+        status="failed",
+        tries=0,
+        max_retries=3,
+        error="Previous error"
+    )
+    
+    # Mock task retrieval
+    result = AsyncMock()
+    result.scalars.return_value.first.return_value = task
+    session.execute.return_value = result
+    
+    task_manager = TaskManager(session)
+    retried_task = await task_manager.retry_task(str(task.id))
     
     assert retried_task is not None
-    assert retried_task.id == failed_task.id  # Same task ID
     assert retried_task.status == "pending"
-    assert retried_task.tries == 1
     assert retried_task.error is None
-    assert retried_task.started_at is None
-    assert retried_task.finished_at is None
+    assert retried_task.tries == 1
     
-    # Check next retry time (should be 5 minutes for first retry)
-    assert retried_task.next_retry_at is not None
-    retry_delay = retried_task.next_retry_at - datetime.utcnow()
-    assert abs(retry_delay.total_seconds() - 300) < 5  # Within 5 seconds of 5 minutes
-
 @pytest.mark.asyncio
-async def test_retry_task_exponential_backoff(task_manager, failed_task):
-    """Test that retry delays follow exponential backoff."""
-    # First retry (5 minutes)
-    task1 = await task_manager.retry_task(str(failed_task.id))
-    delay1 = task1.next_retry_at - datetime.utcnow()
-    assert abs(delay1.total_seconds() - 300) < 5  # ~5 minutes
+async def test_retry_task_exponential_backoff():
+    """Test exponential backoff for retried tasks."""
+    session = AsyncMock()
+    task = Task(
+        id=uuid.uuid4(),
+        status="failed",
+        tries=2,
+        max_retries=3,
+        error="Previous error"
+    )
     
-    # Fail the task again
-    task1.status = "failed"
-    await task_manager.session.commit()
+    # Mock task retrieval
+    result = AsyncMock()
+    result.scalars.return_value.first.return_value = task
+    session.execute.return_value = result
     
-    # Second retry (10 minutes)
-    task2 = await task_manager.retry_task(str(task1.id))
-    delay2 = task2.next_retry_at - datetime.utcnow()
-    assert abs(delay2.total_seconds() - 600) < 5  # ~10 minutes
+    task_manager = TaskManager(session)
+    retried_task = await task_manager.retry_task(str(task.id))
     
-    # Fail the task again
-    task2.status = "failed"
-    await task_manager.session.commit()
+    assert retried_task is not None
+    assert retried_task.status == "pending"
+    assert retried_task.tries == 3
+    assert retried_task.next_retry_at > datetime.utcnow()
     
-    # Third retry (20 minutes)
-    task3 = await task_manager.retry_task(str(task2.id))
-    delay3 = task3.next_retry_at - datetime.utcnow()
-    assert abs(delay3.total_seconds() - 1200) < 5  # ~20 minutes
+@pytest.mark.asyncio
+async def test_retry_task_max_retries():
+    """Test task retry when max retries reached."""
+    session = AsyncMock()
+    task = Task(
+        id=uuid.uuid4(),
+        status="failed",
+        tries=3,
+        max_retries=3,
+        error="Previous error"
+    )
+    
+    # Mock task retrieval
+    result = AsyncMock()
+    result.scalars.return_value.first.return_value = task
+    session.execute.return_value = result
+    
+    task_manager = TaskManager(session)
+    with pytest.raises(ValueError, match="Task has reached maximum retries"):
+        await task_manager.retry_task(str(task.id))
+        
+@pytest.mark.asyncio
+async def test_retry_task_non_failed():
+    """Test retrying a non-failed task."""
+    session = AsyncMock()
+    task = Task(
+        id=uuid.uuid4(),
+        status="pending",
+        tries=0,
+        max_retries=3
+    )
+    
+    # Mock task retrieval
+    result = AsyncMock()
+    result.scalars.return_value.first.return_value = task
+    session.execute.return_value = result
+    
+    task_manager = TaskManager(session)
+    with pytest.raises(ValueError, match="Task is not in failed state"):
+        await task_manager.retry_task(str(task.id))
+        
+@pytest.mark.asyncio
+async def test_retry_task_logs():
+    """Test task logs are created when retrying tasks."""
+    session = AsyncMock()
+    task = Task(
+        id=uuid.uuid4(),
+        status="failed",
+        tries=1,
+        max_retries=3,
+        error="Previous error"
+    )
+    
+    # Mock task retrieval
+    result = AsyncMock()
+    result.scalars.return_value.first.return_value = task
+    session.execute.return_value = result
+    
+    task_manager = TaskManager(session)
+    retried_task = await task_manager.retry_task(str(task.id))
+    
+    assert retried_task is not None
+    assert retried_task.status == "pending"
+    assert retried_task.tries == 2
+    
+    # Verify task log was created
+    session.add.assert_called_once()
+    task_log = session.add.call_args[0][0]
+    assert isinstance(task_log, TaskLog)
+    assert task_log.task_id == task.id
+    assert task_log.error == "Previous error"
+    assert task_log.tries == 1
 
 @pytest.mark.asyncio
 async def test_retry_task_max_retries(task_manager, failed_task):

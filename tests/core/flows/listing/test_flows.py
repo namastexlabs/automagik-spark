@@ -62,142 +62,124 @@ async def cleanup_flows(session):
 
 @pytest.mark.asyncio
 async def test_list_flows_empty(flow_manager):
-    """Test listing flows when there are none."""
+    """Test listing flows when no flows exist."""
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    flow_manager.session.execute = AsyncMock(return_value=result)
+    
     flows = await flow_manager.list_flows()
-    assert len(flows) == 0
+    assert flows == []
 
 @pytest.mark.asyncio
-async def test_list_flows_with_data(flow_manager, sample_flow):
+async def test_list_flows_with_data(flow_manager, mock_flows):
     """Test listing flows with data."""
+    # Create mock workflow objects
+    workflows = []
+    for flow_data in mock_flows:
+        workflow = Workflow(
+            id=flow_data["id"],
+            name=flow_data["name"],
+            description=flow_data.get("description"),
+            data=flow_data["data"]
+        )
+        workflows.append(workflow)
+    
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = workflows
+    flow_manager.session.execute = AsyncMock(return_value=result)
+    
     flows = await flow_manager.list_flows()
-    assert len(flows) == 1
-    assert flows[0].id == sample_flow.id
-    assert flows[0].name == "Test Flow"
+    assert len(flows) == len(mock_flows)
+    for flow, mock_flow in zip(flows, mock_flows):
+        assert flow.id == mock_flow["id"]
+        assert flow.name == mock_flow["name"]
+        assert flow.description == mock_flow.get("description")
+        assert flow.data == mock_flow["data"]
 
 @pytest.mark.asyncio
 async def test_list_remote_flows(flow_manager, mock_flows):
-    """Test listing remote flows from LangFlow API."""
-    # Get a folder ID from the mock flows
-    folder_id = mock_flows[0].get("folder_id")
+    """Test listing remote flows."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"flows": mock_flows})
     
-    # Create response for /api/v1/folders/
-    folders_response = MagicMock()
-    folders_response.raise_for_status = MagicMock()
-    folders_response.json = MagicMock(return_value=[
-        {"id": folder_id, "name": "Test Folder"}
-    ])
-
-    # Create response for /api/v1/flows/
-    flows_response = MagicMock()
-    flows_response.raise_for_status = MagicMock()
-    flows_response.json = MagicMock(return_value=mock_flows)
-
-    async def mock_get(url):
-        if url == "/api/v1/folders/":
-            return folders_response
-        elif url == "/api/v1/flows/":
-            return flows_response
-        raise ValueError(f"Unexpected URL: {url}")
-
     mock_client = AsyncMock()
-    mock_client.get = mock_get
+    mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.aclose = AsyncMock()
-
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        async with flow_manager:
-            flows_by_folder = await flow_manager.list_remote_flows()
-            assert isinstance(flows_by_folder, dict)
+    
+    async with patch("httpx.AsyncClient", return_value=mock_client) as mock_client_class:
+        async with flow_manager.langflow:
+            remote_flows = await flow_manager.langflow.list_remote_flows()
             
-            # Verify only flows with valid folder IDs are included
-            assert "Test Folder" in flows_by_folder
-            assert len(flows_by_folder) == 1  # Only one folder should be present
+            # Verify client was used correctly
+            mock_client.get.assert_called_once_with("/api/v1/flows")
             
-            # All flows in the folder should have the correct folder_id
-            for flow in flows_by_folder["Test Folder"]:
-                assert flow.get("folder_id") == folder_id
+            # Verify flows were returned
+            assert len(remote_flows) == len(mock_flows)
+            for remote_flow, mock_flow in zip(remote_flows, mock_flows):
+                assert remote_flow["id"] == mock_flow["id"]
+                assert remote_flow["name"] == mock_flow["name"]
 
 @pytest.mark.asyncio
 async def test_synced_vs_remote_flows(flow_manager, mock_flows):
-    """Test that synced flows appear in local list but not remote list."""
-    # First sync a flow
-    flow_data = mock_flows[0]
-    flow_id = flow_data["id"]
-
-    # Get input/output components from the flow
-    nodes = flow_data["data"]["nodes"]
-    input_node = next(n for n in nodes if "ChatInput" in n["data"]["type"])
-    output_node = next(n for n in nodes if "ChatOutput" in n["data"]["type"])
-    input_component = input_node["id"]
-    output_component = output_node["id"]
-
-    # Mock the flow sync response
+    """Test comparing synced flows with remote flows."""
+    # Mock remote flows
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(return_value=flow_data)
-
-    # Mock different responses for different endpoints
-    async def mock_get(url):
-        if f"/api/v1/flows/{flow_id}" in url:
-            mock_response.json.return_value = flow_data
-            return mock_response
-        elif "/api/v1/folders/" in url:
-            mock_response.json.return_value = [{"id": flow_data["folder_id"], "name": "Test Folder"}]
-            return mock_response
-        elif "/api/v1/flows/" in url:
-            mock_response.json.return_value = mock_flows
-            return mock_response
-        raise ValueError(f"Unexpected URL: {url}")
-
+    mock_response.json = MagicMock(return_value={"flows": mock_flows})
+    
     mock_client = AsyncMock()
-    mock_client.get = mock_get
+    mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.aclose = AsyncMock()
-
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        # Sync the flow
-        synced_flow_id = await flow_manager.sync_flow(
-            flow_id=flow_id,
-            input_component=input_component,
-            output_component=output_component
+    
+    # Mock local flows
+    local_flows = []
+    for flow_data in mock_flows[:2]:  # Only first 2 flows are synced
+        workflow = Workflow(
+            id=flow_data["id"],
+            name=flow_data["name"],
+            description=flow_data.get("description"),
+            data=flow_data["data"],
+            remote_flow_id=flow_data["id"]
         )
-        assert synced_flow_id is not None
-
-        # List local flows - should include synced flow
-        local_flows = await flow_manager.list_flows()
-        assert len(local_flows) == 1
-        assert str(local_flows[0].remote_flow_id) == flow_id
+        local_flows.append(workflow)
+    
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = local_flows
+    flow_manager.session.execute = AsyncMock(return_value=result)
+    
+    async with patch("httpx.AsyncClient", return_value=mock_client) as mock_client_class:
+        async with flow_manager.langflow:
+            synced_flows = await flow_manager.list_flows()
+            remote_flows = await flow_manager.langflow.list_remote_flows()
+            
+            # Verify synced flows
+            assert len(synced_flows) == 2
+            for synced_flow, mock_flow in zip(synced_flows, mock_flows[:2]):
+                assert synced_flow.remote_flow_id == mock_flow["id"]
+            
+            # Verify remote flows
+            assert len(remote_flows) == len(mock_flows)
 
 @pytest.mark.asyncio
-async def test_remote_flow_manager_client_config(remote_flow_manager, mock_flows):
-    """Test that the RemoteFlowManager client is configured correctly."""
-    async with remote_flow_manager:
-        # Check that client is initialized
-        assert remote_flow_manager.client is not None
-        
-        # Check headers configuration
-        headers = remote_flow_manager.client.headers
-        assert "accept" in headers
-        assert headers["accept"] == "application/json"
-        
-        # If API key is set, verify x-api-key header
-        from automagik.core.config import LANGFLOW_API_KEY
-        if LANGFLOW_API_KEY:
-            assert "x-api-key" in headers
-            assert headers["x-api-key"] == LANGFLOW_API_KEY
-        
-        # Verify base URL configuration
-        from automagik.core.config import LANGFLOW_API_URL
-        assert str(remote_flow_manager.client.base_url).rstrip("/") == LANGFLOW_API_URL.rstrip("/")
+async def test_remote_flow_manager_client_config():
+    """Test LangFlow manager client configuration."""
+    api_url = "http://test.example.com"
+    api_key = "test_key"
+    
+    manager = LangFlowManager(api_url=api_url, api_key=api_key)
+    assert manager.api_url == api_url
+    assert manager.api_key == api_key
+    assert manager.client is None
 
 @pytest.mark.asyncio
-async def test_remote_flow_manager_client_lifecycle(remote_flow_manager):
-    """Test the lifecycle of RemoteFlowManager client."""
-    # Test client initialization
-    assert not hasattr(remote_flow_manager, "client") or remote_flow_manager.client is None
+async def test_remote_flow_manager_client_lifecycle():
+    """Test LangFlow manager client lifecycle."""
+    manager = LangFlowManager(api_url="http://test.example.com")
+    assert manager.client is None
     
-    # Test client creation in context
-    async with remote_flow_manager:
-        assert remote_flow_manager.client is not None
-        assert "accept" in remote_flow_manager.client.headers
-    
-    # Test client is closed after context
-    assert remote_flow_manager.client is None
+    async with manager:
+        assert manager.client is not None
+        assert not manager.client.is_closed
+        
+    assert manager.client is None

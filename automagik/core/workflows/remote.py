@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import httpx
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from ...api.config import get_langflow_api_url, get_langflow_api_key
 from ...api.models import (
     WorkflowBase,
@@ -18,96 +18,103 @@ from ..database.session import get_session
 
 logger = logging.getLogger(__name__)
 
+LANGFLOW_API_URL = get_langflow_api_url()
+LANGFLOW_API_KEY = get_langflow_api_key()
+
 
 class LangFlowManager:
-    """LangFlow API integration."""
+    """Manager for remote LangFlow operations."""
 
-    def __init__(self, session=None):
-        """Initialize LangFlow manager."""
+    def __init__(self, session: AsyncSession):
+        """Initialize the LangFlow manager."""
         self.session = session
-        self.api_url = get_langflow_api_url()
-        self.api_key = get_langflow_api_key()
+        self.api_url = LANGFLOW_API_URL
+        self.api_key = LANGFLOW_API_KEY
         self.headers = {
             "accept": "application/json",
         }
         if self.api_key:
             self.headers["x-api-key"] = self.api_key
+        self.client = None
 
-    async def get_workflow(self, source_id: str) -> Optional[Dict[str, Any]]:
-        """Get workflow from LangFlow API."""
-        url = f"{self.api_url}/api/v1/flows/{source_id}"
-        async with httpx.AsyncClient(headers=self.headers) as client:
-            try:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPError as e:
-                logger.error(f"Failed to get workflow {source_id}: {e}")
-                return None
+    async def __aenter__(self):
+        """Enter the async context."""
+        self.client = httpx.AsyncClient(
+            base_url=self.api_url,
+            headers=self.headers,
+            verify=False
+        )
+        return self
 
-    async def list_workflows(self) -> List[Dict[str, Any]]:
-        """List workflows from LangFlow API."""
-        url = f"{self.api_url}/api/v1/flows"
-        async with httpx.AsyncClient(headers=self.headers) as client:
-            try:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPError as e:
-                logger.error(f"Failed to list workflows: {e}")
-                return []
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async context."""
+        if self.client:
+            await self.client.aclose()
 
-    async def run_workflow(
-        self, source_id: str, input_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """Run workflow on LangFlow API."""
-        url = f"{self.api_url}/api/v1/flows/{source_id}/run"
-        async with httpx.AsyncClient(headers=self.headers) as client:
-            try:
-                response = await client.post(url, json=input_data)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPError as e:
-                logger.error(f"Failed to run workflow {source_id}: {e}")
-                return None
-
-    async def sync_workflows(self) -> List[Workflow]:
-        """Sync workflows from LangFlow API."""
-        # Get remote workflows
-        remote_workflows = await self.list_workflows()
-        if not remote_workflows:
+    async def list_remote_flows(self) -> List[Dict[str, Any]]:
+        """List remote flows from LangFlow API."""
+        if not self.client:
+            raise RuntimeError("Must be used within async context manager")
+        try:
+            response = await self.client.get("/api/v1/flows/")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to list remote flows: {e}")
             return []
 
-        # Get local workflows
-        async with get_session() as session:
-            local_workflows = await session.execute(
-                select(Workflow).where(Workflow.remote_flow_id.isnot(None))
-            )
-            local_workflows = {
-                w.remote_flow_id: w for w in local_workflows.scalars().all()
+    async def sync_flow(self, flow_id: str, name: str = None, description: str = None, components: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Sync a flow from LangFlow API."""
+        if not self.client:
+            raise RuntimeError("Must be used within async context manager")
+        try:
+            response = await self.client.get(f"/api/v1/flows/{flow_id}")
+            response.raise_for_status()
+            flow_data = response.json()
+            
+            # Update flow data with provided values
+            if name:
+                flow_data["name"] = name
+            if description:
+                flow_data["description"] = description
+            
+            # Get components if not provided
+            if components is None:
+                components = await self.get_flow_components(flow_data)
+            
+            return {
+                "flow": flow_data,
+                "components": components
             }
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to sync flow {flow_id}: {e}")
+            return None
 
-            # Update or create workflows
-            synced_workflows = []
-            for remote_workflow in remote_workflows:
-                source_id = remote_workflow["id"]
-                if source_id in local_workflows:
-                    # Update existing workflow
-                    workflow = local_workflows[source_id]
-                    workflow.name = remote_workflow["name"]
-                    workflow.description = remote_workflow.get("description")
-                    workflow.metadata = remote_workflow.get("metadata", {})
-                else:
-                    # Create new workflow
-                    workflow = Workflow(
-                        name=remote_workflow["name"],
-                        description=remote_workflow.get("description"),
-                        remote_flow_id=source_id,
-                        metadata=remote_workflow.get("metadata", {}),
-                    )
-                    session.add(workflow)
+    async def get_flow_components(self, flow_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get components used in a flow."""
+        if not self.client:
+            raise RuntimeError("Must be used within async context manager")
+        try:
+            components = []
+            for node in flow_data.get("data", {}).get("nodes", []):
+                component_type = node.get("type")
+                if component_type:
+                    response = await self.client.get(f"/api/v1/components/{component_type}")
+                    response.raise_for_status()
+                    components.append(response.json())
+            return components
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to get flow components: {e}")
+            return []
 
-                synced_workflows.append(workflow)
-
-            await session.commit()
-            return synced_workflows
+    async def create_folder(self, name: str) -> Optional[Dict[str, Any]]:
+        """Create a folder in LangFlow."""
+        if not self.client:
+            raise RuntimeError("Must be used within async context manager")
+        try:
+            response = await self.client.post("/api/v1/folders/", json={"name": name})
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to create folder: {e}")
+            return None

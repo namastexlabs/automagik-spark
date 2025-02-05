@@ -111,6 +111,23 @@ def mock_get_session(mock_session):
     return _mock_get_session
 
 
+@pytest.fixture(scope="function")
+def event_loop():
+    """Create an instance of the default event loop for each test case."""
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    
+    asyncio.set_event_loop(loop)
+    yield loop
+    try:
+        loop.close()
+    except RuntimeError:
+        pass
+
+
 @patch("automagik.cli.commands.worker.get_session")
 def test_worker_status_not_running(mock_get_session, mock_pid_file, mock_session):
     """Test worker status when not running."""
@@ -173,29 +190,47 @@ def test_worker_stop_running(mock_process_class, mock_pid_file):
     mock_process.wait.assert_called_once_with(timeout=10)
 
 
-@patch("asyncio.run")
-@patch("signal.signal")
-def test_worker_start(mock_signal, mock_run, mock_pid_file, mock_log_dir):
+@pytest.mark.asyncio
+async def test_worker_start(mock_pid_file, mock_log_dir, event_loop):
     """Test starting worker process."""
     custom_log_path = str(mock_log_dir / "worker.log")
-    with patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": custom_log_path}):
+    
+    # Create a mock coroutine for worker_loop
+    mock_worker = AsyncMock()
+    mock_worker.return_value = None
+    
+    with patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": custom_log_path}), \
+         patch("automagik.cli.commands.worker.worker_loop", return_value=mock_worker()), \
+         patch("signal.signal"), \
+         patch("automagik.cli.commands.worker.get_session"), \
+         patch("automagik.cli.commands.worker.write_pid"), \
+         patch("automagik.cli.commands.worker.asyncio") as mock_asyncio:
+        # Mock asyncio.run to avoid actually running the event loop
+        mock_asyncio.run = AsyncMock()
+        
         runner = CliRunner()
         result = runner.invoke(worker_group, ["start"])
         assert result.exit_code == 0
         assert "Starting worker process" in result.output
-        assert mock_run.called
-        assert mock_signal.call_count == 2  # SIGINT and SIGTERM handlers
+        
+        # Verify asyncio.run was called with our mock worker
+        mock_asyncio.run.assert_called_once()
 
 
-def test_worker_start_already_running(mock_pid_file, mock_log_dir):
+@pytest.mark.asyncio
+async def test_worker_start_already_running(mock_pid_file, mock_log_dir, event_loop):
     """Test starting worker when already running."""
     # Write a PID file with current process ID
     os.makedirs(os.path.dirname(mock_pid_file), exist_ok=True)
     with open(mock_pid_file, "w") as f:
         f.write(str(os.getpid()))
 
+    # Create a mock coroutine for worker_loop
+    mock_worker_loop = AsyncMock()
+
     with patch("os.kill"), \
-         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": str(mock_log_dir / "worker.log")}):
+         patch.dict(os.environ, {"AUTOMAGIK_WORKER_LOG": str(mock_log_dir / "worker.log")}), \
+         patch("automagik.cli.commands.worker.worker_loop", return_value=mock_worker_loop):
         runner = CliRunner()
         result = runner.invoke(worker_group, ["start"])
         assert result.exit_code == 0

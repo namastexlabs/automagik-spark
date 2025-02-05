@@ -14,10 +14,12 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
     """
     configured_api_key = get_api_key()
     
+    # If no API key is configured, allow all requests
     if not configured_api_key:
-        # If no API key is configured, allow all requests
-        return "anonymous"
+        # If a key is provided, return it; otherwise return "anonymous"
+        return api_key if api_key else "anonymous"
     
+    # If API key is configured but not provided in request
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -25,6 +27,7 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
             headers={"WWW-Authenticate": "ApiKey"},
         )
     
+    # If API key is configured and provided but doesn't match
     if api_key != configured_api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

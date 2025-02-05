@@ -134,21 +134,24 @@ async def test_retry_task(test_task):
     """Test retrying a task with a plain return value from scalar_one_or_none."""
     session_mock = AsyncMock()
     mock_result = AsyncMock()
-
-    # Make scalar_one_or_none() a normal MagicMock that returns the Task
+    
+    # Mock the task retrieval
     mock_result.scalar_one_or_none = MagicMock(return_value=test_task)
-
     session_mock.execute = AsyncMock(return_value=mock_result)
-    session_mock.refresh = AsyncMock(return_value=None)
-
-    flow_manager_mock = AsyncMock()
-    flow_manager_mock.retry_task = AsyncMock(return_value=test_task)
-
+    
+    # Set task status to failed
+    test_task.status = "failed"
+    test_task.tries = 0
+    test_task.max_retries = 3
+    
+    # Create mock workflow manager
+    workflow_manager_mock = MagicMock()
+    workflow_manager_mock.retry_task = AsyncMock(return_value=test_task)
+    
     with patch('automagik.cli.commands.task.get_session') as mock_get_session, \
-         patch('automagik.cli.commands.task.FlowManager') as mock_flow_manager:
+         patch('automagik.cli.commands.task.WorkflowManager', return_value=workflow_manager_mock):
         mock_get_session.return_value.__aenter__.return_value = session_mock
-        mock_flow_manager.return_value = flow_manager_mock
-
+        
         # Call the retry function directly
         result = await _retry_task(str(test_task.id)[:8])
         assert result == 0

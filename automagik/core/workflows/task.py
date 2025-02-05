@@ -1,14 +1,14 @@
 """Task management."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Task, Workflow
+from ..database.models import Task, Workflow, TaskLog
 
 logger = logging.getLogger(__name__)
 
@@ -121,18 +121,37 @@ class TaskManager:
 
     async def retry_task(self, task_id: str) -> Optional[Task]:
         """Retry a failed task."""
-        task = await self.get_task(task_id)
+        # Get task
+        result = await self.session.execute(
+            select(Task).filter(Task.id == task_id)
+        )
+        task = result.scalars().first()
         if not task:
-            return None
+            raise ValueError(f"Task {task_id} not found")
             
+        # Check task status
         if task.status != "failed":
-            logger.warning(f"Cannot retry task {task_id} with status {task.status}")
-            return None
+            raise ValueError("Task is not in failed state")
             
-        # Reset task status and increment retry count
+        # Check max retries
+        if task.tries >= task.max_retries:
+            raise ValueError("Task has reached maximum retries")
+            
+        # Create task log
+        if task.error:
+            log = TaskLog(
+                task_id=task.id,
+                error=task.error,
+                tries=task.tries
+            )
+            self.session.add(log)
+            
+        # Update task for retry
         task.status = "pending"
+        task.error = None
+        task.next_retry_at = datetime.utcnow() + timedelta(minutes=5 * (2 ** (task.tries - 1)))
+        task.updated_at = datetime.utcnow()
         task.tries += 1
-        task.next_retry_at = datetime.now(timezone.utc)
         
         await self.session.commit()
         return task

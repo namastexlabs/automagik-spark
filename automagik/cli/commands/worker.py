@@ -13,7 +13,7 @@ import sys
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psutil
 from tabulate import tabulate
@@ -111,7 +111,7 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
         
         # Create task
         task = Task(
-            id=uuid.uuid4(),
+            id=uuid4(),
             workflow_id=schedule.workflow_id,
             status='pending',
             input_data=schedule.workflow_params or {},
@@ -166,7 +166,7 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
         # Create error log
         try:
             task_log = TaskLog(
-                id=uuid.uuid4(),
+                id=uuid4(),
                 task_id=task.id,
                 level='error',
                 message=f"Schedule processing error: {str(e)}",
@@ -242,6 +242,7 @@ async def process_schedules(session):
         if running_tasks == 0:
             # Create a new task
             await task_manager.create_task({
+                "id": uuid4(),
                 "workflow_id": schedule.workflow_id,
                 "input_data": schedule.workflow_params or {},
                 "status": "pending",
@@ -271,7 +272,7 @@ async def worker_loop():
     logger.info("Automagik worker started")
     
     # Register worker in database
-    worker_id = str(uuid.uuid4())
+    worker_id = str(uuid4())
     hostname = socket.gethostname()
     pid = os.getpid()
     
