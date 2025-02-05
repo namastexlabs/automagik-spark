@@ -102,19 +102,14 @@ class LangFlowManager:
                     try:
                         response = await self.client.get(f"/api/v1/components/{component_type}")
                         response.raise_for_status()
-                        # Add component type to node data
-                        node_data = {
-                            "id": node.get("id"),
-                            "type": component_type,
-                            "data": node.get("data", {}),
-                        }
-                        components.append(node_data)
-                    except httpx.HTTPError:
+                        components.append(response.json())
+                    except httpx.HTTPError as e:
+                        logger.error(f"Invalid component type {component_type}: {e}")
                         raise ValueError(f"Invalid component type: {component_type}")
             return components
         except httpx.HTTPError as e:
             logger.error(f"Failed to get flow components: {e}")
-            return []
+            raise
 
     async def create_folder(self, name: str) -> Dict[str, Any]:
         """Create a folder in LangFlow."""

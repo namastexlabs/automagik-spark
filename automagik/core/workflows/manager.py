@@ -6,11 +6,12 @@ Provides the main interface for managing workflows and remote flows
 
 import logging
 from typing import Dict, List, Optional, Any
-from uuid import UUID
-from datetime import datetime
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from ..database.models import Workflow, Schedule, Task, WorkflowComponent
 from .remote import LangFlowManager
@@ -109,10 +110,17 @@ class WorkflowManager:
         return workflow
 
     # Local workflow operations
-    async def list_workflows(self) -> List[Workflow]:
+    async def list_workflows(self, options: dict = None) -> List[Workflow]:
         """List all workflows from the local database."""
-        result = await self.session.execute(select(Workflow))
-        return result.scalars().all()
+        stmt = select(Workflow)
+
+        # Apply eager loading options
+        if options and options.get("joinedload"):
+            for relationship in options["joinedload"]:
+                stmt = stmt.options(joinedload(getattr(Workflow, relationship)))
+
+        result = await self.session.execute(stmt)
+        return result.unique().scalars().all()
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
         """Get a workflow by ID."""
@@ -210,11 +218,26 @@ class WorkflowManager:
         if not workflow:
             raise ValueError(f"Workflow {workflow_id} not found")
 
+        # Create task
         task = Task(
+            id=uuid4(),
             workflow_id=workflow_id,
             input_data=input_data,
             status="pending"
         )
         self.session.add(task)
         await self.session.commit()
-        return task
+
+        # Execute workflow
+        from .sync import WorkflowSync
+        sync = WorkflowSync(self.session)
+        try:
+            result = await sync.execute_workflow(workflow, task, input_data)
+            return task if result else None
+        except Exception as e:
+            logger.error(f"Failed to execute workflow: {e}")
+            task.status = "failed"
+            task.error = str(e)
+            task.finished_at = datetime.now(timezone.utc)
+            await self.session.commit()
+            return None

@@ -183,25 +183,27 @@ async def test_retry_task_not_found():
 @pytest.mark.asyncio
 async def test_list_tasks(test_tasks):
     """Test listing tasks."""
-    # Mock FlowManager.list_tasks to return test tasks
-    flow_manager_mock = AsyncMock()
-    flow_manager_mock.task = AsyncMock()
-    flow_manager_mock.task.list_tasks = AsyncMock(side_effect=[test_tasks])
-    
-    with patch('automagik.cli.commands.task.get_session') as mock_get_session, \
-         patch('automagik.cli.commands.task.FlowManager') as mock_flow_manager:
-        mock_get_session.return_value.__aenter__.return_value = AsyncMock()
-        mock_flow_manager.return_value = flow_manager_mock
-        
-        # Call list function directly
-        await _list_tasks(None, None, 50, False)
-        
-        # Verify flow_manager was called correctly
-        flow_manager_mock.task.list_tasks.assert_called_once_with(
-            workflow_id=None,
-            status=None,
-            limit=50
-        )
+    # Create a mock session that returns test tasks
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.unique.return_value.scalars.return_value.all.return_value = test_tasks
+    mock_session.execute.return_value = mock_result
+
+    # Mock the async context manager
+    mock_session_ctx = AsyncMock()
+    mock_session_ctx.__aenter__.return_value = mock_session
+    mock_session_ctx.__aexit__.return_value = None
+
+    with patch('automagik.cli.commands.task.get_session', return_value=mock_session_ctx):
+        # Call the list function directly with required arguments
+        result = await _list_tasks(workflow_id=None, status=None, limit=50, show_logs=False)
+        assert result == 0
+
+        # Verify that joinedload was used in the query
+        assert mock_session.execute.called
+        call_args = mock_session.execute.call_args
+        stmt = call_args[0][0]
+        assert any(str(option).startswith('Load') for option in stmt._with_options)
 
 def test_click_commands(test_task, test_tasks):
     """Test that Click commands work correctly."""

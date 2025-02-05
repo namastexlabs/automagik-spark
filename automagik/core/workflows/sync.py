@@ -58,11 +58,15 @@ class WorkflowSync:
             "input_value": input_data.get("input_value", ""),
             "output_type": "debug",
             "input_type": "chat",
-            "tweaks": {
+            "tweaks": {}
+        }
+        
+        # Only add tweaks if input/output components are configured
+        if workflow.input_component and workflow.output_component:
+            payload["tweaks"] = {
                 workflow.input_component: {},
                 workflow.output_component: {}
             }
-        }
         
         try:
             # Update task status
@@ -75,7 +79,7 @@ class WorkflowSync:
             logger.debug(f"Executing workflow {workflow.remote_flow_id} with input_data: {input_data}")
             logger.debug(f"API payload: {payload}")
             response = await client.post(
-                f"/api/v1/run/{workflow.remote_flow_id}?stream=false",
+                f"/api/v1/flows/{workflow.remote_flow_id}/run?stream=false",
                 json=payload,
                 timeout=600  # 10 minutes
             )

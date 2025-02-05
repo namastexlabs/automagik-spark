@@ -54,6 +54,10 @@ class Workflow(Base):
     schedules = relationship("Schedule", back_populates="workflow")
     components = relationship("WorkflowComponent", back_populates="workflow")
 
+    def __str__(self):
+        """Return a string representation of the workflow."""
+        return f"{self.name} ({self.id})"
+
 
 class WorkflowComponent(Base):
     """Workflow component model."""
@@ -141,6 +145,10 @@ class Schedule(Base):
 
     # Relationships
     workflow = relationship("Workflow", back_populates="schedules")
+
+    def __str__(self):
+        """Return a string representation of the schedule."""
+        return f"{self.schedule_type}:{self.schedule_expr} ({self.id})"
 
 
 class Worker(Base):

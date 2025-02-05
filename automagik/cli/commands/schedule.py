@@ -16,10 +16,12 @@ from tabulate import tabulate
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from croniter import croniter
+from sqlalchemy import select
 
 from ...core.workflows import WorkflowManager
-from ...core.scheduler import SchedulerManager
+from ...core.scheduler.scheduler import WorkflowScheduler
 from ...core.database.session import get_session
+from ...core.database.models import Workflow
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +36,8 @@ def create():
     async def _create_schedule():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
-            scheduler_manager = SchedulerManager(session, workflow_manager)
-            workflows = await workflow_manager.list_workflows()
+            scheduler = WorkflowScheduler(session, workflow_manager)
+            workflows = await workflow_manager.list_workflows(options={"joinedload": ["schedules"]})
             
             if not workflows:
                 click.echo("No workflows available")
@@ -44,7 +46,8 @@ def create():
             # Show available workflows
             click.echo("\nAvailable Workflows:")
             for i, workflow in enumerate(workflows):
-                schedule_count = len(workflow.schedules)
+                # Get schedule count safely
+                schedule_count = len(workflow.schedules) if hasattr(workflow, 'schedules') and workflow.schedules else 0
                 click.echo(f"{i}: {workflow.name} ({schedule_count} schedules)")
             
             # Get workflow selection
@@ -95,60 +98,41 @@ def create():
                 # Use the interval string directly
                 schedule_expr = interval.lower()
                 
-                # Calculate first run
-                now = datetime.now(timezone.utc)
-                
-                if interval[-1] == 'm':
-                    first_run = now + timedelta(minutes=value)
-                elif interval[-1] == 'h':
-                    first_run = now + timedelta(hours=value)
-                else:  # days
-                    first_run = now + timedelta(days=value)
-                click.echo(f"\nFirst run will be at: {first_run.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-                
-            else:
+            else:  # cron
                 click.echo("\nCron Examples:")
+                click.echo("  * * * * *     - Every minute")
+                click.echo("  */5 * * * *   - Every 5 minutes")
+                click.echo("  0 * * * *     - Every hour")
+                click.echo("  0 0 * * *     - Every day at midnight")
                 click.echo("  0 8 * * *     - Every day at 8 AM")
-                click.echo("  */30 * * * *  - Every 30 minutes")
-                click.echo("  0 */4 * * *   - Every 4 hours")
+                click.echo("  0 8 * * 1-5   - Every weekday at 8 AM")
                 
                 schedule_expr = click.prompt("\nEnter cron expression")
                 
                 # Validate cron expression
-                try:
-                    now = datetime.now(timezone.utc)
-                    cron = croniter(schedule_expr, now)
-                    first_run = cron.get_next(datetime)
-                    click.echo(f"\nFirst run will be at: {first_run.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-                except ValueError as e:
-                    click.echo(f"Invalid cron expression: {e}")
+                if not croniter.is_valid(schedule_expr):
+                    click.echo("Invalid cron expression")
                     return
-                
-            # Get input value
-            input_value = click.prompt("\nEnter input value")
+            
+            # Get input data
+            input_value = click.prompt("\nEnter input value", default="")
+            workflow_params = {"input_value": input_value}
             
             # Create schedule
-            schedule = await scheduler_manager.create_schedule(
-                workflow.id,
-                schedule_type,
-                schedule_expr,
-                {'input_value': input_value}
-            )
-            
-            if schedule:
-                click.echo("\nSchedule created successfully!")
-                click.echo(f"Workflow: {workflow.name}")
-                click.echo(f"Type: {schedule_type}")
-                
-                if schedule_type == 'interval':
-                    click.echo(f"Interval: Every {schedule_expr}")
+            try:
+                schedule = await scheduler.create_schedule(
+                    workflow.id,
+                    schedule_type,
+                    schedule_expr,
+                    workflow_params=workflow_params
+                )
+                if schedule:
+                    click.echo(f"\nSchedule created successfully with ID: {schedule.id}")
                 else:
-                    click.echo(f"Cron: {schedule_expr}")
-                    
-                click.echo(f"\nInput value: {input_value}")
-                click.echo(f"\nNext run at: {schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-            else:
-                click.echo("Failed to create schedule")
+                    click.echo("\nFailed to create schedule")
+            except Exception as e:
+                click.echo(f"Error creating schedule: {str(e)}")
+                return
     
     asyncio.run(_create_schedule())
 
@@ -158,34 +142,35 @@ def list():
     async def _list_schedules():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
-            scheduler_manager = SchedulerManager(session, workflow_manager)
-            schedules = await scheduler_manager.list_schedules()
+            scheduler = WorkflowScheduler(session, workflow_manager)
+            schedules = await scheduler.list_schedules()
             
             if not schedules:
                 click.echo("No schedules found")
                 return
             
-            # Prepare table data
+            headers = ["ID", "Workflow", "Type", "Expression", "Next Run", "Status"]
             rows = []
+            
             for schedule in schedules:
-                workflow_name = schedule.workflow.name if schedule.workflow else "Unknown"
-                schedule_type = schedule.schedule_type
-                schedule_expr = schedule.schedule_expr
-                status = schedule.status
-                next_run = schedule.next_run_at.strftime('%Y-%m-%d %H:%M:%S UTC') if schedule.next_run_at else 'N/A'
+                # Get workflow name safely without lazy loading
+                workflow_id = schedule.workflow_id
+                workflow_result = await session.execute(
+                    select(Workflow).where(Workflow.id == workflow_id)
+                )
+                workflow = workflow_result.scalar_one_or_none()
+                workflow_name = workflow.name if workflow else "Unknown"
                 
                 rows.append([
                     str(schedule.id),
                     workflow_name,
-                    schedule_type,
-                    schedule_expr,
-                    status,
-                    next_run
+                    schedule.schedule_type,
+                    schedule.schedule_expr,
+                    schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S") if schedule.next_run_at else "N/A",
+                    schedule.status
                 ])
             
-            # Display table
-            headers = ['ID', 'Workflow', 'Type', 'Expression', 'Status', 'Next Run']
-            click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
+            click.echo(tabulate(rows, headers=headers, tablefmt="grid"))
     
     asyncio.run(_list_schedules())
 
@@ -197,8 +182,8 @@ def update(schedule_id: str, action: str):
     async def _update_schedule():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
-            scheduler_manager = SchedulerManager(session, workflow_manager)
-            result = await scheduler_manager.update_schedule_status(schedule_id, action)
+            scheduler = WorkflowScheduler(session, workflow_manager)
+            result = await scheduler.update_schedule_status(schedule_id, action)
             
             if result:
                 click.echo(f"Schedule {schedule_id} {action}d successfully")
@@ -215,8 +200,8 @@ def set_expression(schedule_id: str, expression: str):
     async def _update_expression():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
-            scheduler_manager = SchedulerManager(session, workflow_manager)
-            result = await scheduler_manager.update_schedule_expression(schedule_id, expression)
+            scheduler = WorkflowScheduler(session, workflow_manager)
+            result = await scheduler.update_schedule_expression(schedule_id, expression)
             
             if result:
                 click.echo(f"Schedule {schedule_id} expression updated to '{expression}'")
@@ -232,8 +217,8 @@ def delete(schedule_id: str):
     async def _delete_schedule():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
-            scheduler_manager = SchedulerManager(session, workflow_manager)
-            result = await scheduler_manager.delete_schedule(UUID(schedule_id))
+            scheduler = WorkflowScheduler(session, workflow_manager)
+            result = await scheduler.delete_schedule(UUID(schedule_id))
             
             if result:
                 click.echo(f"Schedule {schedule_id} deleted successfully")

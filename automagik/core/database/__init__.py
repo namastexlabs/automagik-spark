@@ -1,27 +1,18 @@
 """
-Database package.
+Database package initialization.
 """
 
-from .base import Base
-from .session import get_session, get_engine
-from .models import (
-    Base,
-    Workflow,
-    WorkflowComponent,
-    Schedule,
-    Task,
-    TaskLog,
-    Worker,
-)
+from .models import Base, Task, Workflow, Schedule, TaskLog, Worker
+from .session import get_session, get_sync_session, get_engine
 
 __all__ = [
-    "Base",
-    "get_session",
-    "get_engine",
-    "Workflow",
-    "WorkflowComponent",
-    "Schedule",
-    "Task",
-    "TaskLog",
-    "Worker",
+    'Base',
+    'Task',
+    'Workflow',
+    'Schedule',
+    'TaskLog',
+    'Worker',
+    'get_session',
+    'get_sync_session',
+    'get_engine',
 ]

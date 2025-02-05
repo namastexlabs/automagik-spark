@@ -57,6 +57,8 @@ class TaskManager:
         """Create task."""
         if 'workflow_id' in task and isinstance(task['workflow_id'], str):
             task['workflow_id'] = UUID(task['workflow_id'])
+        if 'id' not in task:
+            task['id'] = uuid4()
         new_task = Task(**task)
         self.session.add(new_task)
         await self.session.commit()

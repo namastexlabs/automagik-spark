@@ -1,11 +1,11 @@
 """Main CLI entry point."""
 
-import os
 import click
 import logging
+import os
+
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 from .commands import (
@@ -19,20 +19,12 @@ from .commands import (
 
 
 @click.group()
-@click.option('--debug/--no-debug', default=False, help='Enable debug mode')
+@click.option("--debug/--no-debug", default=False)
 def main(debug):
-    """AutoMagik CLI"""
+    """Automagik CLI."""
     if debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
         logging.getLogger().setLevel(logging.DEBUG)
     else:
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
         logging.getLogger().setLevel(logging.INFO)
 
 # Add command groups

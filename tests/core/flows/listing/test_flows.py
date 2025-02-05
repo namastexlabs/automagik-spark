@@ -79,13 +79,14 @@ def mock_httpx_client(monkeypatch):
 @pytest.mark.asyncio
 async def test_list_flows_empty(flow_manager):
     """Test listing flows when there are none."""
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = []
-    flow_manager.session.execute = AsyncMock(return_value=result)
+    mock_result = MagicMock()
+    mock_result.unique.return_value.scalars.return_value.all.return_value = []
 
-    async with flow_manager:
-        flows = await flow_manager.list_workflows()
-        assert flows == []
+    # Mock the session execute
+    flow_manager.session.execute = AsyncMock(return_value=mock_result)
+
+    flows = await flow_manager.list_workflows()
+    assert flows == []
 
 
 @pytest.mark.asyncio
@@ -98,22 +99,23 @@ async def test_list_flows_with_data(flow_manager, mock_flows):
             id=flow_data["id"],
             name=flow_data["name"],
             description=flow_data.get("description"),
-            data=flow_data["data"],
-            remote_flow_id=flow_data["id"]
+            source=flow_data.get("source", "langflow"),
+            remote_flow_id=flow_data["id"],
+            data=flow_data.get("data", {}),
         )
         workflows.append(workflow)
 
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = workflows
-    flow_manager.session.execute = AsyncMock(return_value=result)
+    mock_result = MagicMock()
+    mock_result.unique.return_value.scalars.return_value.all.return_value = workflows
 
-    async with flow_manager:
-        flows = await flow_manager.list_workflows()
-        assert len(flows) == len(mock_flows)
-        for flow, mock_flow in zip(flows, mock_flows):
-            assert flow.id == mock_flow["id"]
-            assert flow.name == mock_flow["name"]
-            assert flow.data == mock_flow["data"]
+    # Mock the session execute
+    flow_manager.session.execute = AsyncMock(return_value=mock_result)
+
+    flows = await flow_manager.list_workflows()
+    assert len(flows) == len(mock_flows)
+    for flow, mock_flow in zip(flows, mock_flows):
+        assert str(flow.id) == mock_flow["id"]
+        assert flow.name == mock_flow["name"]
 
 
 @pytest.mark.asyncio

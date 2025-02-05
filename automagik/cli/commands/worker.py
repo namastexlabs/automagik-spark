@@ -6,25 +6,28 @@ Provides CLI commands for running the worker that executes scheduled workflows.
 
 import asyncio
 import click
+import json
 import logging
 import os
+import psutil
 import signal
+import socket
 import sys
 import re
+
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
 
-import psutil
-from tabulate import tabulate
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...core.database.models import Worker, Task, TaskLog, Schedule, Workflow
+from ...core.database.models import Worker, Schedule, Task, Workflow
 from ...core.database.session import get_session
-from ...core.workflows.workflow import LocalWorkflowManager as WorkflowManager
+from ...core.workflows.manager import WorkflowManager
 from ...core.workflows.task import TaskManager
 from ...core.scheduler.scheduler import WorkflowScheduler as SchedulerManager
-from sqlalchemy import select
-from sqlalchemy import func
+from tabulate import tabulate
 
 # Initialize logger with basic configuration
 logger = logging.getLogger(__name__)
@@ -79,17 +82,22 @@ async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
             logger.error(f"Workflow {task.workflow_id} not found")
             return False
         
-        # Update task status
-        task.status = 'running'
-        task.started_at = datetime.now(timezone.utc)
-        await workflow_manager.session.commit()
+        # Log workflow execution
+        logger.info(f"Running workflow {workflow.name} (remote_flow_id: {workflow.remote_flow_id}) for task {task.id}")
+        logger.info(f"Input data: {json.dumps(task.input_data, indent=2)}")
         
-        # Run workflow using source_id for API call
-        logger.info(f"Running workflow {workflow.name} (source_id: {workflow.source_id}) for task {task.id}")
-        result = await workflow_manager.run_workflow(workflow.source_id, task.input_data)
+        # Execute workflow
+        result = await workflow_manager.run_workflow(workflow.id, task.input_data)
         
-        # Task status is managed by run_workflow
-        return result is not None
+        if result:
+            logger.info(f"Task {task.id} completed successfully")
+            logger.info(f"Output data: {json.dumps(result.output_data, indent=2)}")
+            return True
+        else:
+            logger.error(f"Task {task.id} failed")
+            if task.error:
+                logger.error(f"Error: {task.error}")
+            return False
         
     except Exception as e:
         logger.error(f"Failed to run workflow: {str(e)}")
@@ -293,11 +301,45 @@ async def worker_loop():
                     result = await session.execute(stmt)
                     worker = result.scalar_one_or_none()
                     if worker:
-                        worker.last_heartbeat = datetime.now(timezone.utc)
+                        now = datetime.now(timezone.utc)
+                        worker.last_heartbeat = now
+                        
+                        # Get upcoming tasks in next 10 minutes
+                        ten_mins_later = now + timedelta(minutes=10)
+                        stmt = select(Schedule).where(
+                            Schedule.status == "active",
+                            Schedule.next_run_at <= ten_mins_later,
+                            Schedule.next_run_at > now
+                        )
+                        result = await session.execute(stmt)
+                        upcoming = list(result.scalars().all())
+                        
+                        if upcoming:
+                            logger.info(f"Found {len(upcoming)} tasks to run in next 10 minutes")
+                            for schedule in upcoming:
+                                time_until = schedule.next_run_at - now
+                                hours = int(time_until.total_seconds() // 3600)
+                                minutes = int((time_until.total_seconds() % 3600) // 60)
+                                seconds = int(time_until.total_seconds() % 60)
+                                logger.info(f"Next task for workflow {schedule.workflow_id} will run in {hours:02d}h{minutes:02d}m{seconds:02d}s")
+                        
                         await session.commit()
                     
                     # Process schedules
                     await process_schedules(session)
+                    
+                    # Execute pending tasks
+                    workflow_manager = WorkflowManager(session)
+                    stmt = select(Task).where(Task.status == "pending")
+                    result = await session.execute(stmt)
+                    pending_tasks = result.scalars().all()
+                    
+                    for task in pending_tasks:
+                        try:
+                            await run_workflow(workflow_manager, task)
+                            logger.info(f"Executed task {task.id}")
+                        except Exception as e:
+                            logger.error(f"Failed to execute task {task.id}: {e}")
                 
             except Exception as e:
                 logger.error(f"Worker error: {str(e)}")

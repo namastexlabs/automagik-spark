@@ -11,15 +11,23 @@ import asyncio
 import click
 import logging
 import os
-import shutil
+import sys
 from pathlib import Path
-from alembic import command
+from typing import Optional, List
+from rich.console import Console
+from rich.table import Table
+from rich.prompt import Prompt
+
+from sqlalchemy.ext.asyncio import AsyncEngine
 from alembic.config import Config
-from sqlalchemy import text
+from alembic import command
+from alembic.util import CommandError
 
 from ...core.database import Base
-from ...core.database.session import get_session, engine, DATABASE_URL
+from ...core.database.session import get_session, async_engine as engine, DATABASE_URL
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get the project root directory
@@ -160,10 +168,7 @@ else:
     run_migrations_online()
 """)
 
-@click.group(name='db')
-def db_group():
-    """Manage database."""
-    pass
+db_group = click.Group(name="db", help="Database management commands")
 
 @db_group.command()
 def init():

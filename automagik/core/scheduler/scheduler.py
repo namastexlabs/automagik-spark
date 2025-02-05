@@ -10,6 +10,7 @@ from croniter import croniter
 from dateutil.parser import parse as parse_datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from ..database.models import Schedule, Task, Workflow
 from ..workflows.manager import WorkflowManager
@@ -175,7 +176,11 @@ class WorkflowScheduler:
     async def list_schedules(self) -> List[Schedule]:
         """List all schedules."""
         try:
-            result = await self.session.execute(select(Schedule))
+            result = await self.session.execute(
+                select(Schedule)
+                .join(Workflow)
+                .options(joinedload(Schedule.workflow))
+            )
             return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Error listing schedules: {e}")

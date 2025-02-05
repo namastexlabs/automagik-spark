@@ -10,103 +10,91 @@ Provides commands for:
 
 import json
 import click
-import asyncio
-import logging
-import sys
-from typing import Optional, Any, Callable, List, Dict
-from datetime import datetime
+from rich.console import Console
+from rich.table import Table
+from rich import box
 from uuid import UUID
+from typing import Optional, Any, Callable, List, Dict
 from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from rich.console import Console
-from rich.table import Table
+from sqlalchemy.orm import joinedload
+import asyncio
 
-from ...core.database import get_session, Task, Workflow
-from ...core.workflows.workflow import LocalWorkflowManager as FlowManager
-from ...core.workflows import WorkflowManager
+from automagik.core.database import get_sync_session, get_session
+from automagik.core.database.models import Task, Workflow
+from automagik.core.workflows.manager import WorkflowManager
+from automagik.core.workflows.sync import WorkflowSync
+from automagik.core.workflows.remote import LangFlowManager
+from automagik.cli.utils.async_helper import handle_async_command
+from automagik.cli.utils.log import get_logger
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-def handle_async_command(coro: Any) -> Any:
-    """Helper function to handle running async commands."""
+def handle_sync_command(func: Callable) -> Any:
+    """Helper function to handle running sync commands."""
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    try:
-        return loop.run_until_complete(coro)
+        return func()
     except Exception as e:
         logger.error(f"Command failed: {str(e)}")
         raise click.ClickException(str(e))
-    finally:
-        if loop and not loop.is_closed():
-            loop.close()
 
 @click.group(name='tasks')
 def task_group():
     """Manage workflow tasks."""
     pass
 
-async def _list_tasks(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
+async def _list_tasks(workflow_id: Optional[str] = None, status: Optional[str] = None, limit: int = 50, show_logs: bool = False) -> int:
     """List tasks."""
-    try:
-        session: AsyncSession
-        async with get_session() as session:
-            workflow_manager = FlowManager(session)
-            tasks = await workflow_manager.task.list_tasks(
-                workflow_id=workflow_id,
-                status=status,
-                limit=limit
+    async with get_session() as session:
+        stmt = select(Task).order_by(Task.created_at.desc()).options(joinedload(Task.workflow))
+        if workflow_id:
+            stmt = stmt.where(Task.workflow_id == workflow_id)
+        if status:
+            stmt = stmt.where(Task.status == status)
+        if limit:
+            stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        tasks = result.unique().scalars().all()
+
+        # Create table
+        table = Table(title="Tasks")
+        table.add_column("ID", justify="left")
+        table.add_column("Workflow", justify="left")
+        table.add_column("Status", justify="left")
+        table.add_column("Created", justify="left")
+        table.add_column("Updated", justify="left")
+
+        for task in tasks:
+            table.add_row(
+                str(task.id)[:6] + "…",
+                task.workflow.name if task.workflow else "N/A",
+                task.status,
+                task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             )
 
-            if not tasks:
-                click.echo("No tasks found")
-                return
+        console = Console()
+        console.print(table)
 
-            table = Table(title="Tasks")
-            table.add_column("ID", style="cyan", no_wrap=True)
-            table.add_column("Workflow", style="magenta")
-            table.add_column("Status", style="green")
-            table.add_column("Created", style="blue")
-            table.add_column("Updated", style="blue")
-            if show_logs:
-                table.add_column("Logs", style="yellow")
-
+        if show_logs and tasks:
             for task in tasks:
-                row = [
-                    str(task.id),
-                    task.workflow.name if task.workflow else "N/A",
-                    task.status,
-                    task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
-                ]
-                if show_logs:
-                    row.append("\n".join([log.message for log in task.logs]))
-                table.add_row(*row)
+                if task.logs:
+                    console.print(f"\nLogs for task {task.id}:")
+                    console.print(task.logs)
 
-            console = Console()
-            console.print(table)
+    return 0
 
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}")
-        raise click.ClickException(f"Database error: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error listing tasks: {str(e)}")
-        raise click.ClickException(str(e))
-
-@task_group.command(name='list')
-@click.option('--workflow-id', help='Filter tasks by workflow ID')
-@click.option('--status', help='Filter tasks by status')
-@click.option('--limit', default=50, help='Maximum number of tasks to show')
-@click.option('--show-logs', is_flag=True, help='Show task logs')
-def list_tasks(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
+@task_group.command()
+@click.option("--workflow-id", help="Filter by workflow ID")
+@click.option("--status", help="Filter by status")
+@click.option("--limit", default=50, help="Limit number of results")
+@click.option("--show-logs", is_flag=True, help="Show task logs")
+def list(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
     """List tasks."""
-    return handle_async_command(_list_tasks(workflow_id, status, limit, show_logs))
+    return asyncio.run(_list_tasks(workflow_id, status, limit, show_logs))
 
 async def _view_task(task_id: str) -> int:
     """View task details."""
