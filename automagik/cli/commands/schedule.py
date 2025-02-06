@@ -12,7 +12,6 @@ import asyncio
 import click
 from typing import Optional
 import logging
-from tabulate import tabulate
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from croniter import croniter
@@ -22,6 +21,12 @@ from ...core.workflows import WorkflowManager
 from ...core.scheduler.scheduler import WorkflowScheduler
 from ...core.database.session import get_session
 from ...core.database.models import Workflow
+from ..utils.table_styles import (
+    create_rich_table,
+    format_timestamp,
+    get_status_style,
+    print_table
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,11 +150,22 @@ def list():
             schedules = await scheduler.list_schedules()
             
             if not schedules:
-                click.echo("No schedules found")
+                click.secho("\n No schedules found", fg="yellow")
                 return
             
-            headers = ["ID", "Workflow", "Type", "Expression", "Next Run", "Status"]
-            rows = []
+            # Create table with consistent styling
+            table = create_rich_table(
+                title="Workflow Schedules",
+                caption=f"Total: {len(schedules)} schedule(s)",
+                columns=[
+                    {"name": "ID", "justify": "left", "style": "bright_blue", "no_wrap": True},
+                    {"name": "Workflow", "justify": "left", "style": "green"},
+                    {"name": "Type", "justify": "center", "style": "magenta"},
+                    {"name": "Expression", "justify": "left", "style": "cyan"},
+                    {"name": "Next Run", "justify": "left", "style": "yellow"},
+                    {"name": "Status", "justify": "center", "style": "bold"}
+                ]
+            )
             
             for schedule in schedules:
                 # Get workflow name safely without lazy loading
@@ -158,18 +174,39 @@ def list():
                     select(Workflow).where(Workflow.id == workflow_id)
                 )
                 workflow = workflow_result.scalar_one_or_none()
-                workflow_name = workflow.name if workflow else "Unknown"
+                workflow_name = workflow.name if workflow else "[dim italic]Unknown[/dim italic]"
                 
-                rows.append([
+                # Format schedule type
+                schedule_type = f"[magenta italic]{schedule.schedule_type}[/magenta italic]"
+                
+                # Format expression based on type
+                if schedule.schedule_type == 'interval':
+                    expr = f"[cyan]every {schedule.schedule_expr}[/cyan]"
+                else:
+                    expr = f"[cyan]{schedule.schedule_expr}[/cyan]"
+                
+                # Format next run
+                next_run = format_timestamp(schedule.next_run_at) if schedule.next_run_at else "[dim]N/A[/dim]"
+                
+                # Get status with icon
+                status_map = {
+                    'active': '[bold green]●[/bold green] ACTIVE',
+                    'paused': '[bold yellow]⏸[/bold yellow] PAUSED',
+                    'stopped': '[bold red]■[/bold red] STOPPED'
+                }
+                status = status_map.get(schedule.status.lower(), f"[bold white]{schedule.status.upper()}[/bold white]")
+                
+                # Add row
+                table.add_row(
                     str(schedule.id),
                     workflow_name,
-                    schedule.schedule_type,
-                    schedule.schedule_expr,
-                    schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S") if schedule.next_run_at else "N/A",
-                    schedule.status
-                ])
+                    schedule_type,
+                    expr,
+                    next_run,
+                    status
+                )
             
-            click.echo(tabulate(rows, headers=headers, tablefmt="grid"))
+            print_table(table)
     
     asyncio.run(_list_schedules())
 

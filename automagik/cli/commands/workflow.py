@@ -13,6 +13,12 @@ from tabulate import tabulate
 
 from ...core.workflows import WorkflowManager
 from ...core.database.session import get_session
+from ..utils.table_styles import (
+    create_rich_table,
+    format_timestamp,
+    get_status_style,
+    print_table
+)
 
 workflow_group = click.Group(name="workflows", help="Workflow management commands")
 
@@ -37,90 +43,48 @@ def list_workflows(folder: Optional[str]):
                     click.secho("\n No workflows found", fg="yellow")
                     return
 
-                # Calculate column widths based on content
-                name_width = max(len(w.name) for w in workflows) + 2
-                name_width = min(name_width, 30)  # Cap at 30 chars
-                
-                col_widths = {
-                    "id": 36,  # Increased width to show full ID
-                    "name": name_width,
-                    "status": 15,
-                    "tasks": 10,
-                    "schedules": 10,
-                    "updated": 20
-                }
-                
-                total_width = sum(col_widths.values())
-                
-                click.secho("\n Workflows", fg="blue", bold=True)
-                click.echo("─" * total_width)
-                
-                # Print header
-                headers = ["ID", "Name", "Status", "Tasks", "Scheds", "Last Updated"]
-                widths = list(col_widths.values())
-                
-                # Print each header with proper width and color
-                for h, w in zip(headers, widths):
-                    click.secho(f"{h:<{w}}", fg="cyan", bold=True, nl=False)
-                click.echo()
-                
-                click.echo("─" * total_width)
-                
-                # Format and display each workflow
+                # Create table with consistent styling
+                table = create_rich_table(
+                    title="Workflows",
+                    caption=f"Total: {len(workflows)} workflow(s)",
+                    columns=[
+                        {"name": "ID", "justify": "left", "style": "bright_blue", "no_wrap": True},
+                        {"name": "Name", "justify": "left", "style": "green"},
+                        {"name": "Status", "justify": "center", "style": "bold"},
+                        {"name": "Tasks", "justify": "center", "style": "yellow"},
+                        {"name": "Schedules", "justify": "center", "style": "yellow"},
+                        {"name": "Source", "justify": "left", "style": "magenta"},
+                        {"name": "Last Updated", "justify": "left", "style": "cyan"}
+                    ]
+                )
+
+                # Add rows with proper styling
                 for w in workflows:
                     tasks = getattr(w, 'tasks', [])
                     schedules = getattr(w, 'schedules', [])
                     latest_task = max(tasks, key=lambda t: t.created_at, default=None) if tasks else None
                     
-                    # Format name with ellipsis if too long
-                    name = w.name
-                    if len(name) > col_widths["name"] - 3:
-                        name = name[:col_widths["name"] - 3] + "..."
+                    # Determine workflow status
+                    if not latest_task:
+                        status = "[bold yellow]NEW[/bold yellow]"
+                    else:
+                        status = get_status_style(latest_task.status)
                     
-                    # Print each column with proper spacing
-                    click.echo(
-                        f"{str(w.id):<{col_widths['id']}}  "  # Added two spaces after ID
-                        f"{name:<{col_widths['name']}}", 
-                        nl=False
+                    # Format the row
+                    table.add_row(
+                        str(w.id),  # ID
+                        w.name,  # Name
+                        status,  # Status
+                        f"[bold]{len(tasks)}[/bold]",  # Tasks count
+                        f"[bold]{len(schedules)}[/bold]",  # Schedules count
+                        f"[italic]{w.source}[/italic]",  # Source
+                        format_timestamp(w.updated_at)  # Last Updated
                     )
-                    
-                    # Status with color
-                    status = "Never Run"
-                    color = "yellow"
-                    if latest_task:
-                        if latest_task.status == "completed":
-                            status = "Completed"
-                            color = "green"
-                        elif latest_task.status == "failed":
-                            status = "Failed"
-                            color = "red"
-                        else:
-                            status = latest_task.status.title()
-                            color = "yellow"
-                    
-                    click.secho(f"{status:<{col_widths['status']}}", fg=color, nl=False)
-                    
-                    # Task and schedule counts
-                    click.secho(f"{len(tasks):<{col_widths['tasks']}}", fg="blue", bold=True, nl=False)
-                    click.secho(f"{len(schedules):<{col_widths['schedules']}}", fg="magenta", bold=True, nl=False)
-                    
-                    # Updated timestamp
-                    updated = w.updated_at.strftime("%Y-%m-%d %H:%M") if w.updated_at else "-"
-                    click.echo(f"{updated:<{col_widths['updated']}}")
-                
-                click.echo("─" * total_width)
-                
-                # Print summary
-                click.echo()
-                summary = (
-                    f"Total: {click.style(str(len(workflows)), bold=True)} workflow(s)"
-                )
-                if folder:
-                    summary += f" in folder {click.style(folder, fg='blue')}"
-                click.echo(summary)
-                click.echo()
-    
-    run_async(_list())
+
+                # Print the table
+                print_table(table)
+
+    return run_async(_list())
 
 
 @workflow_group.command("sync")

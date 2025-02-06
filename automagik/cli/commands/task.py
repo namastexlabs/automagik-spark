@@ -13,6 +13,8 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from rich import print
+from rich.panel import Panel
 from uuid import UUID
 from typing import Optional, Any, Callable, List, Dict
 from sqlalchemy import select, cast, String
@@ -48,7 +50,7 @@ def task_group():
 async def _list_tasks(workflow_id: Optional[str] = None, status: Optional[str] = None, limit: int = 50, show_logs: bool = False) -> int:
     """List tasks."""
     async with get_session() as session:
-        stmt = select(Task).order_by(Task.created_at.desc()).options(joinedload(Task.workflow))
+        stmt = select(Task).order_by(Task.created_at.asc()).options(joinedload(Task.workflow))
         if workflow_id:
             stmt = stmt.where(Task.workflow_id == workflow_id)
         if status:
@@ -59,31 +61,63 @@ async def _list_tasks(workflow_id: Optional[str] = None, status: Optional[str] =
         result = await session.execute(stmt)
         tasks = result.unique().scalars().all()
 
-        # Create table
-        table = Table(title="Tasks")
-        table.add_column("ID", justify="left")
-        table.add_column("Workflow", justify="left")
-        table.add_column("Status", justify="left")
-        table.add_column("Created", justify="left")
-        table.add_column("Updated", justify="left")
+        # Create a beautiful table with Rich
+        table = Table(
+            title="[bold blue]Workflow Tasks[/bold blue]",
+            caption="[dim]Showing most recent tasks last[/dim]",
+            box=box.ROUNDED,
+            header_style="bold cyan",
+            show_lines=True,
+            padding=(0, 1)
+        )
+        
+        # Add columns with styled headers
+        table.add_column("ID", justify="left", no_wrap=True, style="bright_blue")
+        table.add_column("Workflow", justify="left", style="green")
+        table.add_column("Status", justify="center", style="bold")
+        table.add_column("Created", justify="left", style="yellow")
+        table.add_column("Updated", justify="left", style="yellow")
+
+        # Status color mapping
+        status_styles = {
+            "completed": "[bold green]✓[/bold green] COMPLETED",
+            "failed": "[bold red]✗[/bold red] FAILED",
+            "running": "[bold yellow]⟳[/bold yellow] RUNNING",
+            "pending": "[bold blue]⋯[/bold blue] PENDING",
+            "error": "[bold red]![/bold red] ERROR"
+        }
 
         for task in tasks:
+            # Style the status
+            status_display = status_styles.get(
+                task.status.lower(), 
+                f"[bold white]{task.status.upper()}[/bold white]"
+            )
+            
+            # Format timestamps
+            created_at = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            updated_at = task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Add row with styling
             table.add_row(
-                str(task.id)[:6] + "…",
-                task.workflow.name if task.workflow else "N/A",
-                task.status,
-                task.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                task.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                str(task.id),
+                task.workflow.name if task.workflow else "[dim italic]N/A[/dim italic]",
+                status_display,
+                created_at,
+                updated_at
             )
 
         console = Console()
+        console.print()  # Add some spacing
         console.print(table)
+        console.print()  # Add some spacing
 
         if show_logs and tasks:
             for task in tasks:
                 if task.logs:
-                    console.print(f"\nLogs for task {task.id}:")
-                    console.print(task.logs)
+                    console.print(f"[bold blue]Logs for task {task.id}:[/bold blue]")
+                    console.print(Panel(task.logs, title="Task Logs", border_style="blue"))
+                    console.print()  # Add spacing between logs
 
     return 0
 
