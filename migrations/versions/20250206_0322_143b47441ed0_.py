@@ -1,8 +1,8 @@
-"""Initial migration
+"""empty message
 
-Revision ID: 88ea213c5797
+Revision ID: 143b47441ed0
 Revises: 
-Create Date: 2025-02-06 03:06:06.133607+00:00
+Create Date: 2025-02-06 03:22:04.388619+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '88ea213c5797'
+revision: str = '143b47441ed0'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('workflow_id', sa.UUID(), nullable=False),
     sa.Column('schedule_type', sa.String(), nullable=False),
     sa.Column('schedule_expr', sa.String(), nullable=False),
-    sa.Column('workflow_params', sa.JSON(), nullable=True),
+    sa.Column('workflow_params', sa.String(), nullable=True),
     sa.Column('params', sa.JSON(), nullable=True),
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('next_run_at', sa.DateTime(timezone=True), nullable=True),
@@ -38,7 +38,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('workflow_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('input_data', sa.JSON(), nullable=False),
+    sa.Column('input_data', sa.String(), nullable=False),
     sa.Column('output_data', sa.JSON(), nullable=True),
     sa.Column('error', sa.Text(), nullable=True),
     sa.Column('tries', sa.Integer(), nullable=True),

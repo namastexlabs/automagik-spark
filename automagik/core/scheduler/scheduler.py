@@ -204,7 +204,7 @@ class WorkflowScheduler:
                     id=uuid4(),
                     workflow_id=schedule.workflow_id,
                     schedule_id=schedule.id,
-                    input_data=schedule.workflow_params or {}
+                    input_data=str(schedule.workflow_params) if schedule.workflow_params else ""
                 )
                 self.session.add(task)
 
@@ -238,7 +238,7 @@ class WorkflowScheduler:
                             id=uuid4(),
                             workflow_id=schedule.workflow_id,
                             schedule_id=schedule.id,
-                            input_data=schedule.workflow_params or {}
+                            input_data=str(schedule.workflow_params) if schedule.workflow_params else ""
                         )
                         self.session.add(task)
 

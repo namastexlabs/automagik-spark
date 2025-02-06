@@ -235,7 +235,7 @@ class WorkflowManager:
     async def run_workflow(
         self,
         workflow_id: UUID,
-        input_data: Dict[str, Any]
+        input_data: str
     ) -> Optional[Task]:
         """Run a workflow with input data."""
         workflow = await self.get_workflow(str(workflow_id))

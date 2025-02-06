@@ -195,14 +195,10 @@ async def test_context_manager(session):
         assert manager.session == session
 
     # Test client is closed
-    assert manager.client is not None  # Client object still exists
-    with pytest.raises(RuntimeError):
-        await manager.list_remote_flows()  # But can't be used
+    assert manager.client is None  # Client should be closed and set to None
 
     # Test error in context
     with pytest.raises(Exception):
         async with LangFlowManager(session) as manager:
             raise Exception("Test error")
-    assert manager.client is not None  # Client object still exists
-    with pytest.raises(RuntimeError):
-        await manager.list_remote_flows()  # But can't be used
+    assert manager.client is None  # Client should be closed and set to None

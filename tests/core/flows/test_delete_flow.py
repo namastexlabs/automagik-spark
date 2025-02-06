@@ -68,8 +68,7 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
     # Create test workflow
     workflow = Workflow(
         id=uuid4(),
-        name="Test Flow",
-        description="Test flow",
+        name="Test Workflow",
         source="test",
         remote_flow_id=str(uuid4())
     )
@@ -80,7 +79,9 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
         id=uuid4(),
         workflow_id=workflow.id,
         status="completed",
-        input_data={"test": "data"}
+        input_data='{"test": "data"}',
+        tries=0,
+        max_retries=3
     )
     session.add(task)
 
@@ -129,8 +130,7 @@ async def test_delete_workflow_with_task_logs(workflow_manager, session):
     # Create test workflow
     workflow = Workflow(
         id=uuid4(),
-        name="Test Flow",
-        description="Test flow",
+        name="Test Workflow",
         source="test",
         remote_flow_id=str(uuid4())
     )
@@ -141,7 +141,9 @@ async def test_delete_workflow_with_task_logs(workflow_manager, session):
         id=uuid4(),
         workflow_id=workflow.id,
         status="completed",
-        input_data={"test": "data"}
+        input_data='{"test": "data"}',
+        tries=0,
+        max_retries=3
     )
     session.add(task)
 

@@ -37,7 +37,7 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         remote_flow_id="test_remote_id",
         input_component="input_node",
         output_component="output_node",
-        data={"test": "data"},
+        data="test data",
         flow_version=1,
         is_component=False,
         gradient=False,
@@ -51,8 +51,8 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         workflow_id=workflow.id,
         component_id="test_component",
         type="test_type",
-        template={"test": "data"},
-        tweakable_params={"test": "data"},
+        template="test template",
+        tweakable_params="test tweakable params",
         is_input=True,
         is_output=False
     )
@@ -65,7 +65,7 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         schedule_type="cron",
         schedule_expr="* * * * *",
         status="active",
-        workflow_params={"test": "data"}
+        workflow_params='{"test": "data"}'
     )
     session.add(schedule)
     
@@ -74,7 +74,7 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         id=uuid4(),
         workflow_id=workflow.id,
         status="completed",
-        input_data={"test": "data"},
+        input_data="test input",
         output_data="test output",
         created_at=datetime.utcnow()
     )
@@ -129,10 +129,10 @@ async def test_list_workflows(
         id=uuid4(),
         name="Another Workflow",
         source="test",
-        remote_flow_id="another_remote_id",
+        remote_flow_id=str(uuid4()),
         input_component="input_node",
         output_component="output_node",
-        data={"test": "data"},
+        data="test data",
         flow_version=1
     )
     session.add(another_workflow)

@@ -53,7 +53,7 @@ async def future_schedule(session, sample_flow):
         workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="60m",  # 60 minutes
-        workflow_params={"test": "params"},
+        workflow_params='{"test": "params"}',
         status="active",
         next_run_at=next_run
     )
@@ -70,7 +70,7 @@ async def past_schedule(session, sample_flow):
         workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="30m",  # 30 minutes
-        workflow_params={"test": "params"},
+        workflow_params='{"test": "params"}',
         status="active",
         next_run_at=next_run
     )
@@ -87,7 +87,7 @@ async def inactive_schedule(session, sample_flow):
         workflow_id=sample_flow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        workflow_params={"test": "params"},
+        workflow_params='{"test": "params"}',
         status="paused",  
         next_run_at=next_run
     )
@@ -177,7 +177,7 @@ async def test_process_schedules_past(session: AsyncSession, past_schedule):
     mock_schedule.schedule_expr = past_schedule.schedule_expr
     mock_schedule.next_run_at = past_schedule.next_run_at
     mock_schedule.status = past_schedule.status
-    mock_schedule.workflow_params = {"test": "params"}
+    mock_schedule.workflow_params = '{"test": "params"}'
 
     # Mock session execute for schedule query
     async def mock_execute(stmt, *args, **kwargs):
@@ -216,7 +216,7 @@ async def test_process_schedules_past(session: AsyncSession, past_schedule):
     
     # Verify task was created and committed
     print("\nChecking if task was created...")
-    task_manager.create_task.assert_called_once_with({"workflow_id": past_schedule.workflow_id, "status": "pending", "input_data": {"test": "params"}, "tries": 0, "max_retries": 3})
+    task_manager.create_task.assert_called_once_with({"workflow_id": past_schedule.workflow_id, "status": "pending", "input_data": '{"test": "params"}', "tries": 0, "max_retries": 3})
     assert task_created, "Task was not created"
     
     # Verify task properties
@@ -304,7 +304,7 @@ async def test_process_schedules_multiple(session, future_schedule, past_schedul
         id=uuid4(),
         workflow_id=past_flow.id,  # Use real UUID from past_flow
         status='pending',
-        input_data={},
+        input_data='{}',
         created_at=datetime.now(timezone.utc),
         tries=0,
         max_retries=3
@@ -410,7 +410,7 @@ async def test_process_schedules_future():
     mock_schedule.schedule_type = "interval"
     mock_schedule.schedule_expr = "1h"
     mock_schedule.status = "active"
-    mock_schedule.workflow_params = {}
+    mock_schedule.workflow_params = '{"test": "params"}'
     
     # Mock the query result
     mock_result = AsyncMock()
@@ -446,3 +446,108 @@ def test_parse_interval():
         
     with pytest.raises(ValueError):
         parse_interval("-1h")  # Negative duration
+
+@pytest.mark.asyncio
+async def test_process_schedules_future(session):
+    """Test processing schedules with future execution time."""
+    workflow = Workflow(
+        id=uuid4(),
+        name="Test Workflow",
+        source="test",
+        remote_flow_id=str(uuid4())
+    )
+    session.add(workflow)
+    
+    schedule = Schedule(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        schedule_type="interval",
+        schedule_expr="30m",
+        workflow_params='{"test": "params"}',
+        status="active",
+        next_run_at=datetime.now(timezone.utc) + timedelta(hours=1)
+    )
+    session.add(schedule)
+    await session.commit()
+
+@pytest.mark.asyncio
+async def test_process_schedules_past(session):
+    """Test processing schedules with past execution time."""
+    workflow = Workflow(
+        id=uuid4(),
+        name="Test Workflow",
+        source="test",
+        remote_flow_id=str(uuid4())
+    )
+    session.add(workflow)
+    
+    schedule = Schedule(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        schedule_type="interval",
+        schedule_expr="30m",
+        workflow_params='{"test": "params"}',
+        status="active",
+        next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+    session.add(schedule)
+    await session.commit()
+
+@pytest.mark.asyncio
+async def test_process_schedules_inactive(session):
+    """Test processing inactive schedules."""
+    workflow = Workflow(
+        id=uuid4(),
+        name="Test Workflow",
+        source="test",
+        remote_flow_id=str(uuid4())
+    )
+    session.add(workflow)
+    
+    schedule = Schedule(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        schedule_type="interval",
+        schedule_expr="30m",
+        workflow_params='{"test": "params"}',
+        status="paused",
+        next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+    session.add(schedule)
+    await session.commit()
+
+@pytest.mark.asyncio
+async def test_process_schedules_multiple(session):
+    """Test processing multiple schedules."""
+    workflow = Workflow(
+        id=uuid4(),
+        name="Test Workflow",
+        source="test",
+        remote_flow_id=str(uuid4())
+    )
+    session.add(workflow)
+    
+    # Past schedule
+    schedule1 = Schedule(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        schedule_type="interval",
+        schedule_expr="60m",
+        workflow_params='{"test": "params"}',
+        status="active",
+        next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+    session.add(schedule1)
+    
+    # Future schedule
+    schedule2 = Schedule(
+        id=uuid4(),
+        workflow_id=workflow.id,
+        schedule_type="interval",
+        schedule_expr="60m",
+        workflow_params='{"test": "params"}',
+        status="active",
+        next_run_at=datetime.now(timezone.utc) + timedelta(hours=1)
+    )
+    session.add(schedule2)
+    await session.commit()

@@ -42,7 +42,7 @@ def list_workflows(folder: Optional[str]):
                 name_width = min(name_width, 30)  # Cap at 30 chars
                 
                 col_widths = {
-                    "id": 10,
+                    "id": 36,  # Increased width to show full ID
                     "name": name_width,
                     "status": 15,
                     "tasks": 10,
@@ -79,7 +79,7 @@ def list_workflows(folder: Optional[str]):
                     
                     # Print each column with proper spacing
                     click.echo(
-                        f"{str(w.id)[:8]:<{col_widths['id']}}"
+                        f"{str(w.id):<{col_widths['id']}}  "  # Added two spaces after ID
                         f"{name:<{col_widths['name']}}", 
                         nl=False
                     )
@@ -229,23 +229,20 @@ def delete_workflow(workflow_id: str):
 
 @workflow_group.command(name="run")
 @click.argument("workflow_id")
-@click.option("--input", "-i", help="Input data as JSON string", default="{}")
+@click.option("--input", "-i", help="Input string", default="")
 def run_workflow(workflow_id: str, input: str):
     """Run a workflow directly."""
     async def _run():
         try:
-            # Parse input data
-            input_data = json.loads(input)
-            
             async with get_session() as session:
                 workflow_manager = WorkflowManager(session)
                 
-                # Run workflow
-                task = await workflow_manager.run_workflow(UUID(workflow_id), input_data)
+                # Run workflow with string input
+                task = await workflow_manager.run_workflow(UUID(workflow_id), input)
                 
                 if task:
                     click.echo(f"Task {task.id} completed successfully")
-                    click.echo(f"Input: {json.dumps(task.input_data, indent=2)}")
+                    click.echo(f"Input: {task.input_data}")
                     click.echo(f"Output: {json.dumps(task.output_data, indent=2)}")
                 else:
                     click.echo("Workflow execution failed")

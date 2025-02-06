@@ -116,7 +116,6 @@ def create():
             
             # Get input data
             input_value = click.prompt("\nEnter input value", default="")
-            workflow_params = {"input_value": input_value}
             
             # Create schedule
             try:
@@ -124,7 +123,7 @@ def create():
                     workflow.id,
                     schedule_type,
                     schedule_expr,
-                    workflow_params=workflow_params
+                    workflow_params=input_value
                 )
                 if schedule:
                     click.echo(f"\nSchedule created successfully with ID: {schedule.id}")

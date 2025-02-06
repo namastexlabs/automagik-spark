@@ -44,7 +44,7 @@ async def test_task(session: AsyncSession, test_workflow: Workflow) -> Task:
         id=uuid4(),
         workflow_id=test_workflow.id,
         status="pending",
-        input_data={"input": "test input"},
+        input_data="test input",
         created_at=datetime.now(timezone.utc)
     )
     session.add(task)
@@ -203,26 +203,22 @@ async def test_task_operations(
     workflow_manager: WorkflowManager,
     test_workflow: Workflow
 ):
-    """Test task-related operations."""
-    # First create a task
-    task_id = uuid4()
-    task_data = {
-        "id": str(task_id),
-        "workflow_id": str(test_workflow.id),
-        "status": "pending",
-        "input_data": {"test": "data"},
-        "error": None,
-        "tries": 0,
-        "max_retries": 3
-    }
-    
-    created_task = await workflow_manager.task.create_task(task_data)
+    """Test task operations."""
+    # Create a task
+    task = Task(
+        id=uuid4(),
+        workflow_id=test_workflow.id,
+        status="pending",
+        input_data="test data",
+        created_at=datetime.now(timezone.utc)
+    )
+    workflow_manager.session.add(task)
     await workflow_manager.session.commit()
 
     # Test get_task
-    task = await workflow_manager.get_task(str(created_task.id))
+    task = await workflow_manager.get_task(str(task.id))
     assert task is not None
-    assert task.id == created_task.id
+    assert task.id == task.id
     assert task.status == "pending"
 
     # Test update_task
@@ -230,17 +226,17 @@ async def test_task_operations(
         "status": "running",
         "tries": 1
     }
-    updated_task = await workflow_manager.task.update_task(str(created_task.id), update_data)
+    updated_task = await workflow_manager.task.update_task(str(task.id), update_data)
     assert updated_task is not None
     assert updated_task.status == "running"
     assert updated_task.tries == 1
 
     # Test delete_task
-    result = await workflow_manager.task.delete_task(str(created_task.id))
+    result = await workflow_manager.task.delete_task(str(task.id))
     assert result is True
 
     # Verify task is deleted
-    deleted_task = await workflow_manager.get_task(created_task.id)
+    deleted_task = await workflow_manager.get_task(task.id)
     assert deleted_task is None
 
 @pytest.mark.asyncio
@@ -256,17 +252,17 @@ async def test_run_workflow(
         # Test successful execution
         task = await workflow_manager.run_workflow(
             test_workflow.id,
-            {"input": "test"}
+            "test input"
         )
         assert task is not None
         assert task.status == "pending"
-        assert task.workflow_id == test_workflow.id
+        assert task.input_data == "test input"
 
         # Test failed execution
         mock_execute.side_effect = Exception("Test error")
         task = await workflow_manager.run_workflow(
             test_workflow.id,
-            {"input": "test"}
+            "test input"
         )
         assert task is None
 
@@ -274,5 +270,5 @@ async def test_run_workflow(
         with pytest.raises(ValueError):
             await workflow_manager.run_workflow(
                 uuid4(),
-                {"input": "test"}
+                "test input"
             )

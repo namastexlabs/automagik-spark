@@ -93,7 +93,7 @@ class Task(Base):
     
     # Execution info
     status = Column(String(50), nullable=False, default="pending")
-    input_data = Column(JSON, nullable=False)
+    input_data = Column(String, nullable=False)
     output_data = Column(JSON)
     error = Column(Text)
     
@@ -136,7 +136,7 @@ class Schedule(Base):
     workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     schedule_type = Column(String, nullable=False)
     schedule_expr = Column(String, nullable=False)
-    workflow_params = Column(JSON, nullable=True)
+    workflow_params = Column(String, nullable=True)
     params = Column(JSON, nullable=True)
     status = Column(String, nullable=False, default="active")
     next_run_at = Column(DateTime(timezone=True))
