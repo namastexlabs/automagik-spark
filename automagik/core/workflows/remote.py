@@ -110,8 +110,12 @@ class LangFlowManager:
         try:
             components = []
             for node in flow_data.get("data", {}).get("nodes", []):
-                if node.get("data", {}).get("node"):
-                    components.append(node["data"]["node"])
+                node_data = node.get("data", {})
+                if node_data.get("node"):
+                    component = node_data["node"]
+                    # Add the node ID to the component data
+                    component["id"] = node.get("id")
+                    components.append(component)
             return components
         except Exception as e:
             logger.error(f"Failed to get flow components: {e}")

@@ -180,7 +180,8 @@ async def _sync(flow_id: Optional[str]):
             for i, comp in enumerate(components, 1):
                 comp_name = comp.get("display_name", comp.get("name", "Unknown"))
                 comp_type = comp.get("type", "Unknown")
-                click.echo(f"{i}. {comp_name} ({comp_type})")
+                comp_id = comp.get("id", "unknown")
+                click.echo(f"{i}. {comp_name} ({comp_type}) [ID: {comp_id}]")
             
             # Get component selections
             input_num = click.prompt(
@@ -194,9 +195,17 @@ async def _sync(flow_id: Optional[str]):
                 default=1,
             )
 
+            if not (1 <= input_num <= len(components) and 1 <= output_num <= len(components)):
+                click.echo("Invalid component number selected")
+                return
+
             # Get component IDs
-            input_component = components[input_num - 1].get("node_id", "input")
-            output_component = components[output_num - 1].get("node_id", "output")
+            input_component = components[input_num - 1].get("id")
+            output_component = components[output_num - 1].get("id")
+
+            if not input_component or not output_component:
+                click.echo("Failed to get component IDs")
+                return
 
             # Sync the flow
             workflow_id = await manager.sync_flow(

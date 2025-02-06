@@ -250,20 +250,20 @@ def clear():
         async with get_session() as session:
             # Drop all tables except alembic_version
             async with session.begin():
-                # Get all table names
+                # Get all table names from PostgreSQL's information_schema
                 result = await session.execute(text(
                     """
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' 
-                    AND name NOT LIKE 'sqlite_%'
-                    AND name != 'alembic_version'
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_type = 'BASE TABLE'
+                    AND table_name != 'alembic_version'
                     """
                 ))
                 tables = [row[0] for row in result]
                 
                 # Truncate each table
                 for table in tables:
-                    await session.execute(text(f"DELETE FROM {table}"))
+                    await session.execute(text(f'TRUNCATE TABLE "{table}" CASCADE'))
             
             click.echo("Database data cleared successfully (schema preserved)")
     

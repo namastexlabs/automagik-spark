@@ -67,9 +67,9 @@ async def test_sync_flow(langflow_manager):
         "data": {
             "nodes": [
                 {
+                    "id": "node1",
                     "data": {
                         "node": {
-                            "id": "node1",
                             "name": "Node 1",
                             "type": "input"
                         }
@@ -123,18 +123,18 @@ async def test_get_flow_components(langflow_manager):
         "data": {
             "nodes": [
                 {
+                    "id": "node1",
                     "data": {
                         "node": {
-                            "id": "node1",
                             "name": "Node 1",
                             "type": "input"
                         }
                     }
                 },
                 {
+                    "id": "node2",
                     "data": {
                         "node": {
-                            "id": "node2",
                             "name": "Node 2",
                             "type": "process"
                         }

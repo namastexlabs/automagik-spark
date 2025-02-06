@@ -242,7 +242,7 @@ class WorkflowManager:
         if not workflow:
             raise ValueError(f"Workflow {workflow_id} not found")
 
-        # Create task
+        # Create task in pending state
         task = Task(
             id=uuid4(),
             workflow_id=workflow_id,
@@ -251,19 +251,6 @@ class WorkflowManager:
         )
         self.session.add(task)
         await self.session.commit()
-
-        # Execute workflow
-        from .sync import WorkflowSync
-        async with WorkflowSync(self.session) as sync:
-            try:
-                logger.debug(f"Executing workflow {workflow_id} with input: {input_data}")
-                result = await sync.execute_workflow(workflow, task, input_data)
-                return task
-            except Exception as e:
-                logger.error(f"Failed to execute workflow: {str(e)}")
-                if task.error is None:
-                    task.error = str(e)
-                    task.status = "failed"
-                    task.finished_at = datetime.now(timezone.utc)
-                    await self.session.commit()
-                raise
+        
+        # Return task without executing it - let worker handle execution
+        return task

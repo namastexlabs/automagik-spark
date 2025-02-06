@@ -13,8 +13,8 @@ def test_sync_flow_with_id(capsys, event_loop):
     mock_session = AsyncMock()
     mock_manager = AsyncMock()
     mock_manager.get_flow_components.return_value = [
-        {"node_id": "input", "type": "input"},
-        {"node_id": "output", "type": "output"},
+        {"id": "input", "type": "input"},
+        {"id": "output", "type": "output"},
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 
@@ -49,9 +49,9 @@ def test_sync_flow_interactive(capsys, event_loop):
         {"id": "flow2", "name": "Flow 2"},
     ]
     mock_manager.get_flow_components.return_value = [
-        {"node_id": "input", "type": "input"},
-        {"node_id": "process", "type": "process"},
-        {"node_id": "output", "type": "output"},
+        {"id": "input", "type": "input"},
+        {"id": "process", "type": "process"},
+        {"id": "output", "type": "output"},
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 
@@ -139,7 +139,7 @@ def test_sync_flow_invalid_component_response(capsys, event_loop):
         {"id": "flow1", "name": "Flow 1"},
     ]
     mock_manager.get_flow_components.return_value = [
-        {"node_id": "node1", "type": "genericNode", "data": {}}
+        {"id": "node1", "type": "genericNode", "data": {}}
     ]
     mock_manager.sync_flow.return_value = "new-workflow-id"
 
