@@ -12,6 +12,7 @@ import click
 import logging
 import os
 import sys
+import shutil
 from pathlib import Path
 from typing import Optional, List
 from rich.console import Console
@@ -19,6 +20,7 @@ from rich.table import Table
 from rich.prompt import Prompt
 
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import text
 from alembic.config import Config
 from alembic import command
 from alembic.util import CommandError

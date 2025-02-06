@@ -82,8 +82,8 @@ class WorkflowManager:
             existing_workflow.folder_name = flow_data.get("folder_name")
             existing_workflow.icon = flow_data.get("icon")
             existing_workflow.icon_bg_color = flow_data.get("icon_bg_color")
-            existing_workflow.gradient = flow_data.get("gradient", False)
-            existing_workflow.liked = flow_data.get("liked", False)
+            existing_workflow.gradient = bool(flow_data.get("gradient", False))
+            existing_workflow.liked = bool(flow_data.get("liked", False))
             existing_workflow.tags = flow_data.get("tags", [])
             existing_workflow.updated_at = datetime.now(timezone.utc)
 
@@ -107,8 +107,8 @@ class WorkflowManager:
                 folder_name=flow_data.get("folder_name"),
                 icon=flow_data.get("icon"),
                 icon_bg_color=flow_data.get("icon_bg_color"),
-                gradient=flow_data.get("gradient", False),
-                liked=flow_data.get("liked", False),
+                gradient=bool(flow_data.get("gradient", False)),
+                liked=bool(flow_data.get("liked", False)),
                 tags=flow_data.get("tags", [])
             )
 

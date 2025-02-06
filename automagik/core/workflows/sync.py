@@ -97,8 +97,14 @@ class WorkflowSync:
             logger.debug(f"Workflow execution result: {result}")
 
             # Update task with output
-            if result.get("result"):  # Changed from outputs to result
-                task.output_data = result["result"]
+            if result.get("result"):  # Handle result from LangFlow API
+                task.output_data = {
+                    "output": result["result"]
+                }
+            elif result.get("outputs"):  # Handle outputs from LangFlow API
+                task.output_data = {
+                    "output": result["outputs"]
+                }
 
             # Update task status
             task.status = "completed"
