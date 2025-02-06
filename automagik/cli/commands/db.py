@@ -176,37 +176,35 @@ db_group = click.Group(name="db", help="Database management commands")
 def init():
     """Initialize database and migrations."""
     try:
-        # Clean up existing files
-        if MIGRATIONS_DIR.exists():
-            shutil.rmtree(MIGRATIONS_DIR)
-        alembic_ini = PROJECT_ROOT / 'alembic.ini'
-        if alembic_ini.exists():
-            alembic_ini.unlink()
+        # Only initialize if migrations directory doesn't exist
+        if not MIGRATIONS_DIR.exists():
+            # Create empty migrations directory
+            os.makedirs(MIGRATIONS_DIR)
             
-        # Create empty migrations directory
-        os.makedirs(MIGRATIONS_DIR)
-        
-        # Create temporary alembic.ini for initialization
-        with open(alembic_ini, 'w') as f:
-            f.write("""[alembic]
+            # Create temporary alembic.ini for initialization
+            alembic_ini = PROJECT_ROOT / 'alembic.ini'
+            with open(alembic_ini, 'w') as f:
+                f.write("""[alembic]
 script_location = migrations
 """)
-        
-        # Initialize alembic
-        click.echo("Initializing alembic...")
-        alembic_cfg = Config(str(alembic_ini))
-        command.init(config=alembic_cfg, directory=str(MIGRATIONS_DIR), template='async')
-        
-        # Update config files with our custom content
-        click.echo("Updating configuration...")
-        create_alembic_ini()
-        create_env_py()
-        
-        click.echo("Database initialization complete!")
-        click.echo("\nNext steps:")
-        click.echo("1. Run 'automagik db migrate' to create initial migration")
-        click.echo("2. Run 'automagik db upgrade' to apply migrations")
-        
+            
+            # Initialize alembic
+            click.echo("Initializing alembic...")
+            alembic_cfg = Config(str(alembic_ini))
+            command.init(config=alembic_cfg, directory=str(MIGRATIONS_DIR), template='async')
+            
+            # Update config files with our custom content
+            click.echo("Updating configuration...")
+            create_alembic_ini()
+            create_env_py()
+            
+            click.echo("Database initialization complete!")
+            click.echo("\nNext steps:")
+            click.echo("1. Run 'automagik db migrate' to create initial migration")
+            click.echo("2. Run 'automagik db upgrade' to apply migrations")
+        else:
+            click.echo("Migrations directory already exists. Skipping initialization.")
+            
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
         raise click.ClickException(str(e))
@@ -247,18 +245,26 @@ def downgrade():
 
 @db_group.command()
 def clear():
-    """Clear all data from database."""
+    """Clear all data from database but preserve schema."""
     async def _clear():
         async with get_session() as session:
-            # Drop all tables
+            # Drop all tables except alembic_version
             async with session.begin():
-                await session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
-                await session.execute(text("DROP TABLE IF EXISTS task_logs CASCADE"))
-                await session.execute(text("DROP TABLE IF EXISTS tasks CASCADE"))
-                await session.execute(text("DROP TABLE IF EXISTS schedules CASCADE"))
-                await session.execute(text("DROP TABLE IF EXISTS flow_components CASCADE"))
-                await session.execute(text("DROP TABLE IF EXISTS flows CASCADE"))
+                # Get all table names
+                result = await session.execute(text(
+                    """
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' 
+                    AND name NOT LIKE 'sqlite_%'
+                    AND name != 'alembic_version'
+                    """
+                ))
+                tables = [row[0] for row in result]
+                
+                # Truncate each table
+                for table in tables:
+                    await session.execute(text(f"DELETE FROM {table}"))
             
-            click.echo("Database cleared successfully")
+            click.echo("Database data cleared successfully (schema preserved)")
     
     asyncio.run(_clear())
