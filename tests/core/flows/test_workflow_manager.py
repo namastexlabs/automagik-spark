@@ -246,15 +246,21 @@ async def test_run_workflow(
     test_workflow: Workflow
 ):
     """Test running a workflow."""
-    # Test successful task creation
+    # Mock the LangFlow API call to avoid real execution
+    workflow_manager.langflow.run_flow = AsyncMock()
+    workflow_manager.langflow.run_flow.return_value = {"output": "test"}
+
+    # Test successful task creation and execution
     task = await workflow_manager.run_workflow(
         test_workflow.id,
         "test input"
     )
     assert task is not None
-    assert task.status == "pending"
+    assert task.status == "completed"  # Task should be completed since we execute immediately
     assert task.input_data == "test input"
     assert task.error is None
+    assert task.output_data == {"output": "test"}  # Should have output from LangFlow
+    assert task.finished_at is not None  # Should have completion timestamp
 
     # Test task creation with invalid workflow
     with pytest.raises(ValueError, match="Workflow .* not found"):
@@ -269,33 +275,44 @@ async def test_worker_task_execution(
     test_workflow: Workflow,
     session: AsyncSession
 ):
-    """Test that worker properly updates task status after execution."""
+    """Test that tasks are executed immediately."""
     from automagik.cli.commands.worker import run_workflow
     
-    # Create a pending task
+    # Mock LangFlow API for success case
+    workflow_manager.langflow.run_flow = AsyncMock()
+    workflow_manager.langflow.run_flow.return_value = {"output": "success"}
+    
+    # Create and execute a task successfully
     task = await workflow_manager.run_workflow(
         test_workflow.id,
         "test input"
     )
     assert task is not None
-    assert task.status == "pending"  # Task should start as pending
+    assert task.status == "completed"  # Task should be completed
     assert task.error is None
+    assert task.output_data == {"output": "success"}
+    assert task.finished_at is not None
     
-    # Create another task that will fail when worker processes it
+    # Mock LangFlow API to simulate failure
+    workflow_manager.langflow.run_flow = AsyncMock()
+    workflow_manager.langflow.run_flow.side_effect = Exception("Test error")
+    
+    # Create another task that will fail during execution
     task2 = await workflow_manager.run_workflow(
         test_workflow.id,
         "test input"
     )
     assert task2 is not None
-    assert task2.status == "pending"  # Task should start as pending
-    assert task2.error is None
+    assert task2.status == "failed"  # Task should be failed
+    assert task2.error == "Test error"  # Error message should be preserved
+    assert task2.finished_at is not None
     
     # Get all tasks for this workflow
     tasks = await workflow_manager.list_tasks(test_workflow.id)
     assert len(tasks) == 2  # Should have two tasks
     
-    # All tasks should be pending since worker hasn't processed them
-    for t in tasks:
-        assert t.status == "pending"
-        assert t.error is None
-        assert t.finished_at is None
+    # Tasks should have final states (completed/error)
+    completed = [t for t in tasks if t.status == "completed"]
+    errored = [t for t in tasks if t.status == "failed"]
+    assert len(completed) == 1
+    assert len(errored) == 1
