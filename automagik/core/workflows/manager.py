@@ -6,8 +6,9 @@ Provides the main interface for managing workflows and remote flows
 
 import logging
 from typing import Dict, List, Optional, Any
+from datetime import datetime
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from datetime import timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,13 +69,15 @@ class WorkflowManager:
         # Check if workflow already exists
         stmt = select(Workflow).where(Workflow.remote_flow_id == flow_id)
         result = await self.session.execute(stmt)
-        existing_workflow = result.scalar_one_or_none()
+        existing_workflow = result.scalars().first()
 
         if existing_workflow:
             # Update existing workflow
             existing_workflow.name = flow_data["name"]
             existing_workflow.description = flow_data.get("description")
             existing_workflow.data = flow_data["data"]
+            existing_workflow.input_component = input_component or flow_data.get("input_component")
+            existing_workflow.output_component = output_component or flow_data.get("output_component")
             existing_workflow.folder_id = flow_data.get("folder_id")
             existing_workflow.folder_name = flow_data.get("folder_name")
             existing_workflow.icon = flow_data.get("icon")
@@ -82,20 +85,22 @@ class WorkflowManager:
             existing_workflow.gradient = flow_data.get("gradient", False)
             existing_workflow.liked = flow_data.get("liked", False)
             existing_workflow.tags = flow_data.get("tags", [])
-            if input_component:
-                existing_workflow.input_component = input_component
-            if output_component:
-                existing_workflow.output_component = output_component
-            workflow = existing_workflow
+            existing_workflow.updated_at = datetime.now(timezone.utc)
+
+            await self.session.commit()
+            # Merge the existing workflow with the session to ensure we get the same instance
+            existing_workflow = await self.session.merge(existing_workflow)
+            return existing_workflow
         else:
             # Create new workflow
             workflow = Workflow(
-                id=UUID(flow_data["id"]),
+                id=uuid4(),  # Generate a new UUID for the workflow
                 name=flow_data["name"],
                 description=flow_data.get("description"),
                 data=flow_data["data"],
                 source="langflow",
-                remote_flow_id=flow_data["id"],
+                remote_flow_id=flow_id,
+                flow_version=1,
                 input_component=input_component,
                 output_component=output_component,
                 folder_id=flow_data.get("folder_id"),
@@ -106,10 +111,10 @@ class WorkflowManager:
                 liked=flow_data.get("liked", False),
                 tags=flow_data.get("tags", [])
             )
-            self.session.add(workflow)
 
-        await self.session.commit()
-        return workflow
+            self.session.add(workflow)
+            await self.session.commit()
+            return workflow
 
     # Local workflow operations
     async def list_workflows(self, options: dict = None) -> List[Workflow]:

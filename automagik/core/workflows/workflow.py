@@ -24,16 +24,20 @@ class LocalWorkflowManager:
         self.session = session
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
-        """Get a workflow by ID or source_id."""
+        """Get a workflow by ID or remote_flow_id."""
         try:
             # Try getting by ID first
-            workflow = await self.session.get(Workflow, workflow_id)
-            if workflow:
-                return workflow
+            try:
+                uuid_obj = UUID(workflow_id)
+                workflow = await self.session.get(Workflow, uuid_obj)
+                if workflow:
+                    return workflow
+            except ValueError:
+                pass
                 
-            # If not found, try by source_id
+            # If not found, try by remote_flow_id
             result = await self.session.execute(
-                select(Workflow).where(Workflow.source_id == workflow_id)
+                select(Workflow).where(Workflow.remote_flow_id == workflow_id)
             )
             return result.scalar_one_or_none()
             

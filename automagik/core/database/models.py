@@ -123,7 +123,7 @@ class TaskLog(Base):
     level = Column(String, nullable=False)
     message = Column(String, nullable=False)
     component_id = Column(String)
-    created_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
     task = relationship("Task", back_populates="logs")
 

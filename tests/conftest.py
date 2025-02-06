@@ -46,7 +46,7 @@ async def engine():
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
-        echo=False,
+        echo=True,  # Enable SQL logging
     )
     
     async with engine.begin() as conn:

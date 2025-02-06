@@ -50,29 +50,35 @@ class WorkflowSync:
         Returns:
             Dict containing the workflow output
         """
+        if not workflow.input_component or not workflow.output_component:
+            task.status = "failed"
+            task.error = "Missing input/output components"
+            task.started_at = datetime.utcnow()
+            await self.session.commit()
+            raise ValueError("Missing input/output components")
+
+        task.status = "running"
+        task.started_at = datetime.utcnow()
+        task.input_data = input_data
+        await self.session.commit()
+
         # Get the client
         client = await self._get_client()
         
         # Build API payload
         payload = {
-            "inputs": {"text": input_data.get("message", "")},  # Format input as expected by LangFlow
+            "inputs": {"text": str(input_data.get("message", ""))},  # Convert to string
             "tweaks": {}
         }
         
         # Only add tweaks if input/output components are configured
         if workflow.input_component and workflow.output_component:
             payload["tweaks"] = {
-                workflow.input_component: {"input": input_data.get("message", "")},
+                workflow.input_component: {"input": str(input_data.get("message", ""))},  # Convert to string
                 workflow.output_component: {}
             }
         
         try:
-            # Update task status
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            task.input_data = input_data
-            await self.session.commit()
-
             # Execute the workflow
             logger.debug(f"Executing workflow {workflow.remote_flow_id} with input_data: {input_data}")
             logger.debug(f"API payload: {payload}")
