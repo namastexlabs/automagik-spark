@@ -260,11 +260,22 @@ async def test_run_workflow(
 
         # Test failed execution
         mock_execute.side_effect = Exception("Test error")
-        task = await workflow_manager.run_workflow(
-            test_workflow.id,
-            "test input"
-        )
-        assert task is None
+        try:
+            await workflow_manager.run_workflow(
+                test_workflow.id,
+                "test input"
+            )
+        except Exception as e:
+            assert str(e) == "Test error"
+
+            # Get the most recent task for this workflow
+            tasks = await workflow_manager.list_tasks(str(test_workflow.id), status="failed", limit=1)
+            assert len(tasks) == 1
+            failed_task = tasks[0]
+            assert failed_task is not None
+            assert failed_task.status == "failed"
+            assert failed_task.error == "Test error"
+            assert failed_task.finished_at is not None
 
         # Test with non-existent workflow
         with pytest.raises(ValueError):

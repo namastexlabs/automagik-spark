@@ -551,3 +551,31 @@ async def test_process_schedules_multiple(session):
     )
     session.add(schedule2)
     await session.commit()
+
+@pytest.mark.asyncio
+async def test_worker_workflow_execution(session: AsyncSession, sample_flow):
+    """Test that the worker properly executes workflows using WorkflowSync."""
+    # Create a task
+    task = Task(
+        id=uuid4(),
+        workflow_id=sample_flow.id,
+        status="pending",
+        input_data="test input",
+        created_at=datetime.now(timezone.utc)
+    )
+    session.add(task)
+    await session.commit()
+
+    # Import here to avoid circular imports
+    from automagik.core.workflows.manager import WorkflowManager
+    from automagik.cli.commands.worker import run_workflow
+
+    # Run the workflow
+    workflow_manager = WorkflowManager(session)
+    result = await run_workflow(workflow_manager, task)
+
+    # Verify task was executed
+    await session.refresh(task)
+    assert task.status == "failed"  # Since we didn't mock LangFlow, it will fail
+    assert "Manager not initialized" not in str(task.error)  # This is the key assertion
+    assert task.finished_at is not None

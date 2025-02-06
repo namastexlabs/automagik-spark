@@ -254,16 +254,16 @@ class WorkflowManager:
 
         # Execute workflow
         from .sync import WorkflowSync
-        sync = WorkflowSync(self.session)
-        try:
-            logger.debug(f"Executing workflow {workflow_id} with input: {input_data}")
-            logger.debug(f"Workflow details: {workflow.__dict__}")
-            result = await sync.execute_workflow(workflow, task, input_data)
-            return task if result else None
-        except Exception as e:
-            logger.error(f"Failed to execute workflow: {e}", exc_info=True)
-            task.status = "failed"
-            task.error = str(e)
-            task.finished_at = datetime.now(timezone.utc)
-            await self.session.commit()
-            return None
+        async with WorkflowSync(self.session) as sync:
+            try:
+                logger.debug(f"Executing workflow {workflow_id} with input: {input_data}")
+                result = await sync.execute_workflow(workflow, task, input_data)
+                return task
+            except Exception as e:
+                logger.error(f"Failed to execute workflow: {str(e)}")
+                if task.error is None:
+                    task.error = str(e)
+                    task.status = "failed"
+                    task.finished_at = datetime.now(timezone.utc)
+                    await self.session.commit()
+                raise
