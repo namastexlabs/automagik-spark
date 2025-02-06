@@ -199,14 +199,24 @@ class WorkflowScheduler:
             schedules = list(result.scalars().all())
 
             for schedule in schedules:
-                # Create task
+                # Create and run task
+                input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
                 task = Task(
                     id=uuid4(),
                     workflow_id=schedule.workflow_id,
                     schedule_id=schedule.id,
-                    input_data=str(schedule.workflow_params) if schedule.workflow_params else ""
+                    input_data=input_data,
+                    status="pending"
                 )
                 self.session.add(task)
+                await self.session.commit()
+
+                # Run the workflow with the task
+                await self.workflow_manager.run_workflow(
+                    workflow_id=schedule.workflow_id,
+                    input_data=input_data,
+                    existing_task=task
+                )
 
                 # Update next run time
                 next_run = self._get_next_run(
@@ -215,8 +225,8 @@ class WorkflowScheduler:
                 )
                 if next_run:
                     schedule.next_run_at = next_run
+                    await self.session.commit()
 
-            await self.session.commit()
         except Exception as e:
             logger.error(f"Error processing schedules: {e}")
             await self.session.rollback()
@@ -233,14 +243,24 @@ class WorkflowScheduler:
                 for schedule in schedules:
                     # Check if it's time to run
                     if schedule.next_run_at <= datetime.now(timezone.utc):
-                        # Create task
+                        # Create and run task
+                        input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
                         task = Task(
                             id=uuid4(),
                             workflow_id=schedule.workflow_id,
                             schedule_id=schedule.id,
-                            input_data=str(schedule.workflow_params) if schedule.workflow_params else ""
+                            input_data=input_data,
+                            status="pending"
                         )
                         self.session.add(task)
+                        await self.session.commit()
+
+                        # Run the workflow with the task
+                        await self.workflow_manager.run_workflow(
+                            workflow_id=schedule.workflow_id,
+                            input_data=input_data,
+                            existing_task=task
+                        )
 
                         # Update next run time
                         next_run = self._get_next_run(
@@ -249,8 +269,8 @@ class WorkflowScheduler:
                         )
                         if next_run:
                             schedule.next_run_at = next_run
+                            await self.session.commit()
 
-                await self.session.commit()
                 await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             logger.error(f"Error in scheduler loop: {str(e)}")

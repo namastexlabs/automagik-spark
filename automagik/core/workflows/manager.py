@@ -235,23 +235,26 @@ class WorkflowManager:
     async def run_workflow(
         self,
         workflow_id: UUID,
-        input_data: str
+        input_data: str,
+        existing_task: Optional[Task] = None
     ) -> Optional[Task]:
         """Run a workflow with input data."""
         workflow = await self.get_workflow(str(workflow_id))
         if not workflow:
             raise ValueError(f"Workflow {workflow_id} not found")
 
-        # Create task in pending state
-        task = Task(
+        # Use existing task or create a new one
+        task = existing_task or Task(
             id=uuid4(),
             workflow_id=workflow_id,
             input_data=input_data,
             status="running",
             started_at=datetime.now(timezone.utc)
         )
-        self.session.add(task)
-        await self.session.commit()
+        
+        if not existing_task:
+            self.session.add(task)
+            await self.session.commit()
         
         try:
             # Execute workflow using LangFlowManager

@@ -87,9 +87,30 @@ async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
         logger.info(f"Running workflow {workflow.name} (remote_flow_id: {workflow.remote_flow_id}) for task {task.id}")
         logger.info(f"Input data: {json.dumps(task.input_data, indent=2)}")
         
-        # Execute workflow using manager
-        task = await workflow_manager.run_workflow(task.workflow_id, task.input_data)
-        return task.status == 'completed'
+        # Execute workflow using LangFlowManager
+        async with LangFlowManager(workflow_manager.session) as langflow:
+            # Update task status to running
+            task.status = 'running'
+            task.started_at = datetime.now(timezone.utc)
+            await workflow_manager.session.commit()
+            
+            result = await langflow.run_flow(workflow.remote_flow_id, task.input_data)
+            
+            if result:
+                logger.info(f"Task {task.id} completed successfully")
+                logger.info(f"Output data: {json.dumps(result, indent=2)}")
+                task.output_data = result
+                task.status = 'completed'
+                task.finished_at = datetime.now(timezone.utc)
+                await workflow_manager.session.commit()
+                return True
+            else:
+                logger.error(f"Task {task.id} failed - no result returned")
+                task.status = 'failed'
+                task.error = "No result returned from workflow execution"
+                task.finished_at = datetime.now(timezone.utc)
+                await workflow_manager.session.commit()
+                return False
         
     except Exception as e:
         logger.error(f"Failed to run workflow: {str(e)}")
