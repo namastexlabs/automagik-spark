@@ -247,10 +247,33 @@ class WorkflowManager:
             id=uuid4(),
             workflow_id=workflow_id,
             input_data=input_data,
-            status="pending"
+            status="running",
+            started_at=datetime.now(timezone.utc)
         )
         self.session.add(task)
         await self.session.commit()
         
-        # Return task without executing it - let worker handle execution
+        try:
+            # Execute workflow using LangFlowManager
+            result = await self.langflow.run_flow(workflow.remote_flow_id, input_data)
+            
+            if result:
+                logger.info(f"Task {task.id} completed successfully")
+                logger.info(f"Output data: {result}")
+                task.output_data = result
+                task.status = 'completed'
+                task.finished_at = datetime.now(timezone.utc)
+            else:
+                logger.error(f"Task {task.id} failed - no result returned")
+                task.status = 'failed'
+                task.error = "No result returned from workflow execution"
+                task.finished_at = datetime.now(timezone.utc)
+                
+        except Exception as e:
+            logger.error(f"Failed to run workflow: {str(e)}")
+            task.status = 'failed'
+            task.error = str(e)
+            task.finished_at = datetime.now(timezone.utc)
+        
+        await self.session.commit()
         return task

@@ -27,6 +27,7 @@ from ...core.database.session import get_session
 from ...core.workflows.manager import WorkflowManager
 from ...core.workflows.task import TaskManager
 from ...core.scheduler.scheduler import WorkflowScheduler as SchedulerManager
+from ...core.workflows.remote import LangFlowManager
 from tabulate import tabulate
 
 # Initialize logger with basic configuration
@@ -86,18 +87,9 @@ async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
         logger.info(f"Running workflow {workflow.name} (remote_flow_id: {workflow.remote_flow_id}) for task {task.id}")
         logger.info(f"Input data: {json.dumps(task.input_data, indent=2)}")
         
-        # Execute workflow
-        result = await workflow_manager.run_workflow(workflow.id, task.input_data)
-        
-        if result:
-            logger.info(f"Task {task.id} completed successfully")
-            logger.info(f"Output data: {json.dumps(result.output_data, indent=2)}")
-            return True
-        else:
-            logger.error(f"Task {task.id} failed")
-            if task.error:
-                logger.error(f"Error: {task.error}")
-            return False
+        # Execute workflow using manager
+        task = await workflow_manager.run_workflow(task.workflow_id, task.input_data)
+        return task.status == 'completed'
         
     except Exception as e:
         logger.error(f"Failed to run workflow: {str(e)}")
