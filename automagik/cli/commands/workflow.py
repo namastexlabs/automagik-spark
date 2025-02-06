@@ -50,8 +50,8 @@ def list_workflows(folder: Optional[str]):
                     columns=[
                         {"name": "ID", "justify": "left", "style": "bright_blue", "no_wrap": True},
                         {"name": "Name", "justify": "left", "style": "green"},
-                        {"name": "Status", "justify": "center", "style": "bold"},
-                        {"name": "Tasks", "justify": "center", "style": "yellow"},
+                        {"name": "Latest Run", "justify": "center", "style": "bold"},
+                        {"name": "Tasks (Failed)", "justify": "center", "style": "yellow"},
                         {"name": "Schedules", "justify": "center", "style": "yellow"},
                         {"name": "Source", "justify": "left", "style": "magenta"},
                         {"name": "Last Updated", "justify": "left", "style": "cyan"}
@@ -64,18 +64,27 @@ def list_workflows(folder: Optional[str]):
                     schedules = getattr(w, 'schedules', [])
                     latest_task = max(tasks, key=lambda t: t.created_at, default=None) if tasks else None
                     
-                    # Determine workflow status
+                    # Count failed tasks
+                    failed_tasks = sum(1 for t in tasks if t.status.lower() == 'failed')
+                    
+                    # Determine workflow status from latest run
                     if not latest_task:
                         status = "[bold yellow]NEW[/bold yellow]"
                     else:
                         status = get_status_style(latest_task.status)
                     
+                    # Format task counts
+                    if failed_tasks > 0:
+                        tasks_display = f"[bold]{len(tasks)}[/bold] ([red]{failed_tasks}[/red])"
+                    else:
+                        tasks_display = f"[bold]{len(tasks)}[/bold] ([dim]0[/dim])"
+                    
                     # Format the row
                     table.add_row(
                         str(w.id),  # ID
                         w.name,  # Name
-                        status,  # Status
-                        f"[bold]{len(tasks)}[/bold]",  # Tasks count
+                        status,  # Latest run status
+                        tasks_display,  # Tasks count with failed count
                         f"[bold]{len(schedules)}[/bold]",  # Schedules count
                         f"[italic]{w.source}[/italic]",  # Source
                         format_timestamp(w.updated_at)  # Last Updated
