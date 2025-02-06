@@ -23,6 +23,9 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "psutil",
     "rich",
+    "cryptography>=44.0.0",
+    "pytest>=8.3.4",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.scripts]

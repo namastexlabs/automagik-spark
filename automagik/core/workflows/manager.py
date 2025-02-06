@@ -16,9 +16,10 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import cast
 from sqlalchemy import String
 
-from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog
+from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog, WorkflowSource
 from .remote import LangFlowManager
 from .task import TaskManager
+from .source import WorkflowSource
 
 logger = logging.getLogger(__name__)
 
@@ -29,29 +30,87 @@ class WorkflowManager:
     def __init__(self, session: AsyncSession):
         """Initialize workflow manager."""
         self.session = session
-        self.langflow = LangFlowManager(session)
+        self.langflow = None  # Initialize lazily based on workflow source
         self.task = TaskManager(session)
 
     async def __aenter__(self):
         """Enter context manager."""
-        await self.langflow.__aenter__()
+        if self.langflow:
+            await self.langflow.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
-        await self.langflow.__aexit__(exc_type, exc_val, exc_tb)
+        if self.langflow:
+            await self.langflow.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
+        """Get the workflow source for a given workflow ID."""
+        try:
+            uuid_obj = UUID(workflow_id)
+            workflow = await self.session.execute(
+                select(Workflow)
+                .options(joinedload(Workflow.workflow_source))
+                .where(Workflow.id == uuid_obj)
+            )
+            workflow = workflow.scalar_one_or_none()
+            if workflow:
+                return workflow.workflow_source
+        except ValueError:
+            pass
+        return None
+
+    async def _get_langflow_manager(self, workflow_id: Optional[str] = None) -> LangFlowManager:
+        """Get a LangFlowManager instance configured for the given workflow.
+        
+        If workflow_id is provided, tries to use the workflow's source settings.
+        Falls back to environment variables if no source is found or no workflow_id is provided.
+        """
+        if workflow_id:
+            source = await self._get_workflow_source(workflow_id)
+            if source and source.source_type == "langflow":
+                return LangFlowManager(
+                    self.session,
+                    api_url=source.url,
+                    api_key=WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                )
+        
+        # Fall back to default settings from environment
+        return LangFlowManager(self.session)
 
     # Remote flow operations
-    async def list_remote_flows(self) -> Dict[str, List[Dict]]:
+    async def list_remote_flows(self, workflow_id: Optional[str] = None) -> Dict[str, List[Dict]]:
         """List remote flows from LangFlow API."""
+        self.langflow = await self._get_langflow_manager(workflow_id)
         return await self.langflow.list_remote_flows()
 
     async def get_flow_components(self, flow_id: str) -> List[Dict[str, Any]]:
         """Get flow components from LangFlow API."""
+        self.langflow = await self._get_langflow_manager(flow_id)
         flow = await self.langflow.sync_flow(flow_id)
         if not flow:
             return []
-        return flow["components"]
+        
+        # First try to get components directly
+        if "components" in flow:
+            return flow["components"]
+        
+        # If no direct components, try to extract from flow data nodes
+        flow_data = flow.get("flow", {}).get("data", {})
+        nodes = flow_data.get("nodes", [])
+        components = []
+        
+        for node in nodes:
+            node_data = node.get("data", {}).get("node", {})
+            if node_data:
+                components.append({
+                    "id": node_data.get("id"),
+                    "type": node_data.get("type"),
+                    "name": node_data.get("name"),
+                    "description": node_data.get("description")
+                })
+        
+        return components
 
     async def sync_flow(
         self,
@@ -60,6 +119,7 @@ class WorkflowManager:
         output_component: Optional[str] = None
     ) -> Optional[Workflow]:
         """Sync a flow from LangFlow API into a local workflow."""
+        self.langflow = await self._get_langflow_manager(flow_id)
         result = await self.langflow.sync_flow(flow_id)
         if not result:
             return None
@@ -258,6 +318,7 @@ class WorkflowManager:
         
         try:
             # Execute workflow using LangFlowManager
+            self.langflow = await self._get_langflow_manager(workflow_id)
             result = await self.langflow.run_flow(workflow.remote_flow_id, input_data)
             
             if result:

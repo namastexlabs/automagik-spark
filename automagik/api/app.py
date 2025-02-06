@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from .config import get_cors_origins, get_api_key
 from .dependencies import verify_api_key
-from .routers import tasks, workflows, schedules
+from .routers import tasks, workflows, schedules, sources
 
 app = FastAPI(
     title="AutoMagik API",
@@ -58,3 +58,4 @@ async def root(api_key: str = Security(verify_api_key)):
 app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(schedules.router, prefix="/api/v1")
+app.include_router(sources.router, prefix="/api/v1")

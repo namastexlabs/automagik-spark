@@ -25,11 +25,17 @@ LANGFLOW_API_KEY = get_langflow_api_key()
 class LangFlowManager:
     """Manager for remote LangFlow operations."""
 
-    def __init__(self, session: AsyncSession):
-        """Initialize the LangFlow manager."""
+    def __init__(self, session: AsyncSession, api_url: Optional[str] = None, api_key: Optional[str] = None):
+        """Initialize the LangFlow manager.
+        
+        Args:
+            session: The database session
+            api_url: Optional URL for the LangFlow API. If not provided, uses environment variable.
+            api_key: Optional API key for authentication. If not provided, uses environment variable.
+        """
         self.session = session
-        self.api_url = LANGFLOW_API_URL
-        self.api_key = LANGFLOW_API_KEY
+        self.api_url = api_url or LANGFLOW_API_URL
+        self.api_key = api_key or LANGFLOW_API_KEY
         self.headers = {
             "accept": "application/json",
         }

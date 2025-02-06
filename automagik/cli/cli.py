@@ -15,6 +15,7 @@ from .commands import (
     workflow_group,
     schedule_group,
     task_group,
+    source,
 )
 
 
@@ -34,6 +35,7 @@ main.add_command(worker_group)
 main.add_command(workflow_group)
 main.add_command(schedule_group)
 main.add_command(task_group)
+main.add_command(source.source)
 
 if __name__ == "__main__":
     main()

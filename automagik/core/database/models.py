@@ -5,6 +5,9 @@ Database models for the application.
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from uuid import uuid4
+import os
+import base64
+from cryptography.fernet import Fernet
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
 from sqlalchemy.orm import relationship
@@ -21,7 +24,7 @@ class Workflow(Base):
     """Workflow model."""
     __tablename__ = "workflows"
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     data = Column(JSON)  # Additional workflow data
@@ -45,6 +48,10 @@ class Workflow(Base):
     liked = Column(Boolean, default=False)
     tags = Column(JSON)
     
+    # Source relationship
+    workflow_source_id = Column(UUID(as_uuid=True), ForeignKey("workflow_sources.id", ondelete="SET NULL"), nullable=True)
+    workflow_source = relationship("WorkflowSource", back_populates="workflows")
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -57,6 +64,61 @@ class Workflow(Base):
     def __str__(self):
         """Return a string representation of the workflow."""
         return f"{self.name} ({self.id})"
+
+
+class WorkflowSource(Base):
+    """Workflow source model."""
+    __tablename__ = "workflow_sources"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    source_type = Column(String(50), nullable=False)  # e.g., "langflow"
+    url = Column(String(255), nullable=False, unique=True)
+    encrypted_api_key = Column(String, nullable=False)
+    version_info = Column(JSON)
+    status = Column(String(50), nullable=False, default="active")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    workflows = relationship("Workflow", back_populates="workflow_source")
+
+    @staticmethod
+    def _get_encryption_key():
+        # Get key from environment or generate a default one for testing
+        key = os.environ.get('ENCRYPTION_KEY')
+        if not key:
+            # For testing, use a fixed key
+            key = b'12345678901234567890123456789012'
+            # Encode it to base64
+            return base64.urlsafe_b64encode(key)
+        elif isinstance(key, str):
+            try:
+                # Try to decode the key from base64
+                decoded = base64.urlsafe_b64decode(key.encode())
+                if len(decoded) == 32:
+                    return key.encode()
+            except:
+                pass
+            # If the key is invalid, use the default key
+            key = b'12345678901234567890123456789012'
+            return base64.urlsafe_b64encode(key)
+        return key
+
+    @staticmethod
+    def encrypt_api_key(plain_text: str) -> str:
+        """Encrypt an API key using Fernet encryption."""
+        key = WorkflowSource._get_encryption_key()
+        f = Fernet(key)
+        token = f.encrypt(plain_text.encode())
+        return token.decode()
+
+    @staticmethod
+    def decrypt_api_key(encrypted_text: str) -> str:
+        """Decrypt an encrypted API key."""
+        key = WorkflowSource._get_encryption_key()
+        f = Fernet(key)
+        decrypted = f.decrypt(encrypted_text.encode())
+        return decrypted.decode()
 
 
 class WorkflowComponent(Base):

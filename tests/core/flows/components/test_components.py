@@ -71,8 +71,13 @@ async def test_get_flow_components(flow_manager, mock_flows):
         }
     }
 
+    # Mock the LangFlow manager
+    mock_langflow = AsyncMock()
+    mock_langflow.sync_flow = AsyncMock(return_value={"flow": flow_data})
+    flow_manager._get_langflow_manager = AsyncMock(return_value=mock_langflow)
+
     # Get components
-    components = await flow_manager.langflow.get_flow_components(flow_data)
+    components = await flow_manager.get_flow_components("test-flow-id")
     
     # Verify the components
     assert len(components) == 3  # We should get 3 components
