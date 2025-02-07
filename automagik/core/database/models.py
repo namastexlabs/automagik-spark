@@ -8,12 +8,14 @@ from uuid import uuid4
 import os
 import base64
 from cryptography.fernet import Fernet
+import logging
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
 from sqlalchemy.orm import relationship
 
 from automagik.core.database.base import Base
 
+logger = logging.getLogger(__name__)
 
 def utcnow():
     """Return current UTC datetime with timezone."""
@@ -91,34 +93,45 @@ class WorkflowSource(Base):
             key = b'12345678901234567890123456789012'
             # Encode it to base64
             return base64.urlsafe_b64encode(key)
-        elif isinstance(key, str):
-            try:
-                # Try to decode the key from base64
-                decoded = base64.urlsafe_b64decode(key.encode())
-                if len(decoded) == 32:
-                    return key.encode()
-            except:
-                pass
-            # If the key is invalid, use the default key
-            key = b'12345678901234567890123456789012'
-            return base64.urlsafe_b64encode(key)
-        return key
+        
+        try:
+            # Try to decode the key from base64
+            decoded = base64.urlsafe_b64decode(key)
+            if len(decoded) == 32:
+                return base64.urlsafe_b64encode(decoded)
+            else:
+                raise ValueError("Decoded key must be 32 bytes")
+        except Exception as e:
+            # If decoding fails, try using the key directly if it's 32 bytes
+            if len(key) == 32:
+                return base64.urlsafe_b64encode(key.encode())
+            else:
+                raise ValueError("Invalid encryption key. Must be a 32-byte key or base64 encoded 32-byte key.")
 
     @staticmethod
-    def encrypt_api_key(plain_text: str) -> str:
-        """Encrypt an API key using Fernet encryption."""
+    def encrypt_api_key(api_key: str) -> str:
+        """Encrypt an API key."""
         key = WorkflowSource._get_encryption_key()
         f = Fernet(key)
-        token = f.encrypt(plain_text.encode())
-        return token.decode()
+        return f.encrypt(api_key.encode()).decode()
 
     @staticmethod
-    def decrypt_api_key(encrypted_text: str) -> str:
-        """Decrypt an encrypted API key."""
+    def decrypt_api_key(encrypted_key: str) -> str:
+        """Decrypt an API key."""
         key = WorkflowSource._get_encryption_key()
         f = Fernet(key)
-        decrypted = f.decrypt(encrypted_text.encode())
-        return decrypted.decode()
+        return f.decrypt(encrypted_key.encode()).decode()
+
+    def __str__(self):
+        """Return a string representation of the source."""
+        return f"{self.source_type} source at {self.url}"
+
+    def __init__(self, **kwargs):
+        """Initialize a workflow source."""
+        # Ensure URL doesn't end with /
+        if 'url' in kwargs:
+            kwargs['url'] = kwargs['url'].rstrip('/')
+        super().__init__(**kwargs)
 
 
 class WorkflowComponent(Base):

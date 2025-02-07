@@ -31,7 +31,8 @@ def create_rich_table(
         box=box.ROUNDED,
         header_style="bold cyan",
         show_lines=True,
-        padding=(0, 1)
+        padding=(0, 1),
+        width=None  # Remove width constraint
     )
     
     for col in columns:
@@ -39,7 +40,8 @@ def create_rich_table(
             col["name"],
             justify=col.get("justify", "left"),
             style=col.get("style", "white"),
-            no_wrap=col.get("no_wrap", False)
+            no_wrap=col.get("no_wrap", False),
+            width=None  # Remove width constraint
         )
     
     return table

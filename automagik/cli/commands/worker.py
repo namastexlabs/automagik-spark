@@ -87,8 +87,18 @@ async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
         logger.info(f"Running workflow {workflow.name} (remote_flow_id: {workflow.remote_flow_id}) for task {task.id}")
         logger.info(f"Input data: {json.dumps(task.input_data, indent=2)}")
         
-        # Execute workflow using LangFlowManager
-        async with LangFlowManager(workflow_manager.session) as langflow:
+        # Get workflow source
+        source = await workflow_manager._get_workflow_source(str(task.workflow_id))
+        if not source:
+            logger.error(f"Workflow source not found for workflow {task.workflow_id}")
+            return False
+            
+        # Execute workflow using LangFlowManager with correct source
+        async with LangFlowManager(
+            workflow_manager.session,
+            api_url=source.url,
+            api_key=source.decrypt_api_key(source.encrypted_api_key)
+        ) as langflow:
             # Update task status to running
             task.status = 'running'
             task.started_at = datetime.now(timezone.utc)

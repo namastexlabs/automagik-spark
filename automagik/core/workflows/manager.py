@@ -4,22 +4,26 @@ Workflow management.
 Provides the main interface for managing workflows and remote flows
 """
 
+import json
 import logging
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from uuid import UUID, uuid4
-from datetime import timezone
 
-from sqlalchemy import select
+import httpx
+from sqlalchemy import select, delete, and_, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from sqlalchemy import cast
-from sqlalchemy import String
 
 from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog, WorkflowSource
 from .remote import LangFlowManager
 from .task import TaskManager
 from .source import WorkflowSource
+
+import os
+
+LANGFLOW_API_URL = os.environ.get('LANGFLOW_API_URL')
+LANGFLOW_API_KEY = os.environ.get('LANGFLOW_API_KEY')
 
 logger = logging.getLogger(__name__)
 
@@ -60,29 +64,89 @@ class WorkflowManager:
             pass
         return None
 
-    async def _get_langflow_manager(self, workflow_id: Optional[str] = None) -> LangFlowManager:
-        """Get a LangFlowManager instance configured for the given workflow.
-        
-        If workflow_id is provided, tries to use the workflow's source settings.
-        Falls back to environment variables if no source is found or no workflow_id is provided.
-        """
-        if workflow_id:
+    async def _get_langflow_manager(self, workflow_id: Optional[str] = None, source_url: Optional[str] = None) -> LangFlowManager:
+        """Get a LangFlow manager for a workflow."""
+        logger.info(f"Getting LangFlow manager for workflow_id={workflow_id}, source_url={source_url}")
+
+        # If source_url is provided, first try to find it as an instance name
+        if source_url:
+            # Try to find source by instance name first
+            result = await self.session.execute(
+                select(WorkflowSource).where(WorkflowSource.source_type == "langflow")
+            )
+            sources = result.scalars().all()
+            for src in sources:
+                instance = src.url.split('://')[-1].split('/')[0].split('.')[0]
+                if instance == source_url:
+                    source_url = src.url
+                    break
+
+        # Get source configuration from DB
+        if source_url:
+            result = await self.session.execute(
+                select(WorkflowSource).where(WorkflowSource.url == source_url)
+            )
+            source = result.scalar_one_or_none()
+        elif workflow_id:
             source = await self._get_workflow_source(workflow_id)
-            if source and source.source_type == "langflow":
-                return LangFlowManager(
-                    self.session,
-                    api_url=source.url,
-                    api_key=WorkflowSource.decrypt_api_key(source.encrypted_api_key)
-                )
-        
-        # Fall back to default settings from environment
-        return LangFlowManager(self.session)
+        else:
+            result = await self.session.execute(
+                select(WorkflowSource).where(WorkflowSource.source_type == "langflow")
+            )
+            sources = result.scalars().all()
+            if sources:
+                source = sources[0]  # Use the first available source
+            else:
+                raise ValueError("No LangFlow sources found in DB and LANGFLOW_API_URL not set in environment")
+
+        logger.info(f"Found source: {source}")
+
+        if not source:
+            raise ValueError(f"No source configuration found for URL: {source_url}")
+
+        # Create manager
+        manager = LangFlowManager(
+            self.session,
+            api_url=source.url,
+            api_key=WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+        )
+
+        return manager
 
     # Remote flow operations
-    async def list_remote_flows(self, workflow_id: Optional[str] = None) -> Dict[str, List[Dict]]:
-        """List remote flows from LangFlow API."""
-        self.langflow = await self._get_langflow_manager(workflow_id)
-        return await self.langflow.list_remote_flows()
+    async def list_remote_flows(self, workflow_id: Optional[str] = None, source_url: Optional[str] = None) -> Dict[str, List[Dict]]:
+        """List remote flows from all LangFlow sources, or a specific source if provided."""
+        if workflow_id or source_url:
+            # If specific source requested, use that one
+            self.langflow = await self._get_langflow_manager(workflow_id, source_url)
+            flows = await self.langflow.list_remote_flows()
+            return {"flows": flows}
+        else:
+            # Get all langflow sources
+            result = await self.session.execute(
+                select(WorkflowSource).where(WorkflowSource.source_type == "langflow")
+            )
+            sources = result.scalars().all()
+            
+            all_flows = []
+            for source in sources:
+                try:
+                    self.langflow = LangFlowManager(
+                        self.session,
+                        api_url=source.url,
+                        api_key=WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                    )
+                    async with self.langflow:
+                        flows = await self.langflow.list_remote_flows()
+                        # Add source information to each flow
+                        for flow in flows:
+                            flow["source"] = source.url
+                        all_flows.extend(flows)
+                except Exception as e:
+                    logger.error(f"Failed to list flows from source {source.url}: {str(e)}")
+                    continue
+            
+            return {"flows": all_flows}
 
     async def get_flow_components(self, flow_id: str) -> List[Dict[str, Any]]:
         """Get flow components from LangFlow API."""
@@ -112,69 +176,54 @@ class WorkflowManager:
         
         return components
 
-    async def sync_flow(
-        self,
-        flow_id: str,
-        input_component: Optional[str] = None,
-        output_component: Optional[str] = None
-    ) -> Optional[Workflow]:
-        """Sync a flow from LangFlow API into a local workflow."""
-        self.langflow = await self._get_langflow_manager(flow_id)
-        result = await self.langflow.sync_flow(flow_id)
-        if not result:
-            return None
+    async def sync_flow(self, flow_id: str, source_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Sync a flow from a remote source."""
+        logger.info(f"Syncing flow {flow_id}")
 
-        flow_data = result["flow"]
+        # If source_url is provided, try that source first
+        if source_url:
+            logger.info(f"Using specified source: {source_url}")
+            async with await self._get_langflow_manager(source_url=source_url) as lf:
+                flow_data = await lf.sync_flow(flow_id)
+                if flow_data:
+                    flow_data["source"] = source_url
+                    workflow = await self._create_or_update_workflow(flow_data)
+                    return workflow
+                logger.warning(f"Flow {flow_id} not found in specified source {source_url}")
 
-        # Check if workflow already exists
-        stmt = select(Workflow).where(Workflow.remote_flow_id == flow_id)
-        result = await self.session.execute(stmt)
-        existing_workflow = result.scalars().first()
+        # If no source_url or flow not found in specified source, search all sources
+        logger.info("Searching for flow across all sources")
+        result = await self.session.execute(
+            select(WorkflowSource).where(WorkflowSource.source_type == "langflow")
+        )
+        sources = result.scalars().all()
 
-        if existing_workflow:
-            # Update existing workflow
-            existing_workflow.name = flow_data["name"]
-            existing_workflow.description = flow_data.get("description")
-            existing_workflow.data = flow_data["data"]
-            existing_workflow.input_component = input_component or flow_data.get("input_component")
-            existing_workflow.output_component = output_component or flow_data.get("output_component")
-            existing_workflow.folder_id = flow_data.get("folder_id")
-            existing_workflow.folder_name = flow_data.get("folder_name")
-            existing_workflow.icon = flow_data.get("icon")
-            existing_workflow.icon_bg_color = flow_data.get("icon_bg_color")
-            existing_workflow.gradient = bool(flow_data.get("gradient", False))
-            existing_workflow.liked = bool(flow_data.get("liked", False))
-            existing_workflow.tags = flow_data.get("tags", [])
-            existing_workflow.updated_at = datetime.now(timezone.utc)
+        for source in sources:
+            try:
+                logger.info(f"Checking source: {source.url}")
+                async with LangFlowManager(
+                    self.session,
+                    api_url=source.url,
+                    api_key=WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                ) as lf:
+                    # First list all flows to verify the ID exists
+                    flows = await lf.list_remote_flows()
+                    matching_flow = next((f for f in flows if f["id"] == flow_id), None)
+                    
+                    if matching_flow:
+                        logger.info(f"Found flow in source: {source.url}")
+                        # Get the full flow data
+                        flow_data = await lf.sync_flow(flow_id)
+                        if flow_data:
+                            flow_data["source"] = source.url
+                            workflow = await self._create_or_update_workflow(flow_data)
+                            return workflow
+            except Exception as e:
+                logger.error(f"Error checking source {source.url}: {str(e)}")
+                continue
 
-            await self.session.commit()
-            # Merge the existing workflow with the session to ensure we get the same instance
-            existing_workflow = await self.session.merge(existing_workflow)
-            return existing_workflow
-        else:
-            # Create new workflow
-            workflow = Workflow(
-                id=uuid4(),  # Generate a new UUID for the workflow
-                name=flow_data["name"],
-                description=flow_data.get("description"),
-                data=flow_data["data"],
-                source="langflow",
-                remote_flow_id=flow_id,
-                flow_version=1,
-                input_component=input_component,
-                output_component=output_component,
-                folder_id=flow_data.get("folder_id"),
-                folder_name=flow_data.get("folder_name"),
-                icon=flow_data.get("icon"),
-                icon_bg_color=flow_data.get("icon_bg_color"),
-                gradient=bool(flow_data.get("gradient", False)),
-                liked=bool(flow_data.get("liked", False)),
-                tags=flow_data.get("tags", [])
-            )
-
-            self.session.add(workflow)
-            await self.session.commit()
-            return workflow
+        logger.error(f"Flow {flow_id} not found in any source")
+        return None
 
     # Local workflow operations
     async def list_workflows(self, options: dict = None) -> List[Workflow]:
@@ -317,9 +366,34 @@ class WorkflowManager:
             await self.session.commit()
         
         try:
-            # Execute workflow using LangFlowManager
-            self.langflow = await self._get_langflow_manager(workflow_id)
-            result = await self.langflow.run_flow(workflow.remote_flow_id, input_data)
+            # Get the workflow source
+            source = await self._get_workflow_source(str(workflow_id))
+            if not source:
+                raise ValueError(f"No source found for workflow {workflow_id}")
+
+            logger.info(f"Using workflow source: {source.url}")
+            logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
+
+            # Initialize LangFlow manager with the correct source settings
+            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+            logger.info(f"Decrypted API key length: {len(api_key) if api_key else 0}")
+            
+            self.langflow = LangFlowManager(
+                self.session,
+                api_url=source.url,
+                api_key=api_key
+            )
+            
+            # Execute workflow
+            async with self.langflow:
+                try:
+                    result = await self.langflow.run_flow(workflow.remote_flow_id, input_data)
+                except Exception as e:
+                    logger.error(f"Error executing flow: {str(e)}")
+                    if isinstance(e, httpx.HTTPStatusError):
+                        logger.error(f"HTTP Status: {e.response.status_code}")
+                        logger.error(f"Response text: {e.response.text}")
+                    raise
             
             if result:
                 logger.info(f"Task {task.id} completed successfully")
@@ -335,9 +409,91 @@ class WorkflowManager:
                 
         except Exception as e:
             logger.error(f"Failed to run workflow: {str(e)}")
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.error(f"HTTP Status: {e.response.status_code}")
+                logger.error(f"Response text: {e.response.text}")
             task.status = 'failed'
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
         
         await self.session.commit()
         return task
+
+    async def _create_or_update_workflow(self, flow_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create or update a workflow from flow data."""
+        # Get source URL from flow data
+        source_url = flow_data.get("source")
+        if not source_url:
+            logger.error("No source URL provided in flow data")
+            return None
+
+        # Get the workflow source by URL
+        result = await self.session.execute(
+            select(WorkflowSource).where(WorkflowSource.url == source_url)
+        )
+        source = result.scalar_one_or_none()
+        if not source:
+            logger.error(f"No workflow source found for URL: {source_url}")
+            return None
+
+        # Extract flow ID and data
+        flow_id = flow_data.get("id")
+        if not flow_id:
+            logger.error("No flow ID provided in flow data")
+            return None
+
+        # Find existing workflow by remote flow ID and source
+        result = await self.session.execute(
+            select(Workflow).where(
+                Workflow.remote_flow_id == flow_id,
+                Workflow.workflow_source_id == source.id
+            )
+        )
+        workflow = result.scalar_one_or_none()
+
+        # Helper function to convert to boolean
+        def to_bool(value) -> bool:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'y', 'on')
+            if isinstance(value, (int, float)):
+                return bool(value)
+            return False
+
+        # Update workflow data
+        workflow_data = {
+            "name": flow_data.get("name", "Untitled Flow"),
+            "description": flow_data.get("description"),
+            "data": flow_data,
+            "source": source.source_type,  # e.g. "langflow"
+            "remote_flow_id": flow_id,
+            "workflow_source_id": source.id,
+            "workflow_source": source,  # Set the relationship
+            "is_component": to_bool(flow_data.get("is_component", False)),
+            "folder_id": flow_data.get("folder_id"),
+            "folder_name": flow_data.get("folder_name"),
+            "icon": flow_data.get("icon"),
+            "icon_bg_color": flow_data.get("icon_bg_color"),
+            "gradient": to_bool(flow_data.get("gradient", False)),
+            "liked": to_bool(flow_data.get("liked", False)),
+            "tags": flow_data.get("tags", [])
+        }
+
+        if workflow:
+            # Update existing workflow
+            for key, value in workflow_data.items():
+                setattr(workflow, key, value)
+        else:
+            # Create new workflow
+            workflow = Workflow(**workflow_data)
+            self.session.add(workflow)
+
+        try:
+            await self.session.commit()
+            await self.session.refresh(workflow)
+            return workflow
+        except Exception as e:
+            logger.error(f"Error saving workflow: {str(e)}")
+            await self.session.rollback()
+            raise

@@ -2,23 +2,23 @@
 Workflow management commands.
 """
 
+from typing import Optional, List, Dict, Any
 import asyncio
 import click
-import json
-from typing import Optional
-from uuid import UUID
+from sqlalchemy import select
 
-import click
-from tabulate import tabulate
-
-from ...core.workflows import WorkflowManager
 from ...core.database.session import get_session
+from ...core.database.models import WorkflowSource
+from ...core.workflows.manager import WorkflowManager
 from ..utils.table_styles import (
     create_rich_table,
     format_timestamp,
     get_status_style,
     print_table
 )
+
+from rich.console import Console
+from uuid import UUID
 
 workflow_group = click.Group(name="workflows", help="Workflow management commands")
 
@@ -32,17 +32,23 @@ def list_workflows(folder: Optional[str]):
     """List all workflows."""
     async def _list():
         async with get_session() as session:
+            # Get all workflow sources first
+            query = select(WorkflowSource)
+            result = await session.execute(query)
+            sources = {str(s.id): s for s in result.scalars().all()}
+
+            # Get workflows with eager loading of tasks and schedules
             async with WorkflowManager(session) as manager:
                 workflows = await manager.list_workflows(options={"joinedload": ["tasks", "schedules"]})
-                
-                # Filter by folder if specified
-                if folder:
-                    workflows = [w for w in workflows if w.folder_name == folder]
                 
                 if not workflows:
                     click.secho("\n No workflows found", fg="yellow")
                     return
-
+                
+                # Filter by folder if specified
+                if folder:
+                    workflows = [w for w in workflows if w.folder == folder]
+                
                 # Create table with consistent styling
                 table = create_rich_table(
                     title="Workflows",
@@ -53,7 +59,8 @@ def list_workflows(folder: Optional[str]):
                         {"name": "Latest Run", "justify": "center", "style": "bold"},
                         {"name": "Tasks (Failed)", "justify": "center", "style": "yellow"},
                         {"name": "Schedules", "justify": "center", "style": "yellow"},
-                        {"name": "Source", "justify": "left", "style": "magenta"},
+                        {"name": "Instance", "justify": "left", "style": "magenta"},
+                        {"name": "Type", "justify": "left", "style": "dim magenta"},
                         {"name": "Last Updated", "justify": "left", "style": "cyan"}
                     ]
                 )
@@ -79,6 +86,16 @@ def list_workflows(folder: Optional[str]):
                     else:
                         tasks_display = f"[bold]{len(tasks)}[/bold] ([dim]0[/dim])"
                     
+                    # Get source display name from workflow source
+                    instance_name = "unknown"
+                    source_type = w.source if w.source else "unknown"
+                    if w.workflow_source_id and str(w.workflow_source_id) in sources:
+                        source = sources[str(w.workflow_source_id)]
+                        url = source.url
+                        instance = url.split('://')[-1].split('/')[0]
+                        instance = instance.split('.')[0]
+                        instance_name = instance
+                    
                     # Format the row
                     table.add_row(
                         str(w.id),  # ID
@@ -86,11 +103,11 @@ def list_workflows(folder: Optional[str]):
                         status,  # Latest run status
                         tasks_display,  # Tasks count with failed count
                         f"[bold]{len(schedules)}[/bold]",  # Schedules count
-                        f"[italic]{w.source}[/italic]",  # Source
+                        f"[italic]{instance_name}[/italic]",  # Instance name
+                        f"[dim]{source_type}[/dim]",  # Source type
                         format_timestamp(w.updated_at)  # Last Updated
                     )
-
-                # Print the table
+                
                 print_table(table)
 
     return run_async(_list())
@@ -98,99 +115,138 @@ def list_workflows(folder: Optional[str]):
 
 @workflow_group.command("sync")
 @click.argument("flow_id", required=False)
-def sync_flow(flow_id: Optional[str]):
-    """Sync a flow from LangFlow API into a local workflow. If no flow ID is provided, shows an interactive selection."""
-    run_async(_sync(flow_id))
+@click.option("--source", help="Source URL or ID to sync from")
+@click.option("--page", default=1, help="Page number (default: 1)")
+@click.option("--page-size", default=20, help="Number of items per page (default: 20)")
+def sync_flow(flow_id: Optional[str], source: Optional[str], page: int, page_size: int):
+    """Sync a flow from LangFlow API into a local workflow."""
+    async def _sync():
+        source_url = None
+        async with get_session() as session:
+            sources_to_check = []
 
-async def _sync(flow_id: Optional[str]):
-    async with get_session() as session:
-        async with WorkflowManager(session) as manager:
-            # If no flow ID provided, show list and get selection
-            if not flow_id:
-                # Get remote flows
-                flows = await manager.list_remote_flows()
-                if not flows:
-                    click.echo("No flows available to sync")
-                    return
-                
-                # Display flows
-                click.echo("\nAvailable Remote Flows:")
-                click.echo("-" * 20)
-                flat_flows = []  # For selection tracking
-                for i, flow in enumerate(flows, 1):
-                    click.echo(f"{i}. {flow['name']}")
-                    if flow.get('description'):
-                        click.echo(f"   Description: {flow['description']}")
-                    flat_flows.append(flow)
-                
-                if not flat_flows:
-                    click.echo("No flows available to sync")
-                    return
-                
-                # Get flow selection
-                flow_num = click.prompt(
-                    "\nSelect flow number to sync",
-                    type=int,
-                    default=1,
-                    show_default=True
-                )
-                
-                if not 1 <= flow_num <= len(flat_flows):
-                    click.echo("Invalid flow number")
-                    return
-                
-                selected_flow = flat_flows[flow_num - 1]
-                flow_id = selected_flow['id']
-            
-            # Get flow components
-            components = await manager.get_flow_components(flow_id)
-            if not components:
-                click.echo("Failed to get flow components")
-                return
-            
-            # Show components and get input/output selection
-            click.echo("\nFlow Components:")
-            for i, comp in enumerate(components, 1):
-                comp_name = comp.get("display_name", comp.get("name", "Unknown"))
-                comp_type = comp.get("type", "Unknown")
-                comp_id = comp.get("id", "unknown")
-                click.echo(f"{i}. {comp_name} ({comp_type}) [ID: {comp_id}]")
-            
-            # Get component selections
-            input_num = click.prompt(
-                "\nSelect input component number",
-                type=int,
-                default=1,
-            )
-            output_num = click.prompt(
-                "Select output component number",
-                type=int,
-                default=1,
-            )
-
-            if not (1 <= input_num <= len(components) and 1 <= output_num <= len(components)):
-                click.echo("Invalid component number selected")
-                return
-
-            # Get component IDs
-            input_component = components[input_num - 1].get("id")
-            output_component = components[output_num - 1].get("id")
-
-            if not input_component or not output_component:
-                click.echo("Failed to get component IDs")
-                return
-
-            # Sync the flow
-            workflow_id = await manager.sync_flow(
-                flow_id=flow_id,
-                input_component=input_component,
-                output_component=output_component
-            )
-            
-            if workflow_id:
-                click.echo(f"Successfully synced workflow {workflow_id}")
+            # If source is provided and looks like a UUID, try to get the source URL
+            if source:
+                if len(source) == 36:  # Simple UUID length check
+                    try:
+                        source_id = UUID(source)
+                        result = await session.execute(
+                            select(WorkflowSource).where(WorkflowSource.id == source_id)
+                        )
+                        source_obj = result.scalar_one_or_none()
+                        if source_obj:
+                            sources_to_check = [source_obj]
+                            source_url = source_obj.url
+                    except ValueError:
+                        source_url = source  # Not a valid UUID, use as URL
+                        sources_to_check = [{"url": source_url}]
+                else:
+                    source_url = source  # Use as URL
+                    sources_to_check = [{"url": source_url}]
             else:
-                click.echo("Failed to sync workflow", err=True)
+                # If no source specified, get all sources
+                result = await session.execute(select(WorkflowSource))
+                sources_to_check = result.scalars().all()
+
+            async with WorkflowManager(session) as manager:
+                if flow_id:
+                    # Sync specific flow
+                    flow = await manager.sync_flow(flow_id, source_url=source_url)
+                    if flow:
+                        click.echo(f"Successfully synced flow {flow_id}")
+                    else:
+                        click.echo(f"Failed to sync flow {flow_id}")
+                else:
+                    all_flows = []
+                    
+                    # Collect flows from all sources
+                    for src in sources_to_check:
+                        try:
+                            if isinstance(src, dict):
+                                src_url = src["url"]
+                            else:
+                                src_url = src.url
+                                
+                            flows = await manager.list_remote_flows(source_url=src_url)
+                            if flows and flows.get("flows"):
+                                # Add source info to each flow
+                                for flow in flows["flows"]:
+                                    flow["source_url"] = src_url
+                                    # Get instance name from URL
+                                    instance = src_url.split('://')[-1].split('/')[0]
+                                    instance = instance.split('.')[0]
+                                    flow["instance"] = instance
+                                all_flows.extend(flows["flows"])
+                        except Exception as e:
+                            click.secho(f"\nError fetching flows from {src_url}: {str(e)}", fg="red")
+                            continue
+                    
+                    if not all_flows:
+                        click.secho("\nNo flows found", fg="yellow")
+                        return
+                    
+                    total_flows = len(all_flows)
+                    total_pages = (total_flows + page_size - 1) // page_size
+                    
+                    # Create table with consistent styling
+                    table = create_rich_table(
+                        title="Available Flows",
+                        caption=f"Page {page}/{total_pages} (Total: {total_flows} flow(s))",
+                        columns=[
+                            {"name": "ID", "justify": "left", "style": "bright_blue", "no_wrap": True},
+                            {"name": "Name", "justify": "left", "style": "green"},
+                            {"name": "Description", "justify": "left", "style": "yellow"},
+                            {"name": "Source", "justify": "left", "style": "magenta"}
+                        ]
+                    )
+                    
+                    # Paginate flows
+                    start_idx = (page - 1) * page_size
+                    end_idx = start_idx + page_size
+                    page_flows = all_flows[start_idx:end_idx]
+                    
+                    for flow in page_flows:
+                        description = flow.get("description") or ""
+                        description = description.strip()
+                        table.add_row(
+                            flow["id"],
+                            flow["name"],
+                            description,
+                            f"[italic]{flow['instance']}[/italic]"
+                        )
+                    
+                    print_table(table)
+                    
+                    from rich.panel import Panel
+                    from rich.console import Console
+                    from rich.text import Text
+                    
+                    # Create footer text
+                    footer = Text()
+                    
+                    # Add sync command
+                    footer.append("Command: ", style="bold")
+                    footer.append("sync ", style="cyan")
+                    footer.append("<flow_id>")
+                    
+                    # Add source info
+                    footer.append(" • ", style="dim")
+                    footer.append("Sources: ", style="bold")
+                    if len(sources_to_check) == 1:
+                        src = sources_to_check[0]
+                        src_url = src.url if hasattr(src, 'url') else src['url']
+                        instance = src_url.split('://')[-1].split('/')[0].split('.')[0]
+                        footer.append(instance, style="green")
+                    else:
+                        sources = [s.url.split('://')[-1].split('/')[0].split('.')[0] if hasattr(s, 'url') else s['url'].split('://')[-1].split('/')[0].split('.')[0] for s in sources_to_check]
+                        footer.append(", ".join(sources), style="green")
+                    
+                    # Create and print panel
+                    console = Console()
+                    panel = Panel(footer, expand=True)
+                    console.print(panel)
+
+    return run_async(_sync())
 
 
 @workflow_group.command("delete")
@@ -225,7 +281,7 @@ def run_workflow(workflow_id: str, input: str):
                 if task:
                     click.echo(f"Task {task.id} completed successfully")
                     click.echo(f"Input: {task.input_data}")
-                    click.echo(f"Output: {json.dumps(task.output_data, indent=2)}")
+                    click.echo(f"Output: {task.output_data}")
                 else:
                     click.echo("Workflow execution failed")
                     
