@@ -26,6 +26,8 @@ dependencies = [
     "cryptography>=44.0.0",
     "pytest>=8.3.4",
     "aiosqlite>=0.20.0",
+    "pytest-asyncio>=0.25.3",
+    "pytest-mock>=3.14.0",
 ]
 
 [project.scripts]
@@ -47,11 +49,11 @@ build-backend = "hatchling.build"
 packages = ["automagik"]
 
 [tool.pytest.ini_options]
-addopts = "-v"
+asyncio_mode = "auto"
+addopts = "--asyncio-mode=auto"
+markers = [
+    "asyncio: mark a test as an asyncio coroutine",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-asyncio_mode = "auto"
-markers = [
-    "asyncio: mark test as async",
-]
 asyncio_default_fixture_loop_scope = "function"
