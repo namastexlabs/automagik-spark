@@ -87,7 +87,7 @@ class TaskManager:
         """Create a task."""
         task_obj = Task()
         task_obj.id = UUID(task.get("id")) if task.get("id") else uuid4()
-        task_obj.workflow_id = UUID(task["workflow_id"]) if isinstance(task["workflow_id"], str) else task["workflow_id"]
+        task_obj.workflow_id = UUID(task["workflow_id"])  # Always convert to UUID
         task_obj.status = task.get("status", "pending")
         task_obj.input_data = task.get("input_data")
         task_obj.error = task.get("error")

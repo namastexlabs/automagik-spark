@@ -212,7 +212,22 @@ class WorkflowManager:
         """
         logger.info(f"Syncing flow {flow_id}")
 
-        # If source_url is provided, try that source first
+        # First check if we already have this workflow in our database
+        existing_workflow = await self.get_workflow(flow_id)
+        if existing_workflow and existing_workflow.workflow_source:
+            logger.info(f"Found existing workflow in database from source: {existing_workflow.workflow_source.url}")
+            # Try the known source first
+            async with await self._get_langflow_manager(source_url=existing_workflow.workflow_source.url) as lf:
+                flow_data = await lf.sync_flow(flow_id)
+                if flow_data:
+                    flow_data["source"] = existing_workflow.workflow_source.url
+                    flow_data["input_component"] = input_component or existing_workflow.input_component
+                    flow_data["output_component"] = output_component or existing_workflow.output_component
+                    workflow = await self._create_or_update_workflow(flow_data)
+                    return workflow
+                logger.warning(f"Flow {flow_id} not found in its original source {existing_workflow.workflow_source.url}")
+
+        # If source_url is provided, try that source next
         if source_url:
             logger.info(f"Using specified source: {source_url}")
             async with await self._get_langflow_manager(source_url=source_url) as lf:
@@ -225,14 +240,24 @@ class WorkflowManager:
                     return workflow
                 logger.warning(f"Flow {flow_id} not found in specified source {source_url}")
 
-        # If no source_url or flow not found in specified source, search all sources
+        # If no source_url or flow not found in specified source, search remaining sources
         logger.info("Searching for flow across all sources")
         result = await self.session.execute(
             select(WorkflowSource).where(WorkflowSource.source_type == "langflow")
         )
         sources = result.scalars().all()
 
+        # Skip sources we've already tried
+        tried_sources = set()
+        if existing_workflow and existing_workflow.workflow_source:
+            tried_sources.add(existing_workflow.workflow_source.url)
+        if source_url:
+            tried_sources.add(source_url)
+
         for source in sources:
+            if source.url in tried_sources:
+                continue
+                
             try:
                 logger.info(f"Checking source: {source.url}")
                 async with await self._get_langflow_manager(source_url=source.url) as lf:
@@ -472,7 +497,7 @@ class WorkflowManager:
             select(Workflow).where(
                 and_(
                     Workflow.remote_flow_id == flow_id,
-                    Workflow.source == source.source_type
+                    Workflow.source == source.url
                 )
             )
         )
@@ -491,7 +516,8 @@ class WorkflowManager:
             "name": flow_data.get("name", "Untitled Workflow"),
             "description": flow_data.get("description"),
             "data": flow_data.get("data", {}),
-            "source": source.source_type,
+            "source": source.url,
+            "workflow_source_id": source.id,
             "remote_flow_id": flow_id,
             "flow_version": flow_data.get("flow_version", 1),
             "input_component": flow_data.get("input_component"),

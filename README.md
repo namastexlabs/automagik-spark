@@ -88,8 +88,7 @@ Key environment variables:
 - `AUTOMAGIK_API_KEY`: API authentication key
 - `DATABASE_URL`: PostgreSQL connection string
 - `LANGFLOW_API_URL`: LangFlow instance URL
-- `AUTOMAGIK_DEBUG`: Enable debug mode (0/1)
-- `LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
+- `AUTOMAGIK_LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
 
 ### Project Structure
 

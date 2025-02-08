@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database.models import Worker, Schedule, Task, Workflow
@@ -123,9 +123,17 @@ async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
                 return False
         
     except Exception as e:
-        logger.error(f"Failed to run workflow: {str(e)}")
+        import traceback
+        error_details = {
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'workflow_id': str(workflow.id) if workflow else str(task.workflow_id),
+            'task_id': str(task.id),
+            'input_data': task.input_data
+        }
+        logger.error(f"Failed to run workflow: {json.dumps(error_details, indent=2)}")
         task.status = 'failed'
-        task.error = str(e)
+        task.error = json.dumps(error_details)
         task.finished_at = datetime.now(timezone.utc)
         await workflow_manager.session.commit()
         return False
@@ -141,11 +149,22 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
         logger.debug(f"Schedule parameters: {schedule.workflow_params}")
         
         # Create task
+        input_data = schedule.workflow_params
+        if isinstance(input_data, str):
+            # If input_data is a string, keep it as is
+            task_input = input_data
+        elif isinstance(input_data, dict):
+            # If input_data is a dict, convert it to JSON string
+            task_input = json.dumps(input_data)
+        else:
+            # Default to empty dict if None or invalid type
+            task_input = "{}"
+            
         task = Task(
             id=uuid4(),
             workflow_id=schedule.workflow_id,
             status='pending',
-            input_data=schedule.workflow_params or {},
+            input_data=task_input,
             created_at=now,
             tries=0,
             max_retries=3  # Configure max retries
@@ -273,7 +292,7 @@ async def process_schedules(session):
         if running_tasks == 0:
             # Create task using TaskManager
             task_data = {
-                "workflow_id": schedule.workflow_id,
+                "workflow_id": str(schedule.workflow_id),
                 "status": "pending",
                 "input_data": schedule.workflow_params or {},
                 "tries": 0,
@@ -353,7 +372,13 @@ async def worker_loop():
                     
                     # Execute pending tasks
                     workflow_manager = WorkflowManager(session)
-                    stmt = select(Task).where(Task.status == "pending")
+                    stmt = select(Task).where(
+                        Task.status == "pending",
+                        or_(
+                            Task.next_retry_at.is_(None),
+                            Task.next_retry_at <= datetime.now(timezone.utc)
+                        )
+                    )
                     result = await session.execute(stmt)
                     pending_tasks = result.scalars().all()
                     
@@ -362,7 +387,15 @@ async def worker_loop():
                             await run_workflow(workflow_manager, task)
                             logger.info(f"Executed task {task.id}")
                         except Exception as e:
-                            logger.error(f"Failed to execute task {task.id}: {e}")
+                            import traceback
+                            error_details = {
+                                'error': str(e),
+                                'traceback': traceback.format_exc(),
+                                'task_id': str(task.id),
+                                'workflow_id': str(task.workflow_id),
+                                'input_data': task.input_data
+                            }
+                            logger.error(f"Failed to execute task {task.id}: {json.dumps(error_details, indent=2)}")
                 
             except Exception as e:
                 logger.error(f"Worker error: {str(e)}")

@@ -86,33 +86,33 @@ class WorkflowSource(Base):
 
     @staticmethod
     def _get_encryption_key():
-        # Get key from environment or generate a default one for testing
-        key = os.environ.get('ENCRYPTION_KEY')
+        """Get encryption key from environment or generate a default one."""
+        key = os.environ.get('AUTOMAGIK_ENCRYPTION_KEY')
         
-        # If no key is provided, use a fixed testing key
         if not key:
-            key = b'12345678901234567890123456789012'
-            return base64.urlsafe_b64encode(key)
-        
-        try:
-            # Try to decode the key from base64
-            decoded = base64.urlsafe_b64decode(key)
-            if len(decoded) == 32:
-                return base64.urlsafe_b64encode(decoded)
-            else:
-                raise ValueError("Decoded key must be 32 bytes")
-        except Exception:
-            # If decoding fails, try different approaches
-            if isinstance(key, str):
-                # If key is a string, try encoding it
-                if len(key.encode()) == 32:
-                    return base64.urlsafe_b64encode(key.encode())
-                elif len(key) == 44:  # Likely already base64 encoded
-                    return key.encode()
+            # Log a warning that we're using a testing key
+            logger.warning("No AUTOMAGIK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
+            # Use a fixed testing key that's URL-safe base64 encoded
+            return b'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
             
-            # If all else fails, use the fixed testing key
-            default_key = b'12345678901234567890123456789012'
-            return base64.urlsafe_b64encode(default_key)
+        # Key is provided in environment
+        try:
+            # First try to decode as URL-safe base64
+            decoded = base64.urlsafe_b64decode(key.encode())
+            if len(decoded) == 32:
+                return key.encode()
+        except Exception:
+            pass
+            
+        try:
+            # If not base64, try to encode the raw key
+            if len(key.encode()) == 32:
+                return base64.urlsafe_b64encode(key.encode())
+            elif len(key) == 44:  # Standard base64 encoded length for 32 bytes
+                return key.encode()
+        except Exception as e:
+            logger.error(f"Invalid encryption key format: {str(e)}")
+            raise ValueError("Invalid encryption key format. Key must be either 32 bytes of raw data or base64 encoded.")
 
     @staticmethod
     def encrypt_api_key(api_key: str) -> str:

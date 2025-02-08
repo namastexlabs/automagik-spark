@@ -36,13 +36,17 @@ class LangFlowManager:
         self.api_url = api_url.rstrip("/") if api_url else LANGFLOW_API_URL.rstrip("/")  # Use default if not provided
         self.api_key = api_key if api_key else LANGFLOW_API_KEY  # Use default if not provided
         logger.debug(f"Initializing LangFlow manager with URL: {self.api_url} and API key: {self.api_key}")
+        
+        # Set headers with explicit JSON content type
         self.headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json"
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "automagik/1.0"
         }
         if self.api_key:
             # Add API key to header
             self.headers["x-api-key"] = self.api_key
+            
         logger.info(f"Headers: {self.headers}")
         self.client = None
 
@@ -94,25 +98,49 @@ class LangFlowManager:
             await self._ensure_client()
             logger.info(f"Requesting flow {flow_id}")
             response = await self.client.get(f"/flows/{flow_id}", follow_redirects=True)
-          
+            
+            # Log response details for debugging
+            content_type = response.headers.get('content-type', '')
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response content type: {content_type}")
+            
             if response.status_code == 200:
                 try:
+                    # Check if we got JSON content type
+                    if 'application/json' not in content_type:
+                        logger.error(f"Unexpected content type: {content_type}")
+                        logger.error(f"Response content (first 1000 chars): {response.content[:1000]}")
+                        return None
+                        
+                    # Try to parse response as JSON
                     flow_data = response.json()
+                    
+                    # Validate that we got a valid flow response
+                    if not isinstance(flow_data, dict) or 'id' not in flow_data:
+                        logger.error(f"Invalid flow data format. Expected dict with 'id', got: {type(flow_data)}")
+                        logger.debug(f"Flow data content: {flow_data}")
+                        return None
+                        
                     return flow_data
                 except json.JSONDecodeError as e:
+                    # Log the first 1000 chars of the response for debugging
                     logger.error(f"Failed to parse flow data as JSON: {str(e)}")
+                    logger.error(f"Response content (first 1000 chars): {response.content[:1000]}")
+                    logger.error(f"Response headers: {response.headers}")
                     return None
             elif response.status_code == 404:
-                logger.warning(f"Flow {flow_id} not found")
+                logger.info(f"Flow {flow_id} not found")
                 return None
             else:
-                logger.error(f"Unexpected status code {response.status_code} when fetching flow {flow_id}")
-                response.raise_for_status()
+                logger.error(f"Failed to get flow {flow_id}: HTTP {response.status_code}")
+                logger.error(f"Response content (first 1000 chars): {response.content[:1000]}")
+                logger.error(f"Response headers: {response.headers}")
+                return None
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error syncing flow {flow_id}: {str(e)}")
+            logger.error(f"HTTP error while syncing flow {flow_id}: {str(e)}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error syncing flow {flow_id}: {str(e)}")
+            logger.error(f"Unexpected error while syncing flow {flow_id}: {str(e)}")
             return None
 
     async def get_flow_components(self, flow_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -220,10 +248,16 @@ class LangFlowManager:
     async def _ensure_client(self):
         """Ensure client is initialized."""
         if self.client is None:
+            # Remove any trailing slashes and ensure we have the correct API path
+            base_url = self.api_url.rstrip('/')
+            if not base_url.endswith('/api/v1'):
+                base_url = f"{base_url}/api/v1"
+                
+            logger.debug(f"Initializing client with base URL: {base_url}")
             self.client = httpx.AsyncClient(
-                base_url=f"{self.api_url}/api/v1",
                 verify=False,
                 headers=self.headers,
+                base_url=base_url,
                 follow_redirects=True
             )
 
