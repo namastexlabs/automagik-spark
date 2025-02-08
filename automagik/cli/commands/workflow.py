@@ -22,9 +22,6 @@ from uuid import UUID
 
 workflow_group = click.Group(name="workflows", help="Workflow management commands")
 
-def run_async(coro):
-    """Helper function to run coroutines. Can be overridden in tests."""
-    return asyncio.run(coro)
 
 @workflow_group.command("list")
 @click.option("--folder", help="Filter by folder name")
@@ -110,7 +107,7 @@ def list_workflows(folder: Optional[str]):
                 
                 print_table(table)
 
-    return run_async(_list())
+    asyncio.run(_list())
 
 
 @workflow_group.command("sync")
@@ -246,7 +243,7 @@ def sync_flow(flow_id: Optional[str], source: Optional[str], page: int, page_siz
                     panel = Panel(footer, expand=True)
                     console.print(panel)
 
-    return run_async(_sync())
+    asyncio.run(_sync())
 
 
 @workflow_group.command("delete")
@@ -262,7 +259,7 @@ def delete_workflow(workflow_id: str):
                 else:
                     click.echo(f"Failed to delete workflow {workflow_id}", err=True)
     
-    run_async(_delete())
+    asyncio.run(_delete())
 
 
 @workflow_group.command(name="run")
@@ -288,7 +285,7 @@ def run_workflow(workflow_id: str, input: str):
         except Exception as e:
             click.echo(f"Error: {str(e)}", err=True)
     
-    run_async(_run())
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
