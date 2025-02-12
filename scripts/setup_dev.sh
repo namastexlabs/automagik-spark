@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Ensure we're in the project root directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+cd "$PROJECT_ROOT"
+
+# Check for required files
+if [ ! -f ".env.dev" ]; then
+    echo "Error: .env.dev file not found in project root. Are you in the right directory?"
+    exit 1
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
