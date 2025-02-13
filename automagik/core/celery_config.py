@@ -214,7 +214,7 @@ def create_celery_app():
     )
     
     # Add file handler
-    log_dir = os.path.expanduser('~/.automagik')
+    log_dir = os.path.expanduser('/tmp/.automagik')
     os.makedirs(log_dir, exist_ok=True)
     
     # Remove existing handlers to avoid duplicate logs
@@ -341,7 +341,7 @@ def update_celery_beat_schedule():
 def configure_worker(**_):
     """Configure worker process on initialization"""
     # Initialize logging
-    log_path = os.getenv('AUTOMAGIK_WORKER_LOG', '~/.automagik/worker.log')
+    log_path = os.getenv('AUTOMAGIK_WORKER_LOG', '/tmp/.automagik/worker.log')
     log_path = os.path.expanduser(log_path)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     
