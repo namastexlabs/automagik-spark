@@ -1,3 +1,4 @@
+
 """Test configuration and fixtures."""
 
 import os
@@ -107,3 +108,5 @@ def mock_httpx_client(mocker):
     mock_client = mocker.AsyncMock()
     mocker.patch("httpx.AsyncClient", return_value=mock_client)
     return mock_client
+
+

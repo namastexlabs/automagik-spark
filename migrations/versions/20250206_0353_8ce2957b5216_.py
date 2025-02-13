@@ -1,3 +1,4 @@
+
 """empty message
 
 Revision ID: 8ce2957b5216
@@ -72,3 +73,5 @@ def downgrade() -> None:
     op.drop_table('tasks')
     op.drop_table('schedules')
     # ### end Alembic commands ###
+
+

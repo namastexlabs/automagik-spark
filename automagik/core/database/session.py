@@ -1,3 +1,4 @@
+
 """
 Database Session Management
 
@@ -6,16 +7,20 @@ Provides functionality for creating and managing database sessions.
 
 import os
 import logging
+import asyncio
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Generator
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
+
+from ...api.config import get_database_url
 
 logger = logging.getLogger(__name__)
 
 # Get database URL from environment, ensure it uses asyncpg driver
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = get_database_url()
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set")
 
@@ -44,10 +49,10 @@ sync_engine = create_engine(
 )
 
 # Create session factories
-async_session = async_sessionmaker(
+async_session_factory = async_sessionmaker(
     async_engine,
     class_=AsyncSession,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
 
 sync_session = sessionmaker(
@@ -56,17 +61,20 @@ sync_session = sessionmaker(
 )
 
 @asynccontextmanager
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get an async database session."""
-    async with async_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+async def get_session() -> AsyncSession:
+    """Get a database session.
+    
+    This function creates a new session for each request and ensures proper cleanup.
+    It should be used with an async context manager:
+    
+    async with get_session() as session:
+        # use session here
+    """
+    session = async_session_factory()
+    try:
+        yield session
+    finally:
+        await session.close()
 
 @contextmanager
 def get_sync_session() -> Generator[Session, None, None]:
@@ -89,3 +97,5 @@ async def get_async_session():
     """FastAPI dependency for getting a database session."""
     async with get_session() as session:
         yield session
+
+

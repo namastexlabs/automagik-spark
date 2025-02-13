@@ -1,3 +1,4 @@
+
 """add workflow source model and relationships
 
 Revision ID: 1ffd9d6e9df7
@@ -59,3 +60,5 @@ def downgrade() -> None:
 
     # Drop workflow_sources table
     op.drop_table('workflow_sources')
+
+

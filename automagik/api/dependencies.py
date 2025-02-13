@@ -1,3 +1,4 @@
+
 """API dependencies."""
 from typing import Optional
 from fastapi import Security, HTTPException, status
@@ -39,3 +40,5 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
 
 # Use the FastAPI-compatible session dependency
 get_session = get_async_session
+
+

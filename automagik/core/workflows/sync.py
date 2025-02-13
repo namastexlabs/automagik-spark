@@ -1,3 +1,4 @@
+
 """
 Workflow synchronization module.
 
@@ -8,18 +9,18 @@ Provides functionality for fetching, filtering, and syncing workflows.
 import asyncio
 import json
 import logging
-import traceback
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 from datetime import timezone
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
-from ..database.models import Workflow, WorkflowComponent, Task, TaskLog
+from ..database.models import Workflow, WorkflowComponent, Task, TaskLog, WorkflowSource
 from ..database.session import get_session
 from .remote import LangFlowManager  # Import from .remote module
 
@@ -29,148 +30,122 @@ logger = logging.getLogger(__name__)
 class WorkflowSync:
     """Workflow synchronization class.
     
-    This class must be used as an async context manager to ensure proper initialization:
+    This class must be used as a context manager to ensure proper initialization:
     
-    async with WorkflowSync(session) as sync:
-        result = await sync.execute_workflow(...)
+    with WorkflowSync(session) as sync:
+        result = sync.execute_workflow(...)
     """
-    
-    def __init__(self, session: AsyncSession):
+
+    def __init__(self, session: Session):
         """Initialize workflow sync."""
         self.session = session
         self._manager = None
-        self._client = None
         self._initialized = False
 
-    async def _get_manager(self) -> LangFlowManager:
-        """Get or create LangFlow manager."""
-        if not self._manager:
-            self._manager = LangFlowManager(self.session)
-        return self._manager
-
-    async def __aenter__(self):
-        """Enter the async context."""
-        if not self._initialized:
-            self._manager = await self._get_manager()
-            self._initialized = True
+    def __enter__(self):
+        """Enter the context."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit the async context."""
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the context."""
         if self._manager:
-            await self._manager.close()
+            if hasattr(self._manager, 'close'):
+                self._manager.close()
             self._manager = None
-            self._initialized = False
 
-    def _check_initialized(self):
-        """Check if the manager is properly initialized."""
-        if not self._initialized or not self._manager:
-            raise RuntimeError(
-                "Manager not initialized. WorkflowSync must be used as a context manager:\n"
-                "async with WorkflowSync(session) as sync:\n"
-                "    result = await sync.execute_workflow(...)"
-            )
+    def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
+        """Get the workflow source for a given workflow ID."""
+        workflow = self.session.get(Workflow, workflow_id)
+        if not workflow:
+            return None
+        
+        # Return the associated workflow source
+        return workflow.workflow_source
 
-    async def execute_workflow(
-        self,
-        workflow: Workflow,
-        task: Task,
-        input_data: str
-    ) -> Dict[str, Any]:
+    def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
         """Execute a workflow with the given input data."""
-        # Check initialization
-        self._check_initialized()
-
-        if not workflow.input_component or not workflow.output_component:
-            task.status = "failed"
-            task.error = "Missing input/output components"
-            task.started_at = datetime.now(timezone.utc)
-            await self.session.commit()
-            
-            # Create error log
-            error_log = TaskLog(
-                id=uuid4(),
-                task_id=task.id,
-                level="error",
-                message=f"Missing input/output components",
-                created_at=datetime.now(timezone.utc)
-            )
-            self.session.add(error_log)
-            await self.session.commit()
-            
-            raise ValueError("Missing input/output components")
-
         try:
-            # Update task status to running
-            task.status = "running"
-            task.started_at = datetime.now(timezone.utc)
-            await self.session.commit()
+            # Get workflow source
+            source = self._get_workflow_source(str(workflow.id))
+            if not source:
+                raise ValueError(f"No source found for workflow {workflow.id}")
 
-            # Execute workflow
-            result = await self._manager.run_flow(workflow.remote_flow_id, input_data)
+            logger.info(f"Using workflow source: {source.url}")
+            logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
 
-            # Update task status to completed
-            task.status = "completed"
-            task.output_data = json.dumps(result)  # Store the entire result object
-            task.finished_at = datetime.now(timezone.utc)
-            await self.session.commit()
+            # Initialize LangFlow manager with the correct source settings
+            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+            self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+            
+            # Run the workflow
+            result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+            if not result:
+                raise ValueError("No result from workflow execution")
 
             return result
-
-        except httpx.HTTPStatusError as e:
-            error_msg = f"Failed to execute workflow: {e} - {e.response.text}"
-            task.error = error_msg
-            task.status = "failed"
-            task.finished_at = datetime.now(timezone.utc)
-            await self.session.commit()
-            
-            # Log the error with traceback
-            error_log = TaskLog(
-                id=uuid4(),
-                task_id=task.id,
-                level="error",
-                message=f"{error_msg}\n{traceback.format_exc()}",
-                created_at=datetime.now(timezone.utc)
-            )
-            self.session.add(error_log)
-            await self.session.commit()
-            
-            # Re-raise the exception
-            raise
-
         except Exception as e:
-            # Log the error with full traceback
-            error_msg = f"Failed to execute workflow: {str(e)}"
-            error_traceback = traceback.format_exc()
-            
-            # Update task status
-            task.status = "failed"
-            task.error = error_msg
-            task.finished_at = datetime.now(timezone.utc)
-            await self.session.commit()
-            
-            # Create error log with traceback
-            error_log = TaskLog(
-                id=uuid4(),
-                task_id=task.id,
-                level="error",
-                message=f"{error_msg}\n{error_traceback}",
-                created_at=datetime.now(timezone.utc)
-            )
-            self.session.add(error_log)
-            await self.session.commit()
-            
-            # Re-raise the exception
-            raise
+            logger.error(f"Failed to execute workflow: {str(e)}")
+            raise e
 
-    def _get_base_url(self) -> str:
-        """Get base URL for LangFlow API."""
-        if not hasattr(self, '_base_url') or self._base_url is None:
-            self._base_url = LANGFLOW_API_URL
-        return self._base_url
 
-    async def close(self):
-        """Close LangFlowManager."""
+class WorkflowSyncSync:
+    """Workflow synchronization class for synchronous workflow execution.
+    
+    This class must be used as a context manager to ensure proper initialization:
+    
+    with WorkflowSyncSync(session) as sync:
+        result = sync.execute_workflow(...)
+    """
+
+    def __init__(self, session: Session):
+        """Initialize workflow sync."""
+        self.session = session
+        self._manager = None
+        self._initialized = False
+
+    def __enter__(self):
+        """Enter the context."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the context."""
         if self._manager:
-            await self._manager.close()
+            if hasattr(self._manager, 'close'):
+                self._manager.close()
             self._manager = None
+
+    def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
+        """Get the workflow source for a given workflow ID."""
+        workflow = self.session.get(Workflow, workflow_id)
+        if not workflow:
+            return None
+        
+        # Return the associated workflow source
+        return workflow.workflow_source
+
+    def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
+        """Execute a workflow with the given input data."""
+        try:
+            # Get workflow source
+            source = self._get_workflow_source(str(workflow.id))
+            if not source:
+                raise ValueError(f"No source found for workflow {workflow.id}")
+
+            logger.info(f"Using workflow source: {source.url}")
+            logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
+
+            # Initialize LangFlow manager with the correct source settings
+            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+            self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+            
+            # Run the workflow
+            result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+            if not result:
+                raise ValueError("No result from workflow execution")
+
+            return result
+        except Exception as e:
+            logger.error(f"Failed to execute workflow: {str(e)}")
+            raise e
+
+

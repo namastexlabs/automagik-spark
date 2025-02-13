@@ -1,3 +1,4 @@
+
 """Tasks router for the AutoMagik API."""
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Security, Depends
@@ -97,3 +98,5 @@ async def run_task(
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+

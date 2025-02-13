@@ -1,3 +1,4 @@
+
 """Test cases for SchedulerManager."""
 
 import pytest
@@ -280,3 +281,5 @@ async def test_delete_nonexistent_schedule(scheduler_manager):
     """Test deleting a schedule that doesn't exist."""
     result = await scheduler_manager.delete_schedule(uuid4())
     assert result is False
+
+

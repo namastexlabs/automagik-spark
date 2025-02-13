@@ -1,3 +1,4 @@
+
 """
 Task CLI Commands
 
@@ -95,8 +96,8 @@ async def _list_tasks(workflow_id: Optional[str] = None, status: Optional[str] =
             )
             
             # Format timestamps
-            created_at = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            updated_at = task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+            created_at = task.created_at.strftime("%Y-%m-%d %H:%M:%S") if task.created_at else "N/A"
+            updated_at = task.updated_at.strftime("%Y-%m-%d %H:%M:%S") if task.updated_at else "N/A"
             
             # Add row with styling
             table.add_row(
@@ -243,20 +244,11 @@ async def _create_task(workflow_id: str, input_data: Optional[str] = None, max_r
                 logger.error(f"Workflow {workflow_id} not found")
                 raise click.ClickException(f"Workflow {workflow_id} not found")
             
-            # Parse input data if provided
-            input_dict = None
-            if input_data:
-                try:
-                    input_dict = json.loads(input_data)
-                except json.JSONDecodeError as e:
-                    msg = f"Invalid JSON input data: {str(e)}"
-                    logger.error(msg)
-                    raise click.ClickException(msg)
-            
+            # Use input data directly as a string
             workflow_manager = WorkflowManager(session)
             task = await workflow_manager.create_task(
                 workflow_id=str(workflow.id),
-                input_data=input_dict,
+                input_data=input_data if input_data else "",
                 max_retries=max_retries
             )
             
@@ -269,8 +261,16 @@ async def _create_task(workflow_id: str, input_data: Optional[str] = None, max_r
             
             if run:
                 click.echo("Running task...")
-                await workflow_manager.run_task(str(task.id))
-                click.echo("Task started")
+                # Run the workflow directly instead of just creating a task
+                task = await workflow_manager.run_workflow(
+                    workflow_id=str(workflow.id),
+                    input_data=input_data if input_data else "",
+                    existing_task=task
+                )
+                if task.status == "failed":
+                    click.echo(f"Task failed: {task.error}")
+                else:
+                    click.echo(f"Task completed with status: {task.status}")
             
             return 0
     except SQLAlchemyError as e:
@@ -288,3 +288,5 @@ async def _create_task(workflow_id: str, input_data: Optional[str] = None, max_r
 def create_task(workflow_id: str, input_data: Optional[str] = None, max_retries: int = 3, run: bool = False):
     """Create a new task for a workflow."""
     return handle_async_command(_create_task(workflow_id, input_data, max_retries, run))
+
+

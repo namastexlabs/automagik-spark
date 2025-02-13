@@ -1,3 +1,4 @@
+
 """
 Scheduler management module.
 
@@ -351,3 +352,5 @@ class SchedulerManager:
             select(Schedule).where(Schedule.id == schedule_id)
         )
         return result.scalar_one_or_none()
+
+

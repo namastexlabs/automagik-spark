@@ -1,3 +1,4 @@
+
 """Configuration for integration tests."""
 
 import os
@@ -48,3 +49,5 @@ async def session(engine):
         yield session
         await session.rollback()
         await session.close()
+
+

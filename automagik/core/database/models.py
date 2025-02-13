@@ -1,3 +1,4 @@
+
 """
 Database models for the application.
 """
@@ -9,8 +10,7 @@ import os
 import base64
 from cryptography.fernet import Fernet
 import logging
-
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID, func
 from sqlalchemy.orm import relationship
 
 from automagik.core.database.base import Base
@@ -30,11 +30,14 @@ class Workflow(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     data = Column(JSON)  # Additional workflow data
+    flow_raw_data = Column(JSON)  # Raw flow data from source
     
     # Source system info
     source = Column(String(50), nullable=False)  # e.g., "langflow"
     remote_flow_id = Column(String(255), nullable=False)  # ID of the remote flow (UUID)
     flow_version = Column(Integer, default=1)
+    workflow_source_id = Column(UUID(as_uuid=True), ForeignKey("workflow_sources.id"))
+    workflow_source = relationship("WorkflowSource", back_populates="workflows")
     
     # Component info
     input_component = Column(String(255))  # Component ID in source system
@@ -50,10 +53,6 @@ class Workflow(Base):
     liked = Column(Boolean, default=False)
     tags = Column(JSON)
     
-    # Source relationship
-    workflow_source_id = Column(UUID(as_uuid=True), ForeignKey("workflow_sources.id", ondelete="SET NULL"), nullable=True)
-    workflow_source = relationship("WorkflowSource", back_populates="workflows")
-    
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -66,6 +65,32 @@ class Workflow(Base):
     def __str__(self):
         """Return a string representation of the workflow."""
         return f"{self.name} ({self.id})"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert workflow to dictionary."""
+        return {
+            'id': str(self.id),
+            'name': self.name,
+            'description': self.description,
+            'data': self.data,
+            'flow_raw_data': self.flow_raw_data,
+            'source': self.source,
+            'remote_flow_id': self.remote_flow_id,
+            'flow_version': self.flow_version,
+            'input_component': self.input_component,
+            'output_component': self.output_component,
+            'is_component': self.is_component,
+            'folder_id': self.folder_id,
+            'folder_name': self.folder_name,
+            'icon': self.icon,
+            'icon_bg_color': self.icon_bg_color,
+            'gradient': self.gradient,
+            'liked': self.liked,
+            'tags': self.tags,
+            'workflow_source_id': str(self.workflow_source_id) if self.workflow_source_id else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 
 class WorkflowSource(Base):
@@ -167,31 +192,47 @@ class WorkflowComponent(Base):
 
 class Task(Base):
     """Task model."""
-    __tablename__ = "tasks"
+    __tablename__ = 'tasks'
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
-    
-    # Execution info
-    status = Column(String(50), nullable=False, default="pending")
-    input_data = Column(String, nullable=False)
-    output_data = Column(JSON)
-    error = Column(Text)
-    
-    # Retry info
-    tries = Column(Integer, default=0)
-    max_retries = Column(Integer, default=3)
-    next_retry_at = Column(DateTime(timezone=True))
-    
-    # Timestamps
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey('workflows.id'), nullable=False)
+    schedule_id = Column(UUID(as_uuid=True), ForeignKey('schedules.id'), nullable=True)
+    status = Column(String, nullable=False, default='pending')
+    input_data = Column(JSON, nullable=False)
+    output_data = Column(JSON, nullable=True)
+    error = Column(String, nullable=True)
+    next_retry_at = Column(DateTime(timezone=True), nullable=True)
+    tries = Column(Integer, nullable=False, default=0)
+    max_retries = Column(Integer, nullable=False, default=3)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    started_at = Column(DateTime(timezone=True))
-    finished_at = Column(DateTime(timezone=True))
 
     # Relationships
     workflow = relationship("Workflow", back_populates="tasks")
     logs = relationship("TaskLog", back_populates="task", order_by="TaskLog.created_at")
+    schedule = relationship("Schedule", back_populates="tasks")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert task to dictionary."""
+        return {
+            'id': str(self.id),
+            'workflow_id': str(self.workflow_id),
+            'schedule_id': str(self.schedule_id) if self.schedule_id else None,
+            'status': self.status,
+            'input_data': self.input_data,
+            'output_data': self.output_data,
+            'error': self.error,
+            'next_retry_at': self.next_retry_at.isoformat() if self.next_retry_at else None,
+            'tries': self.tries,
+            'max_retries': self.max_retries,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'finished_at': self.finished_at.isoformat() if self.finished_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'workflow': self.workflow.to_dict() if self.workflow else None
+        }
 
 
 class TaskLog(Base):
@@ -211,10 +252,10 @@ class TaskLog(Base):
 
 class Schedule(Base):
     """Schedule model."""
-    __tablename__ = "schedules"
+    __tablename__ = 'schedules'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey('workflows.id'), nullable=False)
     schedule_type = Column(String, nullable=False)
     schedule_expr = Column(String, nullable=False)
     workflow_params = Column(String, nullable=True)
@@ -223,13 +264,11 @@ class Schedule(Base):
     next_run_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    input_data = Column(String, nullable=True)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="schedules")
-
-    def __str__(self):
-        """Return a string representation of the schedule."""
-        return f"{self.schedule_type}:{self.schedule_expr} ({self.id})"
+    tasks = relationship("Task", back_populates="schedule")
 
 
 class Worker(Base):
@@ -250,3 +289,5 @@ class Worker(Base):
 
     # Relationships
     current_task = relationship("Task")
+
+

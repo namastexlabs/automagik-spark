@@ -1,3 +1,4 @@
+
 """Task management."""
 
 import logging
@@ -85,19 +86,20 @@ class TaskManager:
 
     async def create_task(self, task: Dict[str, Any]) -> Task:
         """Create a task."""
-        task_obj = Task()
-        task_obj.id = UUID(task.get("id")) if task.get("id") else uuid4()
-        task_obj.workflow_id = UUID(task["workflow_id"])  # Always convert to UUID
-        task_obj.status = task.get("status", "pending")
-        task_obj.input_data = task.get("input_data")
-        task_obj.error = task.get("error")
-        task_obj.tries = task.get("tries", 0)
-        task_obj.max_retries = task.get("max_retries", 3)
-        task_obj.next_retry_at = task.get("next_retry_at")
-        task_obj.created_at = datetime.now(timezone.utc)
-        task_obj.updated_at = datetime.now(timezone.utc)
-        task_obj.started_at = task.get("started_at")
-        task_obj.finished_at = task.get("finished_at")
+        task_obj = Task(
+            id=UUID(task.get("id")) if task.get("id") else uuid4(),
+            workflow_id=UUID(task["workflow_id"]),  # Always convert to UUID
+            status=task.get("status", "pending"),
+            input_data=task.get("input_data"),
+            error=task.get("error"),
+            tries=task.get("tries", 0),
+            max_retries=task.get("max_retries", 3),
+            next_retry_at=task.get("next_retry_at"),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            started_at=task.get("started_at"),
+            finished_at=task.get("finished_at")
+        )
 
         self.session.add(task_obj)
         await self.session.flush()
@@ -290,3 +292,5 @@ class TaskManager:
         except Exception as e:
             logger.error(f"Failed to retry task {task_id}: {str(e)}")
             raise ValueError(f"Failed to retry task: {str(e)}")
+
+

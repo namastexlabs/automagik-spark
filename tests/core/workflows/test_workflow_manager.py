@@ -1,3 +1,4 @@
+
 """Test workflow manager functionality."""
 
 import pytest
@@ -18,3 +19,5 @@ async def workflow_manager(session: AsyncSession) -> WorkflowManager:
     """Create a workflow manager."""
     async with WorkflowManager(session) as manager:
         yield manager
+
+

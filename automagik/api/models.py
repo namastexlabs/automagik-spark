@@ -1,3 +1,4 @@
+
 """API models for request/response validation."""
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
@@ -176,3 +177,5 @@ class WorkerStatus(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict, description="Worker statistics")
 
     model_config = ConfigDict(from_attributes=True)
+
+

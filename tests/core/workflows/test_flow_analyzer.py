@@ -1,3 +1,4 @@
+
 """Test flow analyzer functionality."""
 
 import pytest
@@ -130,3 +131,5 @@ def test_get_flow_components_missing_fields():
         assert "type" in component
         assert "tweakable_params" in component
         assert component["tweakable_params"] == []
+
+

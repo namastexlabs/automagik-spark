@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Drop and recreate database
@@ -11,3 +12,5 @@ rm -f /root/automagik/migrations/versions/*.py
 cd /root/automagik
 /root/automagik/.venv/bin/alembic revision --autogenerate -m "initial"
 /root/automagik/.venv/bin/alembic upgrade head
+
+

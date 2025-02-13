@@ -1,3 +1,4 @@
+
 """Tests for the schedules API endpoints."""
 import pytest
 from uuid import uuid4
@@ -241,3 +242,5 @@ async def test_disable_schedule_not_found(client):
     """Test disabling a non-existent schedule."""
     response = client.post(f"/api/v1/schedules/{uuid4()}/disable", headers=HEADERS)
     assert response.status_code == 404
+
+

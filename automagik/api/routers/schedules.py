@@ -1,3 +1,4 @@
+
 """Schedules router for the AutoMagik API."""
 from typing import List
 from uuid import UUID
@@ -204,3 +205,5 @@ async def disable_schedule(
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+

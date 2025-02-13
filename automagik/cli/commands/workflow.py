@@ -1,3 +1,4 @@
+
 """
 Workflow management commands.
 """
@@ -6,6 +7,7 @@ from typing import Optional, List, Dict, Any
 import asyncio
 import click
 from sqlalchemy import select
+from datetime import datetime
 
 from ...core.database.session import get_session
 from ...core.database.models import WorkflowSource
@@ -36,7 +38,7 @@ def list_workflows(folder: Optional[str]):
 
             # Get workflows with eager loading of tasks and schedules
             async with WorkflowManager(session) as manager:
-                workflows = await manager.list_workflows(options={"joinedload": ["tasks", "schedules"]})
+                workflows = await manager.list_workflows(options={"with_source": True})
                 
                 if not workflows:
                     click.secho("\n No workflows found", fg="yellow")
@@ -44,7 +46,7 @@ def list_workflows(folder: Optional[str]):
                 
                 # Filter by folder if specified
                 if folder:
-                    workflows = [w for w in workflows if w.folder == folder]
+                    workflows = [w for w in workflows if w.get('folder_name') == folder]
                 
                 # Create table with consistent styling
                 table = create_rich_table(
@@ -64,18 +66,18 @@ def list_workflows(folder: Optional[str]):
 
                 # Add rows with proper styling
                 for w in workflows:
-                    tasks = getattr(w, 'tasks', [])
-                    schedules = getattr(w, 'schedules', [])
-                    latest_task = max(tasks, key=lambda t: t.created_at, default=None) if tasks else None
+                    tasks = w.get('tasks', [])
+                    schedules = w.get('schedules', [])
+                    latest_task = max(tasks, key=lambda t: t['created_at'], default=None) if tasks else None
                     
                     # Count failed tasks
-                    failed_tasks = sum(1 for t in tasks if t.status.lower() == 'failed')
+                    failed_tasks = sum(1 for t in tasks if t['status'].lower() == 'failed')
                     
                     # Determine workflow status from latest run
                     if not latest_task:
                         status = "[bold yellow]NEW[/bold yellow]"
                     else:
-                        status = get_status_style(latest_task.status)
+                        status = get_status_style(latest_task['status'])
                     
                     # Format task counts
                     if failed_tasks > 0:
@@ -85,24 +87,29 @@ def list_workflows(folder: Optional[str]):
                     
                     # Get source display name from workflow source
                     instance_name = "unknown"
-                    source_type = w.source if w.source else "unknown"
-                    if w.workflow_source_id and str(w.workflow_source_id) in sources:
-                        source = sources[str(w.workflow_source_id)]
+                    source_type = w.get('source', 'unknown')
+                    if w.get('workflow_source_id') and str(w['workflow_source_id']) in sources:
+                        source = sources[str(w['workflow_source_id'])]
                         url = source.url
                         instance = url.split('://')[-1].split('/')[0]
                         instance = instance.split('.')[0]
                         instance_name = instance
                     
+                    # Parse timestamp from ISO format
+                    updated_at = w['updated_at']
+                    if isinstance(updated_at, str):
+                        updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                    
                     # Format the row
                     table.add_row(
-                        str(w.id),  # ID
-                        w.name,  # Name
+                        str(w['id']),  # ID
+                        w['name'],  # Name
                         status,  # Latest run status
                         tasks_display,  # Tasks count with failed count
                         f"[bold]{len(schedules)}[/bold]",  # Schedules count
                         f"[italic]{instance_name}[/italic]",  # Instance name
                         f"[dim]{source_type}[/dim]",  # Source type
-                        format_timestamp(w.updated_at)  # Last Updated
+                        format_timestamp(updated_at)  # Last Updated
                     )
                 
                 print_table(table)
@@ -165,15 +172,19 @@ def sync_flow(flow_id: Optional[str], source: Optional[str], page: int, page_siz
                                 src_url = src.url
                                 
                             flows = await manager.list_remote_flows(source_url=src_url)
-                            if flows and flows.get("flows"):
-                                # Add source info to each flow
-                                for flow in flows["flows"]:
-                                    flow["source_url"] = src_url
-                                    # Get instance name from URL
-                                    instance = src_url.split('://')[-1].split('/')[0]
-                                    instance = instance.split('.')[0]
-                                    flow["instance"] = instance
-                                all_flows.extend(flows["flows"])
+                            if flows:
+                                # Get instance name from URL
+                                instance = src_url.split('://')[-1].split('/')[0]
+                                instance = instance.split('.')[0]
+                                
+                                # Add source info to each flow's data before creating FlowResponse
+                                for flow in flows:
+                                    flow_data = {
+                                        **flow,
+                                        "source_url": src_url,
+                                        "instance": instance
+                                    }
+                                    all_flows.append(flow_data)
                         except Exception as e:
                             click.secho(f"\nError fetching flows from {src_url}: {str(e)}", fg="red")
                             continue
@@ -266,14 +277,17 @@ def delete_workflow(workflow_id: str):
 @click.argument("workflow_id")
 @click.option("--input", "-i", help="Input string", default="")
 def run_workflow(workflow_id: str, input: str):
-    """Run a workflow directly."""
+    """Run a workflow directly.
+    
+    WORKFLOW_ID can be either a local workflow ID or a remote flow ID.
+    """
     async def _run():
         try:
             async with get_session() as session:
                 workflow_manager = WorkflowManager(session)
                 
                 # Run workflow with string input
-                task = await workflow_manager.run_workflow(UUID(workflow_id), input)
+                task = await workflow_manager.run_workflow(workflow_id, input)
                 
                 if task:
                     click.echo(f"Task {task.id} completed successfully")
@@ -290,3 +304,5 @@ def run_workflow(workflow_id: str, input: str):
 
 if __name__ == "__main__":
     workflow_group()
+
+

@@ -1,3 +1,4 @@
+
 """Tests for the API endpoints."""
 import os
 import datetime
@@ -192,3 +193,5 @@ async def test_health_check(client: TestClient, clean_env):
     data = response.json()
     assert data["status"] == "healthy"
     assert isinstance(data["timestamp"], str)
+
+

@@ -1,4 +1,5 @@
 
+
 ## Automagik Codebase Guide for AI Agents
 
 **Objective:** Your primary goal is to understand, enhance, and maintain the Automagik codebase. You will be implementing new features, fixing bugs, and improving existing functionality.
@@ -27,7 +28,7 @@
 
 The Automagik project is organized as follows:
 
-```
+\`\`\`
 automagik/
 ├── automagik/            # Main application package
 │   ├── api/              # FastAPI application (endpoints, models, dependencies)
@@ -150,7 +151,7 @@ automagik/
 ├── requirements.txt  # Project dependencies
 └── setup.py          # Project setup and metadata
 
-```
+\`\`\`
 
 ### 2. Core Features and Modules
 
@@ -350,3 +351,4 @@ automagik/
 6. **Run tests** using `pytest` to ensure your command works as expected.
 
 ---
+

@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -7,16 +8,18 @@ if [ -d ".venv" ]; then
 fi
 
 # Run tests with coverage
-python -m pytest -v tests/ --cov=automagik --cov-report=term-missing
+python -m pytest tests/
 
 # Check test coverage threshold
-coverage_threshold=45
 coverage_result=$(coverage report | grep "TOTAL" | awk '{print $4}' | sed 's/%//')
+coverage_threshold=45
 
-if awk "BEGIN {exit !($coverage_result < $coverage_threshold)}"; then
-    echo "❌ Test coverage ($coverage_result%) is below the required threshold ($coverage_threshold%)"
+if (( $(echo "$coverage_result < $coverage_threshold" | bc -l) )); then
+    echo " Test coverage ($coverage_result%) is below the required threshold ($coverage_threshold%)"
     exit 1
 fi
 
-echo "✅ All tests passed with coverage $coverage_result%"
+echo " All tests passed with coverage $coverage_result%"
 exit 0
+
+

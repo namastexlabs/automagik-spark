@@ -1,3 +1,4 @@
+
 """Async helper functions for CLI commands."""
 
 import asyncio
@@ -16,3 +17,5 @@ def handle_async_command(coro: Coroutine) -> Callable[..., Any]:
     except Exception as e:
         logger.error(f"Command failed: {str(e)}")
         raise click.ClickException(str(e))
+
+

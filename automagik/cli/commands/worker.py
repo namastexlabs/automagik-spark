@@ -1,3 +1,4 @@
+
 """
 Worker Command Module
 
@@ -14,7 +15,8 @@ import signal
 import socket
 import sys
 import re
-
+import subprocess
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
@@ -28,11 +30,21 @@ from ...core.workflows.manager import WorkflowManager
 from ...core.workflows.task import TaskManager
 from ...core.scheduler.scheduler import WorkflowScheduler as SchedulerManager
 from ...core.workflows.remote import LangFlowManager
+from ...core.celery_config import app as celery_app
+from ...core.tasks.workflow_tasks import execute_workflow, schedule_workflow
 from tabulate import tabulate
 
 # Initialize logger with basic configuration
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# Configure paths
+LOG_DIR = os.path.expanduser('~/.automagik')
+WORKER_PID_FILE = os.path.join(LOG_DIR, 'worker.pid')
+BEAT_PID_FILE = os.path.join(LOG_DIR, 'beat.pid')
+
+# Ensure log directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
 
 def configure_logging():
     """Configure logging based on environment variables."""
@@ -74,72 +86,8 @@ def configure_logging():
     
     return log_path
 
-async def run_workflow(workflow_manager: WorkflowManager, task: Task) -> bool:
-    """Run a workflow."""
-    try:
-        # Get workflow
-        workflow = await workflow_manager.get_workflow(str(task.workflow_id))
-        if not workflow:
-            logger.error(f"Workflow {task.workflow_id} not found")
-            return False
-        
-        # Log workflow execution
-        logger.info(f"Running workflow {workflow.name} (remote_flow_id: {workflow.remote_flow_id}) for task {task.id}")
-        logger.info(f"Input data: {json.dumps(task.input_data, indent=2)}")
-        
-        # Get workflow source
-        source = await workflow_manager._get_workflow_source(str(task.workflow_id))
-        if not source:
-            logger.error(f"Workflow source not found for workflow {task.workflow_id}")
-            return False
-            
-        # Execute workflow using LangFlowManager with correct source
-        async with LangFlowManager(
-            workflow_manager.session,
-            api_url=source.url,
-            api_key=source.decrypt_api_key(source.encrypted_api_key)
-        ) as langflow:
-            # Update task status to running
-            task.status = 'running'
-            task.started_at = datetime.now(timezone.utc)
-            await workflow_manager.session.commit()
-            
-            result = await langflow.run_flow(workflow.remote_flow_id, task.input_data)
-            
-            if result:
-                logger.info(f"Task {task.id} completed successfully")
-                logger.info(f"Output data: {json.dumps(result, indent=2)}")
-                task.output_data = result
-                task.status = 'completed'
-                task.finished_at = datetime.now(timezone.utc)
-                await workflow_manager.session.commit()
-                return True
-            else:
-                logger.error(f"Task {task.id} failed - no result returned")
-                task.status = 'failed'
-                task.error = "No result returned from workflow execution"
-                task.finished_at = datetime.now(timezone.utc)
-                await workflow_manager.session.commit()
-                return False
-        
-    except Exception as e:
-        import traceback
-        error_details = {
-            'error': str(e),
-            'traceback': traceback.format_exc(),
-            'workflow_id': str(workflow.id) if workflow else str(task.workflow_id),
-            'task_id': str(task.id),
-            'input_data': task.input_data
-        }
-        logger.error(f"Failed to run workflow: {json.dumps(error_details, indent=2)}")
-        task.status = 'failed'
-        task.error = json.dumps(error_details)
-        task.finished_at = datetime.now(timezone.utc)
-        await workflow_manager.session.commit()
-        return False
-
 async def process_schedule(session, schedule, workflow_manager, now=None):
-    """Process a single schedule."""
+    """Process a single schedule using Celery task."""
     if now is None:
         now = datetime.now(timezone.utc)
         
@@ -151,13 +99,10 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
         # Create task
         input_data = schedule.workflow_params
         if isinstance(input_data, str):
-            # If input_data is a string, keep it as is
             task_input = input_data
         elif isinstance(input_data, dict):
-            # If input_data is a dict, convert it to JSON string
             task_input = json.dumps(input_data)
         else:
-            # Default to empty dict if None or invalid type
             task_input = "{}"
             
         task = Task(
@@ -166,8 +111,9 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
             status='pending',
             input_data=task_input,
             created_at=now,
+            updated_at=now,
             tries=0,
-            max_retries=3  # Configure max retries
+            max_retries=3
         )
         session.add(task)
         await session.commit()
@@ -176,482 +122,276 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
         logger.info(f"Created task {task.id} for schedule {schedule.id}")
         logger.debug(f"Task input data: {task.input_data}")
         
-        # Run task
-        success = await run_workflow(workflow_manager, task)
-        
-        if success:
-            logger.info(f"Successfully executed workflow '{schedule.workflow.name}'")
-            task.status = 'completed'
-            task.finished_at = datetime.now(timezone.utc)
-        else:
-            logger.error(f"Failed to execute workflow '{schedule.workflow.name}'")
-            # Only retry if we haven't exceeded max retries
-            if task.tries < task.max_retries:
-                task.status = 'pending'
-                task.tries += 1
-                task.next_retry_at = now + timedelta(minutes=5 * task.tries)  # Exponential backoff
-                logger.info(f"Will retry task {task.id} in {5 * task.tries} minutes (attempt {task.tries + 1}/{task.max_retries})")
-            else:
-                task.status = 'failed'
-                task.finished_at = datetime.now(timezone.utc)
-                logger.error(f"Task {task.id} failed after {task.tries} attempts")
-        
-        await session.commit()
+        # Queue task in Celery
+        execute_workflow.delay(str(task.id))
         
         # Update next run time for interval schedules
-        if schedule.schedule_type == 'interval':
-            try:
-                delta = parse_interval(schedule.schedule_expr)
-                if delta.total_seconds() <= 0:
-                    raise ValueError("Interval must be positive")
-                schedule.next_run_at = now + delta
-                await session.commit()
-                logger.info(f"Next run scheduled for {schedule.next_run_at.strftime('%H:%M:%S UTC')}")
-            except ValueError as e:
-                logger.error(f"Invalid interval: {e}")
-                return False
+        if schedule.interval:
+            schedule.next_run = now + parse_interval(schedule.interval)
+            await session.commit()
+            
         return True
+        
     except Exception as e:
         logger.error(f"Failed to process schedule {schedule.id}: {str(e)}")
-        # Create error log
-        try:
-            task_log = TaskLog(
-                id=uuid4(),
-                task_id=task.id,
-                level='error',
-                message=f"Schedule processing error: {str(e)}",
-                created_at=now
-            )
-            session.add(task_log)
-            await session.commit()
-        except Exception as log_error:
-            logger.error(f"Failed to create error log: {str(log_error)}")
         return False
 
-def parse_interval(interval_str: str) -> timedelta:
-    """Parse an interval string into a timedelta.
-    
-    Args:
-        interval_str: String in format like "30m", "1h", "7d"
-        
-    Returns:
-        timedelta object
-        
-    Raises:
-        ValueError: If interval format is invalid
-    """
-    if not interval_str:
-        raise ValueError("Interval string cannot be empty")
-        
-    units = {
-        's': 'seconds',
-        'm': 'minutes',
-        'h': 'hours',
-        'd': 'days',
-        'w': 'weeks'
-    }
-    
-    # Extract number and unit
-    match = re.match(r'^(\d+)([smhdw])$', interval_str)
-    if not match:
-        raise ValueError(f"Invalid interval format: {interval_str}")
-        
-    value, unit = match.groups()
-    value = int(value)
-    
-    if value < 1:
-        raise ValueError(f"Interval value must be positive: {value}")
-        
-    # Convert to timedelta
-    return timedelta(**{units[unit]: value})
+def save_worker_pid(pid):
+    """Save worker PID to file."""
+    with open(WORKER_PID_FILE, 'w') as f:
+        f.write(str(pid))
 
-async def process_schedules(session):
-    """Process due schedules."""
-    now = datetime.now(timezone.utc)
+def save_beat_pid(pid):
+    """Save beat scheduler PID to file."""
+    with open(BEAT_PID_FILE, 'w') as f:
+        f.write(str(pid))
 
-    workflow_manager = WorkflowManager(session)
-    task_manager = TaskManager(session)
-
-    # Get active schedules that are due
-    stmt = select(Schedule).join(Workflow).where(
-        Schedule.status == "active",
-        Schedule.next_run_at <= now
-    )
-    result = await session.execute(stmt)
-    schedules = result.scalars().all()
-
-    for schedule in schedules:
-        # Check if there are any running tasks for this workflow
-        stmt = select(func.count()).select_from(Task).where(
-            Task.workflow_id == schedule.workflow_id,
-            Task.status.in_(["running", "pending"])
-        )
-        result = await session.execute(stmt)
-        running_tasks = result.scalar()
-
-        if running_tasks == 0:
-            # Create task using TaskManager
-            task_data = {
-                "workflow_id": str(schedule.workflow_id),
-                "status": "pending",
-                "input_data": schedule.workflow_params or {},
-                "tries": 0,
-                "max_retries": 3  # Configure max retries
-            }
-            task = await task_manager.create_task(task_data)
-            logger.info(f"Created task {task.id} for schedule {schedule.id}")
-
-            # Update next run time
-            if schedule.schedule_type == "interval":
-                interval = parse_interval(schedule.schedule_expr)
-                schedule.next_run_at = now + interval
-                await session.commit()
-
-async def worker_loop():
-    """Worker loop."""
-    # Skip worker registration in test environment
-    if os.getenv("AUTOMAGIK_ENV") == "testing":
-        logger.info("Skipping worker registration in test environment")
-        return
-        
-    logger.info("Automagik worker started")
-    
-    # Register worker in database
-    worker_id = str(uuid4())
-    hostname = socket.gethostname()
-    pid = os.getpid()
-    
-    async with get_session() as session:
-        worker = Worker(
-            id=worker_id,
-            hostname=hostname,
-            pid=pid,
-            status='active',
-            stats={},
-            last_heartbeat=datetime.now(timezone.utc)
-        )
-        session.add(worker)
-        await session.commit()
-        logger.info(f"Registered worker {worker_id} ({hostname}:{pid})")
-    
+def get_worker_pid():
+    """Get worker PID from file."""
     try:
-        while True:
-            try:
-                async with get_session() as session:
-                    # Update worker heartbeat
-                    stmt = select(Worker).filter(Worker.id == worker_id)
-                    result = await session.execute(stmt)
-                    worker = result.scalar_one_or_none()
-                    if worker:
-                        now = datetime.now(timezone.utc)
-                        worker.last_heartbeat = now
-                        
-                        # Get upcoming tasks in next 10 minutes
-                        ten_mins_later = now + timedelta(minutes=10)
-                        stmt = select(Schedule).where(
-                            Schedule.status == "active",
-                            Schedule.next_run_at <= ten_mins_later,
-                            Schedule.next_run_at > now
-                        )
-                        result = await session.execute(stmt)
-                        upcoming = list(result.scalars().all())
-                        
-                        if upcoming:
-                            logger.info(f"Found {len(upcoming)} tasks to run in next 10 minutes")
-                            for schedule in upcoming:
-                                time_until = schedule.next_run_at - now
-                                hours = int(time_until.total_seconds() // 3600)
-                                minutes = int((time_until.total_seconds() % 3600) // 60)
-                                seconds = int(time_until.total_seconds() % 60)
-                                logger.info(f"Next task for workflow {schedule.workflow_id} will run in {hours:02d}h{minutes:02d}m{seconds:02d}s")
-                        
-                        await session.commit()
-                    
-                    # Process schedules
-                    await process_schedules(session)
-                    
-                    # Execute pending tasks
-                    workflow_manager = WorkflowManager(session)
-                    stmt = select(Task).where(
-                        Task.status == "pending",
-                        or_(
-                            Task.next_retry_at.is_(None),
-                            Task.next_retry_at <= datetime.now(timezone.utc)
-                        )
-                    )
-                    result = await session.execute(stmt)
-                    pending_tasks = result.scalars().all()
-                    
-                    for task in pending_tasks:
-                        try:
-                            await run_workflow(workflow_manager, task)
-                            logger.info(f"Executed task {task.id}")
-                        except Exception as e:
-                            import traceback
-                            error_details = {
-                                'error': str(e),
-                                'traceback': traceback.format_exc(),
-                                'task_id': str(task.id),
-                                'workflow_id': str(task.workflow_id),
-                                'input_data': task.input_data
-                            }
-                            logger.error(f"Failed to execute task {task.id}: {json.dumps(error_details, indent=2)}")
-                
-            except Exception as e:
-                logger.error(f"Worker error: {str(e)}")
-                
-            await asyncio.sleep(10)
-    finally:
-        # Remove worker from database on shutdown
-        async with get_session() as session:
-            stmt = select(Worker).filter(Worker.id == worker_id)
-            result = await session.execute(stmt)
-            worker = result.scalar_one_or_none()
-            if worker:
-                await session.delete(worker)
-                await session.commit()
-                logger.info(f"Unregistered worker {worker_id}")
-
-def get_pid_file():
-    """Get the path to the worker PID file."""
-    pid_dir = os.path.expanduser("~/.automagik")
-    return os.path.join(pid_dir, "worker.pid")
-
-def write_pid():
-    """Write the current process ID to the PID file."""
-    pid_file = get_pid_file()
-    logger.info(f"Writing PID {os.getpid()} to {pid_file}")
-    with open(pid_file, "w") as f:
-        f.write(str(os.getpid()))
-
-def read_pid():
-    """Read the worker process ID from the PID file."""
-    pid_file = os.path.expanduser("~/.automagik/worker.pid")
-    logger.debug(f"Reading PID from {pid_file}")
-    try:
-        with open(pid_file, "r") as f:
+        with open(WORKER_PID_FILE, 'r') as f:
             return int(f.read().strip())
     except (FileNotFoundError, ValueError):
         return None
 
-def is_worker_running():
-    """Check if the worker process is running."""
-    pid = read_pid()
-    if pid is None:
-        return False
-    
+def get_beat_pid():
+    """Get beat scheduler PID from file."""
     try:
-        # Check if process exists and is our worker
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        # Process doesn't exist
-        logger.debug(f"Process {pid} not found, cleaning up PID file")
-        try:
-            os.unlink(get_pid_file())
-        except FileNotFoundError:
-            pass
-        return False
-    except PermissionError:
-        # Process exists but we don't have permission to send signal
-        return True
+        with open(BEAT_PID_FILE, 'r') as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
 
-def stop_worker():
-    """Stop the worker process."""
-    pid_file = os.path.expanduser("~/.automagik/worker.pid")
-    if not os.path.exists(pid_file):
-        logger.info("No worker process found")
-        return
-        
+def remove_worker_pid():
+    """Remove worker PID file."""
     try:
-        with open(pid_file, 'r') as f:
-            pid = int(f.read().strip())
-            
-        # Try to terminate process
-        process = psutil.Process(pid)
-        if process.is_running() and process.name() == "python":
-            process.terminate()
-            try:
-                process.wait(timeout=10)  # Wait up to 10 seconds
-            except psutil.TimeoutExpired:
-                process.kill()  # Force kill if it doesn't terminate
-            logger.info("Worker process stopped")
-        else:
-            logger.info("Worker process not running")
-            
-        os.remove(pid_file)
-            
-    except (ProcessLookupError, psutil.NoSuchProcess):
-        logger.info("Worker process not found")
-        os.remove(pid_file)
-    except Exception as e:
-        logger.error(f"Error stopping worker: {e}")
+        os.remove(WORKER_PID_FILE)
+    except FileNotFoundError:
+        pass
 
-def handle_signal(signum, frame):
-    """Handle termination signals."""
-    logger.info("Received termination signal. Shutting down...")
-    sys.exit(0)
-
-def daemonize():
-    """Daemonize the current process."""
+def remove_beat_pid():
+    """Remove beat scheduler PID file."""
     try:
-        # First fork (detaches from parent)
-        pid = os.fork()
-        if pid > 0:
-            sys.exit(0)  # Parent process exits
-    except OSError as err:
-        logger.error(f'First fork failed: {err}')
-        sys.exit(1)
-    
-    # Decouple from parent environment
-    os.chdir('/')  # Change working directory
-    os.umask(0)
-    os.setsid()
-    
-    # Second fork (relinquish session leadership)
-    try:
-        pid = os.fork()
-        if pid > 0:
-            sys.exit(0)  # Parent process exits
-    except OSError as err:
-        logger.error(f'Second fork failed: {err}')
-        sys.exit(1)
-    
-    # Close all open file descriptors
-    for fd in range(0, 1024):
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-    
-    # Redirect standard file descriptors
-    sys.stdout.flush()
-    sys.stderr.flush()
-    
-    with open(os.devnull, 'r') as f:
-        os.dup2(f.fileno(), sys.stdin.fileno())
-    with open(os.devnull, 'a+') as f:
-        os.dup2(f.fileno(), sys.stdout.fileno())
-    with open(os.devnull, 'a+') as f:
-        os.dup2(f.fileno(), sys.stderr.fileno())
+        os.remove(BEAT_PID_FILE)
+    except FileNotFoundError:
+        pass
 
 worker_group = click.Group(name="worker", help="Worker management commands")
 
-@worker_group.command("start")
-@click.option("--threads", default=1, help="Number of worker threads")
-def start_worker(threads: int):
-    """Start worker process."""
-    # Configure logging first
-    log_path = configure_logging()
-    logger.info(f"Worker logs will be written to {log_path}")
-
-    # Check if worker is already running
-    if is_worker_running():
-        logger.info("Worker is already running")
-        return
-        
-    # Write PID file
-    pid_dir = os.path.dirname(get_pid_file())
-    os.makedirs(pid_dir, exist_ok=True)
-    write_pid()
-
-    logger.info("Starting worker process")
-
-    # Set up signal handlers
-    signal.signal(signal.SIGTERM, handle_signal)
-    signal.signal(signal.SIGINT, handle_signal)
-
-    # Run the worker loop
+@worker_group.command()
+@click.option('--threads', default=2, type=int, help='Number of worker threads')
+def start(threads: int = 2):
+    """Start the worker."""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If we're in a test environment with a running loop
-            loop.create_task(worker_loop())
+        # Configure logging
+        configure_logging()
+        
+        # Check if worker is already running
+        if get_worker_pid():
+            click.echo("Worker is already running")
+            return
+        
+        # Check if beat scheduler is already running
+        if get_beat_pid():
+            click.echo("Beat scheduler is already running")
+            return
+        
+        # Create log directory
+        log_dir = os.path.expanduser('~/.automagik')
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Start worker process
+        worker_cmd = [
+            'celery',
+            '-A', 'automagik.core.celery_config',
+            'worker',
+            '--loglevel=INFO',
+            '-P', 'prefork',
+            '--concurrency', str(threads),
+            '--logfile', os.path.join(log_dir, 'worker.log'),
+            '--pidfile', os.path.join(log_dir, 'worker.pid'),
+            '--hostname', 'celery@automagik',
+            '--without-gossip',  # Disable gossip to avoid broken pipe
+            '--without-mingle',  # Disable mingle to avoid broken pipe
+            '--without-heartbeat',  # Disable heartbeat to avoid broken pipe
+        ]
+        
+        # Start worker in background
+        with open(os.devnull, 'w') as devnull:
+            worker_process = subprocess.Popen(
+                worker_cmd,
+                stdout=devnull,
+                stderr=devnull,
+                preexec_fn=os.setsid,
+                env=dict(os.environ, PYTHONUNBUFFERED='1')
+            )
+        
+        # Save worker PID
+        save_worker_pid(worker_process.pid)
+        
+        # Start beat scheduler process
+        beat_cmd = [
+            'celery',
+            '-A', 'automagik.core.celery_config',
+            'beat',
+            '--loglevel=INFO',
+            '--logfile', os.path.join(log_dir, 'beat.log'),
+            '--pidfile', os.path.join(log_dir, 'beat.pid'),
+            '--schedule', os.path.join(log_dir, 'celerybeat-schedule'),
+            '--max-interval', '60',
+        ]
+        
+        # Start beat scheduler in background
+        with open(os.devnull, 'w') as devnull:
+            beat_process = subprocess.Popen(
+                beat_cmd,
+                stdout=devnull,
+                stderr=devnull,
+                preexec_fn=os.setsid,
+                env=dict(os.environ, PYTHONUNBUFFERED='1')
+            )
+            
+        # Wait a moment to ensure processes started
+        time.sleep(2)
+        
+        # Save beat PID
+        save_beat_pid(beat_process.pid)
+        
+        # Verify both processes are running
+        worker_running = False
+        beat_running = False
+        try:
+            os.kill(worker_process.pid, 0)
+            worker_running = True
+        except ProcessLookupError:
+            pass
+            
+        try:
+            os.kill(beat_process.pid, 0)
+            beat_running = True
+        except ProcessLookupError:
+            pass
+            
+        if worker_running and beat_running:
+            click.echo("Worker and beat scheduler started successfully")
         else:
-            # If we're running normally
-            loop.run_until_complete(worker_loop())
+            if not worker_running:
+                click.echo("Worker failed to start")
+            if not beat_running:
+                click.echo("Beat scheduler failed to start")
+            sys.exit(1)
+            
     except Exception as e:
-        logger.exception("Worker failed")
+        click.echo(f"Failed to start worker: {e}")
         sys.exit(1)
 
-
-@worker_group.command("stop")
-@click.argument("worker_id", required=False)
-def stop_worker_command(worker_id: Optional[str]):
-    """Stop worker process."""
-    if not is_worker_running():
-        click.echo("No worker process is running")
-        return
-        
-    click.echo("Stopping worker process...")
-    stop_worker()
-    click.echo("Worker process stopped")
-
-
-@worker_group.command("status")
-def worker_status():
-    """Get worker status."""
-    async def _status():
-        async with get_session() as session:
-            # Get all workers
-            result = await session.execute(
-                select(Worker).order_by(Worker.created_at.desc())
-            )
-            workers = result.scalars().all()
-
-            if not workers:
-                click.echo("No workers found")
-                return
-
-            # Format for display
-            now = datetime.now(timezone.utc)
-            rows = []
-            for w in workers:
-                # Check if process is running
-                try:
-                    proc = psutil.Process(w.pid)
-                    running = proc.is_running()
-                except psutil.NoSuchProcess:
-                    running = False
-
-                # Format last heartbeat
-                if w.last_heartbeat:
-                    last_hb = (now - w.last_heartbeat).total_seconds()
-                    last_hb = f"{int(last_hb)}s ago"
-                else:
-                    last_hb = "Never"
-
-                rows.append([
-                    str(w.id)[:8],
-                    w.hostname,
-                    w.pid,
-                    "Running" if running else "Dead",
-                    w.status,
-                    str(w.current_task_id)[:8] if w.current_task_id else "",
-                    last_hb
-                ])
-
-            if rows:
-                headers = ["ID", "Hostname", "PID", "State", "Status", "Task", "Last HB"]
-                click.echo(tabulate(rows, headers=headers))
-
+@worker_group.command()
+def stop():
+    """Stop the worker."""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If we're in a test environment with a running loop
-            loop.create_task(_status())
+        # Stop worker
+        worker_pid = get_worker_pid()
+        if worker_pid:
+            try:
+                # Try to stop worker gracefully first
+                os.kill(worker_pid, signal.SIGTERM)
+                # Wait for process to stop
+                for _ in range(10):
+                    try:
+                        os.kill(worker_pid, 0)  # Check if process exists
+                        time.sleep(0.1)
+                    except ProcessLookupError:
+                        break
+                else:
+                    # Force kill if still running
+                    try:
+                        os.kill(worker_pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                
+                click.echo("Worker stopped successfully")
+            except ProcessLookupError:
+                click.echo("Worker process not found")
+            finally:
+                remove_worker_pid()
         else:
-            # If we're running normally
-            loop.run_until_complete(_status())
-    except RuntimeError:
-        # If we can't get the current loop, create a new one
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+            click.echo("No worker is running")
+        
+        # Stop beat scheduler
+        beat_pid = get_beat_pid()
+        if beat_pid:
+            try:
+                # Try to stop beat scheduler gracefully first
+                os.kill(beat_pid, signal.SIGTERM)
+                # Wait for process to stop
+                for _ in range(10):
+                    try:
+                        os.kill(beat_pid, 0)  # Check if process exists
+                        time.sleep(0.1)
+                    except ProcessLookupError:
+                        break
+                else:
+                    # Force kill if still running
+                    try:
+                        os.kill(beat_pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                
+                click.echo("Beat scheduler stopped successfully")
+            except ProcessLookupError:
+                click.echo("Beat scheduler process not found")
+            finally:
+                remove_beat_pid()
+        else:
+            click.echo("No beat scheduler is running")
+            
+    except Exception as e:
+        click.echo(f"Failed to stop worker: {e}")
+        sys.exit(1)
+
+@worker_group.command()
+def status():
+    """Get worker status."""
+    worker_pid = get_worker_pid()
+    beat_pid = get_beat_pid()
+    if worker_pid:
+        click.echo(f"Worker is running (PID: {worker_pid})")
+        
+        # Get Celery stats
         try:
-            loop.run_until_complete(_status())
-        finally:
-            loop.close()
-            asyncio.set_event_loop(None)
+            inspector = celery_app.control.inspect()
+            active = inspector.active()
+            scheduled = inspector.scheduled()
+            reserved = inspector.reserved()
+            
+            if active:
+                click.echo("\nActive tasks:")
+                for worker_name, tasks in active.items():
+                    click.echo(f"{worker_name}: {len(tasks)} tasks")
+                    for task in tasks:
+                        click.echo(f"  - {task['name']} (id: {task['id']})")
+            
+            if scheduled:
+                click.echo("\nScheduled tasks:")
+                for worker_name, tasks in scheduled.items():
+                    click.echo(f"{worker_name}: {len(tasks)} tasks")
+            
+            if reserved:
+                click.echo("\nReserved tasks:")
+                for worker_name, tasks in reserved.items():
+                    click.echo(f"{worker_name}: {len(tasks)} tasks")
+                    
+        except Exception as e:
+            click.echo(f"Could not fetch Celery stats: {e}")
+    else:
+        click.echo("Worker is not running")
+
+    if beat_pid:
+        click.echo(f"Beat scheduler is running (PID: {beat_pid})")
+    else:
+        click.echo("Beat scheduler is not running")
 
 if __name__ == "__main__":
     worker_group()
+
+

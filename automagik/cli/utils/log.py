@@ -1,3 +1,4 @@
+
 """Logging utilities."""
 
 import logging
@@ -16,3 +17,5 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
     return logger
+
+

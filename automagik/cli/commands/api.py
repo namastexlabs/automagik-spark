@@ -1,3 +1,4 @@
+
 """API server command."""
 
 import click
@@ -20,3 +21,5 @@ def start_api(host: str, port: int, reload: bool):
         reload=reload,
         log_level="info",
     )
+
+

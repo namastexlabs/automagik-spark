@@ -1,3 +1,4 @@
+
 """Test local workflow manager functionality."""
 
 import pytest
@@ -234,3 +235,5 @@ async def test_delete_workflow_failure(
     # Test with invalid UUID
     success = await workflow_manager.delete_workflow("invalid")
     assert success is False
+
+

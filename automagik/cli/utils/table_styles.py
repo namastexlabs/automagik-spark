@@ -1,3 +1,4 @@
+
 """Utility functions for consistent table styling across CLI commands."""
 
 from rich.console import Console
@@ -69,3 +70,5 @@ def print_table(table: Table) -> None:
     console.print()  # Add spacing before
     console.print(table)
     console.print()  # Add spacing after
+
+

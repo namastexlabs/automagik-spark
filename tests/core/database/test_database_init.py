@@ -1,3 +1,4 @@
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,3 +38,5 @@ async def test_database_tables_exist(session: AsyncSession):
                 await session.execute(text(f"SELECT 1 FROM {table} LIMIT 1"))
             except Exception as e:
                 pytest.fail(f"Failed to query table {table}: {str(e)}")
+
+

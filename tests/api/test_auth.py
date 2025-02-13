@@ -1,3 +1,4 @@
+
 """Tests for API authentication."""
 import os
 import pytest
@@ -114,3 +115,5 @@ async def test_api_key_whitespace(client, clean_env):
     error = response.json()
     assert "detail" in error
     assert "Invalid API key" in error["detail"]
+
+

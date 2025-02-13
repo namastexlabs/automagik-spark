@@ -1,3 +1,4 @@
+
 """
 Schedule Management Commands
 
@@ -20,7 +21,7 @@ from sqlalchemy import select
 from ...core.workflows import WorkflowManager
 from ...core.scheduler.scheduler import WorkflowScheduler
 from ...core.database.session import get_session
-from ...core.database.models import Workflow
+from ...core.database.models import Workflow, Schedule
 from ..utils.table_styles import (
     create_rich_table,
     format_timestamp,
@@ -30,14 +31,14 @@ from ..utils.table_styles import (
 
 logger = logging.getLogger(__name__)
 
-@click.group(name='schedules')
+@click.group(name='schedule')
 def schedule_group():
     """Manage workflow schedules."""
     pass
 
 @schedule_group.command()
 def create():
-    """Create a new schedule."""
+    """Create a new schedule. Interactive command."""
     async def _create_schedule():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
@@ -52,8 +53,9 @@ def create():
             click.echo("\nAvailable Workflows:")
             for i, workflow in enumerate(workflows):
                 # Get schedule count safely
-                schedule_count = len(workflow.schedules) if hasattr(workflow, 'schedules') and workflow.schedules else 0
-                click.echo(f"{i}: {workflow.name} ({schedule_count} schedules)")
+                schedule_count = len(workflow.get('schedules', [])) if isinstance(workflow, dict) else len(workflow.schedules) if hasattr(workflow, 'schedules') else 0
+                name = workflow.get('name', 'Unnamed') if isinstance(workflow, dict) else workflow.name
+                click.echo(f"{i}: {name} ({schedule_count} schedules)")
             
             # Get workflow selection
             workflow_idx = click.prompt("\nSelect a workflow", type=int, default=0)
@@ -62,6 +64,7 @@ def create():
                 return
             
             workflow = workflows[workflow_idx]
+            workflow_id = workflow.get('id') if isinstance(workflow, dict) else workflow.id
             
             # Get schedule type
             click.echo("\nSchedule Type:")
@@ -125,7 +128,7 @@ def create():
             # Create schedule
             try:
                 schedule = await scheduler.create_schedule(
-                    workflow.id,
+                    workflow_id,
                     schedule_type,
                     schedule_expr,
                     workflow_params=input_value
@@ -246,6 +249,33 @@ def set_expression(schedule_id: str, expression: str):
     
     asyncio.run(_update_expression())
 
+@schedule_group.command(name='set-input')
+@click.argument('schedule_id')
+@click.argument('input_data')
+def set_input(schedule_id: str, input_data: str):
+    """Update schedule input data."""
+    async def _set_input():
+        try:
+            async with get_session() as session:
+                # Get schedule
+                stmt = select(Schedule).where(Schedule.id == UUID(schedule_id))
+                result = await session.execute(stmt)
+                schedule = result.scalar_one_or_none()
+                
+                if not schedule:
+                    click.echo(f"Schedule {schedule_id} not found")
+                    return
+                
+                # Update input data
+                schedule.input_data = input_data
+                await session.commit()
+                
+                click.echo(f"Updated input data for schedule {schedule_id}")
+        except Exception as e:
+            click.echo(f"Error updating schedule input data: {e}")
+    
+    asyncio.run(_set_input())
+
 @schedule_group.command()
 @click.argument('schedule_id')
 def delete(schedule_id: str):
@@ -262,3 +292,5 @@ def delete(schedule_id: str):
                 click.echo(f"Failed to delete schedule {schedule_id}")
     
     asyncio.run(_delete_schedule())
+
+

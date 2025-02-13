@@ -1,3 +1,4 @@
+
 """Workflow scheduler."""
 
 import asyncio
@@ -206,7 +207,9 @@ class WorkflowScheduler:
                     workflow_id=schedule.workflow_id,
                     schedule_id=schedule.id,
                     input_data=input_data,
-                    status="pending"
+                    status="pending",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
                 )
                 self.session.add(task)
                 await self.session.commit()
@@ -250,7 +253,9 @@ class WorkflowScheduler:
                             workflow_id=schedule.workflow_id,
                             schedule_id=schedule.id,
                             input_data=input_data,
-                            status="pending"
+                            status="pending",
+                            created_at=datetime.now(timezone.utc),
+                            updated_at=datetime.now(timezone.utc)
                         )
                         self.session.add(task)
                         await self.session.commit()
@@ -274,3 +279,5 @@ class WorkflowScheduler:
                 await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             logger.error(f"Error in scheduler loop: {str(e)}")
+
+
