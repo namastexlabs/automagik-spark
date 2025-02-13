@@ -1,4 +1,3 @@
-
 """
 Worker Command Module
 
@@ -286,6 +285,40 @@ def start(threads: int = 2):
         sys.exit(1)
 
 @worker_group.command()
+@click.option('--tail', '-t', is_flag=True, help='Tail the log file')
+@click.option('--lines', '-n', default=50, help='Number of lines to show')
+@click.option('--follow', '-f', is_flag=True, help='Follow log output')
+def logs(tail: bool, lines: int, follow: bool):
+    """Show worker logs."""
+    # Get the log file path
+    log_path = os.getenv('AUTOMAGIK_WORKER_LOG')
+    if not log_path:
+        if os.path.isdir('logs'):
+            log_path = os.path.expanduser('logs/worker.log')
+        else:
+            log_path = '/var/log/automagik/worker.log'
+
+    if not os.path.exists(log_path):
+        click.echo(f"No log file found at {log_path}")
+        return
+
+    try:
+        if follow:
+            # Use tail -f to follow the log file
+            subprocess.run(['tail', '-f', log_path])
+        elif tail:
+            # Show last N lines
+            subprocess.run(['tail', f'-n{lines}', log_path])
+        else:
+            # Show entire file through less
+            subprocess.run(['less', log_path])
+    except KeyboardInterrupt:
+        # Handle Ctrl+C gracefully
+        pass
+    except Exception as e:
+        click.echo(f"Error reading log file: {e}")
+
+@worker_group.command()
 def stop():
     """Stop the worker."""
     try:
@@ -393,5 +426,3 @@ def status():
 
 if __name__ == "__main__":
     worker_group()
-
-
