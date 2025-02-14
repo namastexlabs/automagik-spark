@@ -258,13 +258,11 @@ class Schedule(Base):
     workflow_id = Column(UUID(as_uuid=True), ForeignKey('workflows.id'), nullable=False)
     schedule_type = Column(String, nullable=False)
     schedule_expr = Column(String, nullable=False)
-    workflow_params = Column(String, nullable=True)
-    params = Column(JSON, nullable=True)
+    input_data = Column(String, nullable=True, comment="Input string to be passed to the workflow's input_value")
     status = Column(String, nullable=False, default="active")
     next_run_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
-    input_data = Column(String, nullable=True)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="schedules")
@@ -277,13 +275,11 @@ class Schedule(Base):
             'workflow_id': str(self.workflow_id),
             'schedule_type': self.schedule_type,
             'schedule_expr': self.schedule_expr,
-            'workflow_params': self.workflow_params,
-            'params': self.params,
+            'input_data': self.input_data,
             'status': self.status,
             'next_run_at': self.next_run_at.isoformat() if self.next_run_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'input_data': self.input_data
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 

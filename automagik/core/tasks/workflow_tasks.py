@@ -29,12 +29,14 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                 logger.error(f"Schedule {schedule_id} not found")
                 return None
 
-            # Create task with proper input data
+            # Create task with input data as string
+            input_data = schedule.input_data or ""
+
             task = Task(
                 id=uuid4(),
                 workflow_id=schedule.workflow_id,
                 schedule_id=schedule.id,
-                input_data=schedule.workflow_params,  
+                input_data=input_data,
                 status="running",
                 started_at=datetime.now(timezone.utc),
                 created_at=datetime.now(timezone.utc),

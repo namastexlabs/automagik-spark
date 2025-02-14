@@ -62,7 +62,7 @@ class WorkflowSync:
         # Return the associated workflow source
         return workflow.workflow_source
 
-    def execute_workflow(self, workflow: Workflow, input_data: str | Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
         """Execute a workflow with the given input data."""
         try:
             # Get workflow source

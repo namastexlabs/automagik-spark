@@ -132,7 +132,7 @@ def create():
                     workflow_id,
                     schedule_type,
                     schedule_expr,
-                    workflow_params=input_value
+                    input_data=input_value
                 )
                 if schedule:
                     click.echo(f"\nSchedule created successfully with ID: {schedule.id}")
@@ -193,7 +193,7 @@ def list():
                 task_stats_str = f"[white]{stats.total}[/white] ([red]{stats.failed}[/red])"
                 
                 # Format input parameters
-                input_params = schedule.workflow_params
+                input_params = schedule.input_data
                 if input_params:
                     try:
                         # Try to parse as JSON for better formatting

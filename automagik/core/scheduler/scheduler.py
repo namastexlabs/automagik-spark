@@ -54,7 +54,7 @@ class WorkflowScheduler:
         workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        workflow_params: Optional[Dict[str, Any]] = None
+        input_data: Optional[str] = None
     ) -> Optional[Schedule]:
         """Create a schedule for a workflow."""
         try:
@@ -77,20 +77,15 @@ class WorkflowScheduler:
             if not next_run:
                 return None
 
-            # Handle workflow_params based on type
-            if workflow_params is None:
-                final_params = ""
-            elif isinstance(workflow_params, str):
-                final_params = workflow_params
-            else:
-                final_params = json.dumps(workflow_params)
+            # Use input_data as is, defaulting to empty string if None
+            final_input = input_data or ""
 
             schedule = Schedule(
                 id=uuid4(),
                 workflow_id=workflow_id,
                 schedule_type=schedule_type,
                 schedule_expr=schedule_expr,
-                workflow_params=final_params,
+                input_data=final_input,
                 next_run_at=next_run
             )
 
@@ -107,7 +102,7 @@ class WorkflowScheduler:
         schedule_id: UUID,
         schedule_type: Optional[str] = None,
         schedule_expr: Optional[str] = None,
-        workflow_params: Optional[Dict[str, Any]] = None,
+        input_data: Optional[str] = None,
         active: Optional[bool] = None
     ) -> Optional[Schedule]:
         """Update a schedule."""
@@ -129,8 +124,8 @@ class WorkflowScheduler:
             if schedule_expr is not None:
                 schedule.schedule_expr = schedule_expr
 
-            if workflow_params is not None:
-                schedule.workflow_params = workflow_params
+            if input_data is not None:
+                schedule.input_data = input_data
 
             if active is not None:
                 schedule.active = active
