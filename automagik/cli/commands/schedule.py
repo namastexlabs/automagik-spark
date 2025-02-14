@@ -11,17 +11,18 @@ Provides CLI commands for managing workflow schedules:
 
 import asyncio
 import click
+import json
 from typing import Optional
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from croniter import croniter
-from sqlalchemy import select
+from sqlalchemy import select, func, case
 
 from ...core.workflows import WorkflowManager
 from ...core.scheduler.scheduler import WorkflowScheduler
 from ...core.database.session import get_session
-from ...core.database.models import Workflow, Schedule
+from ...core.database.models import Workflow, Schedule, Task
 from ..utils.table_styles import (
     create_rich_table,
     format_timestamp,
@@ -166,6 +167,8 @@ def list():
                     {"name": "Type", "justify": "center", "style": "magenta"},
                     {"name": "Expression", "justify": "left", "style": "cyan"},
                     {"name": "Next Run", "justify": "left", "style": "yellow"},
+                    {"name": "Tasks (Failed)", "justify": "center", "style": "red"},
+                    {"name": "Input Params", "justify": "left", "style": "cyan"},
                     {"name": "Status", "justify": "center", "style": "bold"}
                 ]
             )
@@ -178,6 +181,32 @@ def list():
                 )
                 workflow = workflow_result.scalar_one_or_none()
                 workflow_name = workflow.name if workflow else "[dim italic]Unknown[/dim italic]"
+                
+                # Get task statistics
+                task_stats = await session.execute(
+                    select(
+                        func.count(Task.id).label('total'),
+                        func.count(case((Task.status == 'failed', 1))).label('failed')
+                    ).where(Task.schedule_id == schedule.id)
+                )
+                stats = task_stats.first()
+                task_stats_str = f"[white]{stats.total}[/white] ([red]{stats.failed}[/red])"
+                
+                # Format input parameters
+                input_params = schedule.workflow_params
+                if input_params:
+                    try:
+                        # Try to parse as JSON for better formatting
+                        params_dict = json.loads(input_params)
+                        input_display = str(params_dict)
+                    except json.JSONDecodeError:
+                        input_display = input_params
+                    # Truncate if too long
+                    if len(input_display) > 30:
+                        input_display = input_display[:27] + "..."
+                    input_display = f"[cyan]{input_display}[/cyan]"
+                else:
+                    input_display = "[dim]none[/dim]"
                 
                 # Format schedule type
                 schedule_type = f"[magenta italic]{schedule.schedule_type}[/magenta italic]"
@@ -206,6 +235,8 @@ def list():
                     schedule_type,
                     expr,
                     next_run,
+                    task_stats_str,
+                    input_display,
                     status
                 )
             
