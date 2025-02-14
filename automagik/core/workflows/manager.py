@@ -1,4 +1,3 @@
-
 """
 Workflow management.
 
@@ -12,9 +11,10 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID, uuid4
 
 import httpx
-from sqlalchemy import select, delete, and_, cast, String, or_
+from sqlalchemy import select, delete, and_, cast, String, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func  # Add this line
 
 from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog, WorkflowSource
 from .remote import LangFlowManager
@@ -67,11 +67,19 @@ class WorkflowManager:
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             return LangFlowManager(self.session, api_url=source.url, api_key=api_key)
         elif source_url:
+            # Try to find source by URL first
             source = (await self.session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == source_url)
+                select(WorkflowSource).where(
+                    or_(
+                        WorkflowSource.url == source_url,
+                        # Extract instance name from URL and compare
+                        func.split_part(func.split_part(WorkflowSource.url, '://', 2), '/', 1).ilike(f"{source_url}%")
+                    )
+                )
             )).scalar_one_or_none()
+            
             if not source:
-                raise ValueError(f"No source found with URL {source_url}")
+                raise ValueError(f"No source found with URL or name: {source_url}")
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             return LangFlowManager(self.session, api_url=source.url, api_key=api_key)
         else:
@@ -499,5 +507,3 @@ class SyncWorkflowManager:
         
         session.commit()
         return task
-
-
