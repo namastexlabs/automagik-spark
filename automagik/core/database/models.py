@@ -216,6 +216,7 @@ class Task(Base):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""
+        # Don't try to access relationships if we're detached
         return {
             'id': str(self.id),
             'workflow_id': str(self.workflow_id),
@@ -230,8 +231,7 @@ class Task(Base):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'finished_at': self.finished_at.isoformat() if self.finished_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'workflow': self.workflow.to_dict() if self.workflow else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 

@@ -38,12 +38,12 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Configure paths
-LOG_DIR = os.path.expanduser('~/.automagik')
-WORKER_PID_FILE = os.path.join(LOG_DIR, 'worker.pid')
-BEAT_PID_FILE = os.path.join(LOG_DIR, 'beat.pid')
+WORKER_LOG = os.getenv("AUTOMAGIK_WORKER_LOG", "/var/log/automagik/worker.log")
+WORKER_PID_FILE = os.path.join(os.path.dirname(WORKER_LOG), 'worker.pid')
+BEAT_PID_FILE = os.path.join(os.path.dirname(WORKER_LOG), 'beat.pid')
 
 # Ensure log directory exists
-os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(WORKER_LOG), exist_ok=True)
 
 def configure_logging():
     """Configure logging based on environment variables."""
@@ -196,7 +196,7 @@ def start(threads: int = 2):
             return
         
         # Create log directory
-        log_dir = os.path.expanduser('~/.automagik')
+        log_dir = os.path.dirname(WORKER_LOG)
         os.makedirs(log_dir, exist_ok=True)
         
         # Start worker process

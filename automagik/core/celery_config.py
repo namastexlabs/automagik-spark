@@ -8,8 +8,9 @@ from kombu.messaging import Exchange, Queue
 import logging
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import select
-from ..core.database.session import get_sync_session
-from ..core.database.models import Schedule
+from .database.session import get_sync_session
+from .database.models import Schedule
+from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +145,31 @@ class DatabaseScheduler(Scheduler):
         Checks the schedule to see if there are any new tasks
         that should be added to the schedule.
         """
-        if self.schedule_changed:
-            self.update_from_database()
-            self.schedule_changed = False
-        return super().tick(*args, **kwargs)
+        # Always update from database on each tick to ensure we have the latest schedules
+        self.update_from_database()
+        self.schedule_changed = False
+        
+        result = super().tick(*args, **kwargs)
+        
+        # Log next scheduled tasks
+        logger.debug(f"Current schedules: {self.schedule}")
+        if self.schedule:
+            now = datetime.now(timezone.utc)
+            for name, entry in self.schedule.items():
+                logger.debug(f"Processing schedule {name}")
+                try:
+                    next_run = entry.schedule.now() + entry.schedule.remaining_estimate(now)
+                    remaining = next_run - now
+                    hours = int(remaining.total_seconds() // 3600)
+                    minutes = int((remaining.total_seconds() % 3600) // 60)
+                    seconds = int(remaining.total_seconds() % 60)
+                    logger.info(f"Next run of {name} in {hours:02d}:{minutes:02d}:{seconds:02d}")
+                except Exception as e:
+                    logger.error(f"Error calculating next run for {name}: {e}")
+        else:
+            logger.debug("No schedules found in the database")
+        
+        return result
 
     def close(self):
         """Close the scheduler."""
@@ -183,9 +205,9 @@ def get_celery_config():
                 'args': ()
             }
         },  # Will be populated dynamically with additional schedules
-        'beat_max_loop_interval': 60,  # Check for new schedules every minute
+        'beat_max_loop_interval': 5,  # Check for new schedules every 5 seconds
         'beat_scheduler': 'automagik.core.celery_config:DatabaseScheduler',
-        'beat_schedule_filename': os.path.expanduser('~/.automagik/celerybeat-schedule'),
+        'beat_schedule_filename': os.path.join(os.path.dirname(get_settings().worker_log), 'celerybeat-schedule'),
         'imports': (
             'automagik.core.tasks.workflow_tasks',
         ),
@@ -370,6 +392,21 @@ def init_scheduler(sender=None, **kwargs):
     """Initialize the scheduler with database schedules."""
     try:
         logger.info("Initializing beat scheduler")
+        # Set up logging first
+        logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            '[%(asctime)s: %(levelname)s/%(processName)s] %(message)s'
+        )
+        
+        # Remove existing handlers to avoid duplicate logs
+        logger.handlers = []
+        
+        # Add file handler
+        settings = get_settings()
+        fh = logging.FileHandler(settings.worker_log)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        
         # Update schedule
         update_celery_beat_schedule()
         

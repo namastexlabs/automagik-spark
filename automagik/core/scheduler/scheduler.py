@@ -77,12 +77,20 @@ class WorkflowScheduler:
             if not next_run:
                 return None
 
+            # Handle workflow_params based on type
+            if workflow_params is None:
+                final_params = ""
+            elif isinstance(workflow_params, str):
+                final_params = workflow_params
+            else:
+                final_params = json.dumps(workflow_params)
+
             schedule = Schedule(
                 id=uuid4(),
                 workflow_id=workflow_id,
                 schedule_type=schedule_type,
                 schedule_expr=schedule_expr,
-                workflow_params=workflow_params or {},
+                workflow_params=final_params,
                 next_run_at=next_run
             )
 

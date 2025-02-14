@@ -1,4 +1,3 @@
-
 """Workflow task execution."""
 
 import json
@@ -10,6 +9,7 @@ from uuid import UUID, uuid4
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from ...core.database.session import get_sync_session
 from ...core.database.models import Task, Workflow, Schedule
@@ -29,12 +29,12 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                 logger.error(f"Schedule {schedule_id} not found")
                 return None
 
-            # Create task
+            # Create task with proper input data
             task = Task(
                 id=uuid4(),
                 workflow_id=schedule.workflow_id,
                 schedule_id=schedule.id,
-                input_data=schedule.input_data,  # Already a string, no need to parse
+                input_data=schedule.workflow_params,  
                 status="running",
                 started_at=datetime.now(timezone.utc),
                 created_at=datetime.now(timezone.utc),
@@ -60,6 +60,13 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                 with WorkflowSync(session) as sync:
                     output = sync.execute_workflow(workflow, task.input_data)
                     if output:
+                        # Extract and log only the result message
+                        result_message = output.get('result', '')
+                        if isinstance(result_message, dict):
+                            result_message = result_message.get('response', str(result_message))
+                        logger.info(f"Workflow result: {result_message}")
+                        
+                        # Store the full output in the task
                         task.output_data = json.dumps(output)
                         task.status = "completed"
                     else:
@@ -176,5 +183,3 @@ def process_pending_tasks():
                 task.finished_at = datetime.now(timezone.utc)
                 task.updated_at = datetime.now(timezone.utc)
                 session.commit()
-
-

@@ -4,6 +4,7 @@
 import os
 from celery import Celery
 from kombu import Queue, Exchange
+from ..config import get_settings
 
 # Create celery app
 app = Celery('automagik')
@@ -30,7 +31,7 @@ app.conf.update(
     beat_schedule={},  # Will be populated dynamically
     beat_max_loop_interval=60,  # Check for new schedules every minute
     beat_scheduler='automagik.core.celery_config.DatabaseScheduler',
-    beat_schedule_filename=os.path.expanduser('~/.automagik/celerybeat-schedule'),
+    beat_schedule_filename=os.path.join(os.path.dirname(get_settings().worker_log), 'celerybeat-schedule'),
     imports=(
         'automagik.core.tasks.workflow_tasks',
     ),
