@@ -430,8 +430,32 @@ class WorkflowManager:
             self.session.add(workflow)
 
         await self.session.commit()
-        await self.session.refresh(workflow)
-        return workflow.to_dict()
+        # Detach the workflow from the session to avoid greenlet errors
+        self.session.expunge(workflow)
+        return {
+            'id': str(workflow.id),
+            'name': workflow.name,
+            'description': workflow.description,
+            'data': workflow.data,
+            'flow_raw_data': workflow.flow_raw_data,
+            'source': workflow.source,
+            'remote_flow_id': workflow.remote_flow_id,
+            'flow_version': workflow.flow_version,
+            'input_component': workflow.input_component,
+            'output_component': workflow.output_component,
+            'is_component': workflow.is_component,
+            'folder_id': workflow.folder_id,
+            'folder_name': workflow.folder_name,
+            'icon': workflow.icon,
+            'icon_bg_color': workflow.icon_bg_color,
+            'gradient': workflow.gradient,
+            'liked': workflow.liked,
+            'tags': workflow.tags,
+            'workflow_source_id': str(workflow.workflow_source_id) if workflow.workflow_source_id else None,
+            'created_at': workflow.created_at.isoformat() if workflow.created_at else None,
+            'updated_at': workflow.updated_at.isoformat() if workflow.updated_at else None,
+            'schedules': []  # Don't load schedules in async context
+        }
 
     @staticmethod
     def to_bool(value):
