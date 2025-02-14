@@ -1,4 +1,3 @@
-
 """
 Database models for the application.
 """
@@ -89,7 +88,8 @@ class Workflow(Base):
             'tags': self.tags,
             'workflow_source_id': str(self.workflow_source_id) if self.workflow_source_id else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'schedules': [s.to_dict() for s in self.schedules] if self.schedules else []
         }
 
 
@@ -270,6 +270,22 @@ class Schedule(Base):
     workflow = relationship("Workflow", back_populates="schedules")
     tasks = relationship("Task", back_populates="schedule")
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert schedule to dictionary."""
+        return {
+            'id': str(self.id),
+            'workflow_id': str(self.workflow_id),
+            'schedule_type': self.schedule_type,
+            'schedule_expr': self.schedule_expr,
+            'workflow_params': self.workflow_params,
+            'params': self.params,
+            'status': self.status,
+            'next_run_at': self.next_run_at.isoformat() if self.next_run_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'input_data': self.input_data
+        }
+
 
 class Worker(Base):
     """Worker model."""
@@ -289,5 +305,3 @@ class Worker(Base):
 
     # Relationships
     current_task = relationship("Task")
-
-
