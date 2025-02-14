@@ -179,10 +179,29 @@ class WorkflowManager:
     async def list_workflows(self, options: dict = None) -> List[Dict[str, Any]]:
         """List all workflows from the local database."""
         query = select(Workflow)
-        if options and options.get('with_source'):
-            query = query.options(joinedload(Workflow.workflow_source))
+        options = options or {}
+        
+        # Always load schedules by default
+        if 'joinedload' not in options:
+            options['joinedload'] = []
+        if isinstance(options['joinedload'], list):
+            options['joinedload'].append('schedules')
+        
+        # Add other relationships if requested
+        if options.get('with_source'):
+            if isinstance(options['joinedload'], list):
+                options['joinedload'].append('workflow_source')
+            else:
+                options['joinedload'] = ['workflow_source']
+        
+        # Apply joinedload options
+        if options.get('joinedload'):
+            for relationship in options['joinedload']:
+                query = query.options(joinedload(getattr(Workflow, relationship)))
+        
         result = await self.session.execute(query)
-        workflows = result.scalars().all()
+        # Call unique() to handle collection relationships
+        workflows = result.unique().scalars().all()
         return [workflow.to_dict() for workflow in workflows]
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
