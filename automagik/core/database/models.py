@@ -256,7 +256,7 @@ class Schedule(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     workflow_id = Column(UUID(as_uuid=True), ForeignKey('workflows.id'), nullable=False)
-    schedule_type = Column(String, nullable=False)
+    schedule_type = Column(String, nullable=False)  # cron, interval, or one-time
     schedule_expr = Column(String, nullable=False)
     input_data = Column(String, nullable=True, comment="Input string to be passed to the workflow's input_value")
     status = Column(String, nullable=False, default="active")

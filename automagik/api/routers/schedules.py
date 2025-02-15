@@ -30,12 +30,12 @@ async def create_schedule(
     try:
         async with scheduler_manager as sm:
             # Convert flow_id to UUID
-            flow_id = UUID(schedule.flow_id)
+            workflow_id = UUID(schedule.workflow_id)
             created_schedule = await sm.create_schedule(
-                flow_id=flow_id,
+                workflow_id=workflow_id,
                 schedule_type=schedule.schedule_type,
                 schedule_expr=schedule.schedule_expr,
-                flow_params=schedule.flow_params
+                input_value=schedule.input_value
             )
             if not created_schedule:
                 raise HTTPException(status_code=400, detail="Failed to create schedule")

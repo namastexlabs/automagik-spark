@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 from croniter import croniter
 import re
 from dateutil import parser
+import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -132,6 +133,14 @@ class SchedulerManager:
         except (ValueError, TypeError):
             return False
 
+    def _validate_datetime(self, dt_str: str) -> bool:
+        """Validate datetime string."""
+        try:
+            parser.parse(dt_str)
+            return True
+        except (ValueError, TypeError):
+            return False
+
     def _calculate_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
         """Calculate next run time based on schedule type and expression."""
         now = datetime.now(timezone.utc)
@@ -155,6 +164,24 @@ class SchedulerManager:
             next_run = cron.get_next(datetime)
             return next_run.replace(tzinfo=timezone.utc)
             
+        elif schedule_type == "one-time":
+            if schedule_expr.lower() == "now":
+                return now
+            if not self._validate_datetime(schedule_expr):
+                logger.error(f"Invalid datetime expression: {schedule_expr}")
+                return None
+            try:
+                run_time = parser.parse(schedule_expr)
+                if not run_time.tzinfo:
+                    run_time = run_time.replace(tzinfo=timezone.utc)
+                if run_time < now:
+                    logger.error("Cannot schedule in the past")
+                    return None
+                return run_time
+            except ValueError as e:
+                logger.error(f"Error parsing datetime: {e}")
+                return None
+            
         return None
 
     # Schedule database operations
@@ -163,7 +190,7 @@ class SchedulerManager:
         workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        params: Optional[Dict[str, Any]] = None,
+        input_value: Optional[str] = None,
     ) -> Optional[Schedule]:
         """Create a new schedule."""
         # Validate workflow exists
@@ -178,6 +205,9 @@ class SchedulerManager:
         elif schedule_type == "cron":
             if not self._validate_cron(schedule_expr):
                 return None
+        elif schedule_type == "one-time":
+            if schedule_expr.lower() != "now" and not self._validate_datetime(schedule_expr):
+                return None
         else:
             return None
 
@@ -190,7 +220,7 @@ class SchedulerManager:
             workflow_id=workflow_id,
             schedule_type=schedule_type,
             schedule_expr=schedule_expr,
-            params=params,
+            input_data=input_value,
             next_run_at=next_run,
             status="active"
         )

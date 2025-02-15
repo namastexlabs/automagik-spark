@@ -60,12 +60,12 @@ class DatabaseScheduler(Scheduler):
                                 'd': lambda x: x * 86400,
                             }.get(unit, lambda x: x)(value)
                             
-                            from celery.schedules import schedule
+                            from celery.schedules import schedule as celery_schedule
                             
                             # Create schedule entry
                             entry = ScheduleEntry(
                                 name=schedule_name,
-                                schedule=schedule(timedelta(seconds=seconds)),
+                                schedule=celery_schedule(timedelta(seconds=seconds)),
                                 task='automagik.core.tasks.workflow_tasks.execute_workflow',
                                 args=(schedule_id,),
                                 kwargs={},
@@ -126,6 +126,64 @@ class DatabaseScheduler(Scheduler):
                         except Exception as e:
                             logger.error(f"Failed to parse cron expression for schedule {schedule_id}: {e}")
                             continue
+                    elif schedule.schedule_type == 'one-time':
+                        try:
+                            # Parse datetime
+                            if schedule.schedule_expr.lower() == 'now':
+                                run_time = datetime.now(timezone.utc)
+                            else:
+                                from dateutil import parser
+                                run_time = parser.parse(schedule.schedule_expr)
+                                if not run_time.tzinfo:
+                                    run_time = run_time.replace(tzinfo=timezone.utc)
+                            
+                            now = datetime.now(timezone.utc)
+                            
+                            # For 'now' or past schedules, trigger immediately and mark as completed
+                            if schedule.schedule_expr.lower() == 'now' or run_time <= now:
+                                # Only trigger if status is still 'active'
+                                if schedule.status == 'active':
+                                    self.app.send_task(
+                                        'automagik.core.tasks.workflow_tasks.execute_workflow',
+                                        args=(schedule_id,),
+                                        kwargs={},
+                                        countdown=0
+                                    )
+                                    
+                                    # Update schedule status to completed
+                                    with get_sync_session() as session:
+                                        schedule.status = 'completed'
+                                        session.commit()
+                            else:
+                                # For future schedules, create a one-time schedule entry
+                                from celery.schedules import schedule
+                                
+                                # Calculate delay in seconds
+                                delay = (run_time - now).total_seconds()
+                                
+                                # Create schedule entry that runs once after the delay
+                                entry = ScheduleEntry(
+                                    name=schedule_name,
+                                    schedule=schedule(timedelta(seconds=delay), relative=True),
+                                    task='automagik.core.tasks.workflow_tasks.execute_workflow',
+                                    args=(schedule_id,),
+                                    kwargs={},
+                                    options={
+                                        'expires': 600,  # Task expires after 10 minutes
+                                        'retry': True,
+                                        'retry_policy': {
+                                            'max_retries': 3,
+                                            'interval_start': 0,
+                                            'interval_step': 0.2,
+                                            'interval_max': 0.2,
+                                        },
+                                    },
+                                    app=self.app
+                                )
+                                self.schedule[schedule_name] = entry
+                        except Exception as e:
+                            logger.error(f"Failed to parse datetime for schedule {schedule_id}: {e}")
+                            continue
                     else:
                         logger.error(f"Unsupported schedule type for schedule {schedule_id}: {schedule.schedule_type}")
                         continue
@@ -145,9 +203,10 @@ class DatabaseScheduler(Scheduler):
         Checks the schedule to see if there are any new tasks
         that should be added to the schedule.
         """
-        # Always update from database on each tick to ensure we have the latest schedules
-        self.update_from_database()
-        self.schedule_changed = False
+        # Only update from database if something has changed
+        if self.schedule_changed:
+            self.update_from_database()
+            self.schedule_changed = False
         
         result = super().tick(*args, **kwargs)
         
@@ -158,12 +217,15 @@ class DatabaseScheduler(Scheduler):
             for name, entry in self.schedule.items():
                 logger.debug(f"Processing schedule {name}")
                 try:
-                    next_run = entry.schedule.now() + entry.schedule.remaining_estimate(now)
-                    remaining = next_run - now
-                    hours = int(remaining.total_seconds() // 3600)
-                    minutes = int((remaining.total_seconds() % 3600) // 60)
-                    seconds = int(remaining.total_seconds() % 60)
-                    logger.info(f"Next run of {name} in {hours:02d}:{minutes:02d}:{seconds:02d}")
+                    # Get the next run time using is_due()
+                    is_due, next_time_to_run = entry.is_due()
+                    if is_due:
+                        logger.info(f"Schedule {name} is due now")
+                    else:
+                        hours = int(next_time_to_run // 3600)
+                        minutes = int((next_time_to_run % 3600) // 60)
+                        seconds = int(next_time_to_run % 60)
+                        logger.info(f"Next run of {name} in {hours:02d}:{minutes:02d}:{seconds:02d}")
                 except Exception as e:
                     logger.error(f"Error calculating next run for {name}: {e}")
         else:
@@ -205,7 +267,7 @@ def get_celery_config():
                 'args': ()
             }
         },  # Will be populated dynamically with additional schedules
-        'beat_max_loop_interval': 5,  # Check for new schedules every 5 seconds
+        'beat_max_loop_interval': 1,  
         'beat_scheduler': 'automagik.core.celery_config:DatabaseScheduler',
         'beat_schedule_filename': os.path.join(os.path.dirname(get_settings().worker_log), 'celerybeat-schedule'),
         'imports': (

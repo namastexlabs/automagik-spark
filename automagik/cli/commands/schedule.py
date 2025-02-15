@@ -71,16 +71,43 @@ def create():
             click.echo("\nSchedule Type:")
             click.echo("  0: Interval (e.g., every 30 minutes)")
             click.echo("  1: Cron (e.g., every day at 8 AM)")
+            click.echo("  2: One-time (run once at a specific time)")
             
             schedule_type = click.prompt("\nSelect schedule type", type=int, default=0)
-            if schedule_type not in [0, 1]:
+            if schedule_type not in [0, 1, 2]:
                 click.echo("Invalid schedule type")
                 return
             
-            schedule_type = 'interval' if schedule_type == 0 else 'cron'
+            schedule_type = 'interval' if schedule_type == 0 else 'cron' if schedule_type == 1 else 'one-time'
             
             # Get schedule expression
-            if schedule_type == 'interval':
+            if schedule_type == 'one-time':
+                click.echo("\nOne-time Schedule Options:")
+                click.echo("  1. Run now")
+                click.echo("  2. Run at specific date/time")
+                
+                option = click.prompt("\nSelect option", type=int, default=1)
+                if option == 1:
+                    schedule_expr = 'now'
+                else:
+                    click.echo("\nEnter date and time (e.g., '2025-02-15 08:00' or '2025-02-15T08:00:00')")
+                    schedule_expr = click.prompt("Enter datetime")
+                    
+                    # Validate datetime format
+                    try:
+                        from dateutil import parser
+                        dt = parser.parse(schedule_expr)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        if dt < datetime.now(timezone.utc):
+                            click.echo("Cannot schedule in the past")
+                            return
+                        schedule_expr = dt.isoformat()
+                    except ValueError:
+                        click.echo("Invalid datetime format")
+                        return
+                        
+            elif schedule_type == 'interval':
                 click.echo("\nInterval Examples:")
                 click.echo("  5m  - Every 5 minutes")
                 click.echo("  30m - Every 30 minutes")

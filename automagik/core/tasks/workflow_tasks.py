@@ -45,6 +45,11 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
             session.add(task)
             session.commit()
 
+            # For one-time schedules, mark as completed since we won't run again
+            if schedule.schedule_type == 'one-time' and schedule.status != 'completed':
+                schedule.status = 'completed'
+                session.commit()
+                
             try:
                 # Get workflow
                 workflow_query = select(Workflow).where(Workflow.id == schedule.workflow_id)
@@ -103,12 +108,17 @@ def execute_workflow(self, schedule_id: str):
         return task.to_dict() if task else None
     except Exception as e:
         logger.error(f"Failed to execute workflow: {str(e)}")
-        # Retry with exponential backoff
-        retry_in = 2 ** self.request.retries
-        try:
-            raise self.retry(exc=e, countdown=retry_in, max_retries=3)
-        except MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded for task. Error: {str(e)}")
+        # Only retry on network errors or timeouts, not on server errors
+        error_str = str(e).lower()
+        if 'connection' in error_str or 'timeout' in error_str:
+            retry_in = 2 ** self.request.retries
+            try:
+                raise self.retry(exc=e, countdown=retry_in, max_retries=3)
+            except MaxRetriesExceededError:
+                logger.error(f"Max retries exceeded for task. Error: {str(e)}")
+                raise e
+        else:
+            # For other errors (like server errors), fail immediately
             raise e
 
 

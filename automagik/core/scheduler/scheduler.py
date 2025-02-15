@@ -34,14 +34,29 @@ class WorkflowScheduler:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
         await self.session.close()
+        
+    async def stop(self):
+        """Stop the scheduler."""
+        await self.session.close()
 
     def _get_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
         """Get next run time for a schedule."""
         try:
+            now = datetime.now(timezone.utc)
             if schedule_type == "cron":
-                return croniter(schedule_expr, datetime.now(timezone.utc)).get_next(datetime)
+                return croniter(schedule_expr, now).get_next(datetime)
             elif schedule_type == "interval":
                 return parse_datetime(schedule_expr)
+            elif schedule_type == "one-time":
+                if schedule_expr.lower() == "now":
+                    return now
+                dt = parse_datetime(schedule_expr)
+                if not dt.tzinfo:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt < now:
+                    logger.error("Cannot schedule in the past")
+                    return None
+                return dt
             else:
                 logger.error(f"Invalid schedule type: {schedule_type}")
                 return None
@@ -68,7 +83,7 @@ class WorkflowScheduler:
                 return None
 
             # Validate schedule type
-            if schedule_type not in ["cron", "interval"]:
+            if schedule_type not in ["cron", "interval", "one-time"]:
                 logger.error(f"Invalid schedule type: {schedule_type}")
                 return None
 
@@ -116,7 +131,7 @@ class WorkflowScheduler:
                 return None
 
             if schedule_type is not None:
-                if schedule_type not in ["cron", "interval"]:
+                if schedule_type not in ["cron", "interval", "one-time"]:
                     logger.error(f"Invalid schedule type: {schedule_type}")
                     return None
                 schedule.schedule_type = schedule_type

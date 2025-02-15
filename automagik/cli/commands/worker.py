@@ -237,7 +237,7 @@ def start(threads: int = 2):
             '--logfile', os.path.join(log_dir, 'beat.log'),
             '--pidfile', os.path.join(log_dir, 'beat.pid'),
             '--schedule', os.path.join(log_dir, 'celerybeat-schedule'),
-            '--max-interval', '60',
+            '--max-interval', '1',
         ]
         
         # Start beat scheduler in background
