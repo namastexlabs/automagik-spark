@@ -101,11 +101,21 @@ class WorkflowScheduler:
                 schedule_type=schedule_type,
                 schedule_expr=schedule_expr,
                 input_data=final_input,
-                next_run_at=next_run
+                next_run_at=next_run,
+                status='active'  # Set initial status to active
             )
 
             self.session.add(schedule)
             await self.session.commit()
+            
+            # Log schedule creation
+            logger.info(f"Created schedule {schedule.id}: type={schedule.schedule_type}, status={schedule.status}, expr={schedule.schedule_expr}")
+            
+            # Notify celery scheduler
+            from ..celery_config import notify_scheduler_change
+            logger.info("Notifying celery scheduler of changes")
+            notify_scheduler_change()
+            
             return schedule
         except Exception as e:
             logger.error(f"Error creating schedule: {e}")

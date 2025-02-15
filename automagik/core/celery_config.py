@@ -1,5 +1,6 @@
 
 import os
+from uuid import UUID
 from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown, beat_init, celeryd_after_setup
 from celery.beat import Scheduler, ScheduleEntry
@@ -7,7 +8,7 @@ from kombu.connection import Connection
 from kombu.messaging import Exchange, Queue
 import logging
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import select
+from sqlalchemy import select, or_, and_
 from .database.session import get_sync_session
 from .database.models import Schedule
 from .config import get_settings
@@ -19,8 +20,17 @@ class DatabaseScheduler(Scheduler):
 
     def __init__(self, *args, **kwargs):
         """Initialize scheduler."""
+        global _scheduler_instance
+        logger.info("Initializing DatabaseScheduler")
         self.schedule_changed = True
         super().__init__(*args, **kwargs)
+        
+        # Store instance globally before updating database
+        logger.info("Storing scheduler instance globally")
+        _scheduler_instance = self
+        logger.info(f"Stored scheduler instance: {_scheduler_instance}")
+        
+        # Now update from database
         self.update_from_database()
 
     def setup_schedule(self):
@@ -35,13 +45,38 @@ class DatabaseScheduler(Scheduler):
             # Update scheduler
             self.schedule = {}
             
-            # Get all active schedules
+            # Get all active schedules and uncompleted one-time schedules
             with get_sync_session() as session:
-                stmt = select(Schedule).where(Schedule.status == 'active')
+                # First check all schedules
+                all_schedules = session.execute(select(Schedule)).scalars().all()
+                logger.info(f"Found {len(all_schedules)} total schedules in database")
+                for s in all_schedules:
+                    logger.info(f"Schedule {s.id}: type={s.schedule_type}, status={s.status}, expr={s.schedule_expr}")
+                
+                # Only get active schedules that aren't completed
+                stmt = select(Schedule).where(
+                    and_(
+                        Schedule.status == 'active',
+                        Schedule.status != 'completed'
+                    )
+                ).with_for_update()
                 result = session.execute(stmt)
                 schedules = result.scalars().all()
+                logger.info(f"Found {len(schedules)} active schedules")
+                
+                # Mark one-time schedules as completed immediately
+                for schedule in schedules:
+                    if schedule.schedule_type == 'one-time':
+                        schedule.status = 'completed'
+                        session.commit()
+                        logger.info(f"Marked one-time schedule {schedule.id} as completed before adding to scheduler")
                 
                 for schedule in schedules:
+                    # Skip completed schedules
+                    if schedule.status == 'completed':
+                        logger.info(f"Skipping completed schedule {schedule.id}")
+                        continue
+                        
                     schedule_id = str(schedule.id)
                     schedule_name = f"schedule_{schedule_id}"
                     
@@ -143,17 +178,29 @@ class DatabaseScheduler(Scheduler):
                             if schedule.schedule_expr.lower() == 'now' or run_time <= now:
                                 # Only trigger if status is still 'active'
                                 if schedule.status == 'active':
-                                    self.app.send_task(
-                                        'automagik.core.tasks.workflow_tasks.execute_workflow',
+                                    # Create a one-time schedule that will be removed after execution
+                                    from celery.schedules import schedule
+                                    entry = ScheduleEntry(
+                                        name=schedule_name,
+                                        schedule=schedule(timedelta(seconds=0), relative=True),
+                                        task='automagik.core.tasks.workflow_tasks.execute_workflow',
                                         args=(schedule_id,),
                                         kwargs={},
-                                        countdown=0
+                                        options={
+                                            'expires': 600,  # Task expires after 10 minutes
+                                            'retry': True,
+                                            'retry_policy': {
+                                                'max_retries': 3,
+                                                'interval_start': 0,
+                                                'interval_step': 0.2,
+                                                'interval_max': 0.2,
+                                            },
+                                        },
+                                        app=self.app,
+                                        last_run_at=None  # Set to None to ensure it runs immediately
                                     )
-                                    
-                                    # Update schedule status to completed
-                                    with get_sync_session() as session:
-                                        schedule.status = 'completed'
-                                        session.commit()
+                                    self.schedule[schedule_name] = entry
+                                    logger.info(f"Added one-time schedule {schedule_name} to scheduler")
                             else:
                                 # For future schedules, create a one-time schedule entry
                                 from celery.schedules import schedule
@@ -208,30 +255,77 @@ class DatabaseScheduler(Scheduler):
             self.update_from_database()
             self.schedule_changed = False
         
-        result = super().tick(*args, **kwargs)
-        
         # Log next scheduled tasks
         logger.debug(f"Current schedules: {self.schedule}")
         if self.schedule:
             now = datetime.now(timezone.utc)
+            schedules_to_remove = []
+            schedules_to_run = []
+            
+            # First pass: check all schedules and mark which ones to run/remove
             for name, entry in self.schedule.items():
                 logger.debug(f"Processing schedule {name}")
                 try:
                     # Get the next run time using is_due()
                     is_due, next_time_to_run = entry.is_due()
-                    if is_due:
-                        logger.info(f"Schedule {name} is due now")
-                    else:
+                    if not is_due:
                         hours = int(next_time_to_run // 3600)
                         minutes = int((next_time_to_run % 3600) // 60)
                         seconds = int(next_time_to_run % 60)
                         logger.info(f"Next run of {name} in {hours:02d}:{minutes:02d}:{seconds:02d}")
+                        continue
+                        
+                    # Check schedule status before executing
+                    schedule_id = name.replace('schedule_', '')
+                    with get_sync_session() as session:
+                        stmt = select(Schedule).where(Schedule.id == UUID(schedule_id))
+                        schedule = session.execute(stmt).scalar_one_or_none()
+                        if not schedule or schedule.status == 'completed':
+                            schedules_to_remove.append(name)
+                            logger.info(f"Removing completed/missing schedule {name} from scheduler")
+                            continue
+                            
+                        if schedule.schedule_type == 'one-time':
+                            # Mark one-time schedules as completed before execution
+                            schedule.status = 'completed'
+                            session.commit()
+                            schedules_to_remove.append(name)
+                            logger.info(f"Marking one-time schedule {name} as completed")
+                            
+                        # Add to run list if not completed
+                        schedules_to_run.append((name, entry))
+                        logger.info(f"Schedule {name} is due now")
                 except Exception as e:
-                    logger.error(f"Error calculating next run for {name}: {e}")
+                    logger.error(f"Error processing schedule {name}: {e}")
+                    schedules_to_remove.append(name)
+            
+            # Second pass: remove completed schedules
+            for name in schedules_to_remove:
+                if name in self.schedule:
+                    del self.schedule[name]
+                    logger.info(f"Removed schedule {name} from scheduler")
+            
+            # Third pass: run remaining schedules
+            for name, entry in schedules_to_run:
+                try:
+                    # Create a dummy entry with a custom is_due that only returns True once
+                    from celery.schedules import schedule
+                    dummy_schedule = schedule(timedelta(seconds=0))
+                    entry.schedule = dummy_schedule
+                    entry.is_due()
+                except Exception as e:
+                    logger.error(f"Error running schedule {name}: {e}")
+            
+            # Remove completed one-time schedules
+            for name in schedules_to_remove:
+                if name in self.schedule:
+                    del self.schedule[name]
+                    logger.info(f"Removed one-time schedule {name} from scheduler")
         else:
             logger.debug("No schedules found in the database")
         
-        return result
+        # Run the actual tick
+        return super().tick(*args, **kwargs)
 
     def close(self):
         """Close the scheduler."""
@@ -320,6 +414,23 @@ def create_celery_app():
 
 # Global Celery app instance
 app = create_celery_app()
+
+# Global scheduler instance
+_scheduler_instance = None
+
+def get_scheduler_instance():
+    """Get the current scheduler instance."""
+    return _scheduler_instance
+
+def notify_scheduler_change():
+    """Notify the scheduler that schedules have changed."""
+    scheduler = get_scheduler_instance()
+    logger.info(f"Notifying scheduler change, scheduler instance: {scheduler}")
+    if scheduler:
+        logger.info("Setting schedule_changed to True")
+        scheduler.schedule_changed = True
+    else:
+        logger.warning("No scheduler instance found!")
 
 def update_celery_beat_schedule():
     """Update Celery beat schedule from database schedules."""
@@ -468,6 +579,17 @@ def init_scheduler(sender=None, **kwargs):
         fh = logging.FileHandler(settings.worker_log)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
+        
+        # Store scheduler instance
+        global _scheduler_instance
+        if sender and hasattr(sender, 'scheduler'):
+            logger.info("Storing beat scheduler instance from sender")
+            _scheduler_instance = sender.scheduler
+        elif not _scheduler_instance:
+            logger.info("Creating new DatabaseScheduler instance")
+            _scheduler_instance = DatabaseScheduler(app=app)
+        
+        logger.info(f"Using scheduler instance: {_scheduler_instance}")
         
         # Update schedule
         update_celery_beat_schedule()

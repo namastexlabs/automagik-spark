@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 
 from ...core.database.session import get_sync_session
@@ -22,12 +22,24 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
     """Execute a workflow synchronously."""
     try:
         with get_sync_session() as session:
-            # Get schedule
-            schedule_query = select(Schedule).where(Schedule.id == UUID(schedule_id))
+            # Get schedule and lock it for update
+            schedule_query = select(Schedule).where(
+                Schedule.id == UUID(schedule_id)
+            ).with_for_update()
             schedule = session.execute(schedule_query).scalar()
             if not schedule:
-                logger.error(f"Schedule {schedule_id} not found")
+                logger.info(f"Schedule {schedule_id} not found")
                 return None
+                
+            if schedule.status == 'completed':
+                logger.info(f"Schedule {schedule_id} already completed")
+                return None
+            
+            # For one-time schedules, mark as completed immediately to prevent duplicate runs
+            if schedule.schedule_type == 'one-time':
+                schedule.status = 'completed'
+                session.commit()
+                logger.info(f"Marked one-time schedule {schedule_id} as completed before execution")
 
             # Create task with input data as string
             input_data = schedule.input_data or ""
@@ -45,10 +57,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
             session.add(task)
             session.commit()
 
-            # For one-time schedules, mark as completed since we won't run again
-            if schedule.schedule_type == 'one-time' and schedule.status != 'completed':
-                schedule.status = 'completed'
-                session.commit()
+            # Task is already created and schedule is marked as completed for one-time schedules
                 
             try:
                 # Get workflow
