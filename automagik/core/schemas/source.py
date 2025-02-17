@@ -14,7 +14,7 @@ class WorkflowSourceBase(BaseModel):
 
 class WorkflowSourceCreate(WorkflowSourceBase):
     """Model for creating a workflow source."""
-    api_key: str
+    api_key: str = ""  # Allow empty string by default
 
 class WorkflowSourceUpdate(BaseModel):
     """Model for updating a workflow source."""
