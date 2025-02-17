@@ -95,13 +95,14 @@ class WorkflowScheduler:
             # Use input_data as is, defaulting to empty string if None
             final_input = input_data or ""
 
+            # Create schedule with timezone-aware next_run_at
             schedule = Schedule(
                 id=uuid4(),
                 workflow_id=workflow_id,
                 schedule_type=schedule_type,
                 schedule_expr=schedule_expr,
                 input_data=final_input,
-                next_run_at=next_run,
+                next_run_at=next_run,  # This is already timezone-aware from _get_next_run
                 status='active'  # Set initial status to active
             )
 
@@ -219,26 +220,28 @@ class WorkflowScheduler:
         """Process all active schedules."""
         try:
             now = datetime.now(timezone.utc)
+            # Query all active schedules
             result = await self.session.execute(
                 select(Schedule).where(
-                    Schedule.active == True,
-                    Schedule.next_run_at <= now
+                    Schedule.active == True
                 )
             )
             schedules = list(result.scalars().all())
 
             for schedule in schedules:
-                # Create and run task
-                input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
-                task = Task(
-                    id=uuid4(),
-                    workflow_id=schedule.workflow_id,
-                    schedule_id=schedule.id,
-                    input_data=input_data,
-                    status="pending",
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc)
-                )
+                # Only process schedules that are due
+                if schedule.next_run_at and schedule.next_run_at <= now:
+                    # Create and run task
+                    input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
+                    task = Task(
+                        id=uuid4(),
+                        workflow_id=schedule.workflow_id,
+                        schedule_id=schedule.id,
+                        input_data=input_data,
+                        status="pending",
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc)
+                    )
                 self.session.add(task)
                 await self.session.commit()
 
