@@ -179,27 +179,30 @@ worker_group = click.Group(name="worker", help="Worker management commands")
 
 @worker_group.command()
 @click.option('--threads', default=2, type=int, help='Number of worker threads')
-def start(threads: int = 2):
+@click.option('--daemon', is_flag=True, default=False, help='Run in daemon mode (background)')
+def start(threads: int = 2, daemon: bool = False):
     """Start the worker."""
     try:
         # Configure logging
         configure_logging()
         
-        # Check if worker is already running
-        if get_worker_pid():
-            click.echo("Worker is already running")
-            return
-        
-        # Check if beat scheduler is already running
-        if get_beat_pid():
-            click.echo("Beat scheduler is already running")
-            return
+        # Only check for running processes in daemon mode
+        if daemon:
+            # Check if worker is already running
+            if get_worker_pid():
+                click.echo("Worker is already running")
+                return
+            
+            # Check if beat scheduler is already running
+            if get_beat_pid():
+                click.echo("Beat scheduler is already running")
+                return
         
         # Create log directory
         log_dir = os.path.dirname(WORKER_LOG)
         os.makedirs(log_dir, exist_ok=True)
         
-        # Start worker process
+        # Common worker command
         worker_cmd = [
             'celery',
             '-A', 'automagik.core.celery_config',
@@ -207,78 +210,108 @@ def start(threads: int = 2):
             '--loglevel=INFO',
             '-P', 'prefork',
             '--concurrency', str(threads),
-            '--logfile', os.path.join(log_dir, 'worker.log'),
-            '--pidfile', os.path.join(log_dir, 'worker.pid'),
             '--hostname', 'celery@automagik',
             '--without-gossip',  # Disable gossip to avoid broken pipe
             '--without-mingle',  # Disable mingle to avoid broken pipe
             '--without-heartbeat',  # Disable heartbeat to avoid broken pipe
         ]
         
-        # Start worker in background
-        with open(os.devnull, 'w') as devnull:
-            worker_process = subprocess.Popen(
-                worker_cmd,
-                stdout=devnull,
-                stderr=devnull,
-                preexec_fn=os.setsid,
-                env=dict(os.environ, PYTHONUNBUFFERED='1')
-            )
-        
-        # Save worker PID
-        save_worker_pid(worker_process.pid)
-        
-        # Start beat scheduler process
+        # Common beat command
         beat_cmd = [
             'celery',
             '-A', 'automagik.core.celery_config',
             'beat',
             '--loglevel=INFO',
-            '--logfile', os.path.join(log_dir, 'beat.log'),
-            '--pidfile', os.path.join(log_dir, 'beat.pid'),
             '--schedule', os.path.join(log_dir, 'celerybeat-schedule'),
             '--max-interval', '1',
         ]
         
-        # Start beat scheduler in background
-        with open(os.devnull, 'w') as devnull:
+        # Add log and pid files only in daemon mode
+        if daemon:
+            worker_cmd.extend([
+                '--logfile', os.path.join(log_dir, 'worker.log'),
+                '--pidfile', os.path.join(log_dir, 'worker.pid'),
+            ])
+            beat_cmd.extend([
+                '--logfile', os.path.join(log_dir, 'beat.log'),
+                '--pidfile', os.path.join(log_dir, 'beat.pid'),
+            ])
+        
+        if not daemon:
+            # In foreground mode (default), run worker directly
+            # This will block and show logs directly to console
+            click.echo("Starting worker and beat scheduler in foreground mode...")
+            worker_process = subprocess.Popen(
+                worker_cmd,
+                env=dict(os.environ, PYTHONUNBUFFERED='1')
+            )
             beat_process = subprocess.Popen(
                 beat_cmd,
-                stdout=devnull,
-                stderr=devnull,
-                preexec_fn=os.setsid,
                 env=dict(os.environ, PYTHONUNBUFFERED='1')
             )
             
-        # Wait a moment to ensure processes started
-        time.sleep(2)
-        
-        # Save beat PID
-        save_beat_pid(beat_process.pid)
-        
-        # Verify both processes are running
-        worker_running = False
-        beat_running = False
-        try:
-            os.kill(worker_process.pid, 0)
-            worker_running = True
-        except ProcessLookupError:
-            pass
-            
-        try:
-            os.kill(beat_process.pid, 0)
-            beat_running = True
-        except ProcessLookupError:
-            pass
-            
-        if worker_running and beat_running:
-            click.echo("Worker and beat scheduler started successfully")
+            # Wait for either process to exit
+            while True:
+                worker_status = worker_process.poll()
+                beat_status = beat_process.poll()
+                
+                if worker_status is not None:
+                    click.echo("Worker process exited with status: " + str(worker_status))
+                    beat_process.terminate()
+                    sys.exit(worker_status)
+                
+                if beat_status is not None:
+                    click.echo("Beat scheduler process exited with status: " + str(beat_status))
+                    worker_process.terminate()
+                    sys.exit(beat_status)
+                
+                time.sleep(1)
         else:
-            if not worker_running:
-                click.echo("Worker failed to start")
-            if not beat_running:
-                click.echo("Beat scheduler failed to start")
-            sys.exit(1)
+            # Daemon mode - run in background
+            with open(os.devnull, 'w') as devnull:
+                worker_process = subprocess.Popen(
+                    worker_cmd,
+                    stdout=devnull,
+                    stderr=devnull,
+                    preexec_fn=os.setsid,
+                    env=dict(os.environ, PYTHONUNBUFFERED='1')
+                )
+                
+                beat_process = subprocess.Popen(
+                    beat_cmd,
+                    stdout=devnull,
+                    stderr=devnull,
+                    preexec_fn=os.setsid,
+                    env=dict(os.environ, PYTHONUNBUFFERED='1')
+                )
+            
+            # Save PIDs for background processes
+            save_worker_pid(worker_process.pid)
+            save_beat_pid(beat_process.pid)
+            
+            # Verify both processes are running
+            worker_running = False
+            beat_running = False
+            try:
+                os.kill(worker_process.pid, 0)
+                worker_running = True
+            except ProcessLookupError:
+                pass
+                
+            try:
+                os.kill(beat_process.pid, 0)
+                beat_running = True
+            except ProcessLookupError:
+                pass
+                
+            if worker_running and beat_running:
+                click.echo("Worker and beat scheduler started successfully")
+            else:
+                if not worker_running:
+                    click.echo("Worker failed to start")
+                if not beat_running:
+                    click.echo("Beat scheduler failed to start")
+                sys.exit(1)
             
     except Exception as e:
         click.echo(f"Failed to start worker: {e}")
