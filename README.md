@@ -4,27 +4,36 @@
 
 Because magic shouldn't be complicated.
 
-AutoMagik is a workflow automation system that lets you run AI-driven flows from [LangFlow](https://github.com/logspace-ai/langflow) with minimal fuss. Deploy tasks, monitor them, and iterate quickly—without writing a bunch of code.
+AutoMagik is an agent-first automation engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
+
+Create agents using natural language with our dedicated UI available at [AutoMagik UI](https://github.com/namastexlabs/automagik-ui).
 
 ---
 
-## Quick Setup
+## Installation
 
-The easiest way to get started with AutoMagik is using our setup script. This will automatically set up all required services including PostgreSQL, the API, and worker.
+AutoMagik provides two setup options: local production and development environment.
 
 ### Prerequisites
 
 - Linux-based system (Ubuntu/Debian recommended)
 - Docker and Docker Compose (will be installed automatically on Ubuntu/Debian if not present)
 
-### One-Command Setup
+### Local Production Setup
 
-Run this command to get started:
+For a production-ready local environment:
 ```bash
-mkdir automagik && cd automagik && wget https://raw.githubusercontent.com/namastexlabs/automagik/main/scripts/setup.sh && chmod +x setup.sh && ./setup.sh
+./scripts/setup_local.sh
 ```
 
-That's it! The script will:
+### Development Setup
+
+For development with postgres and redis docker containers:
+```bash
+./scripts/setup_dev.sh
+```
+
+Both setup scripts will:
 - Create necessary environment files
 - Install Docker if needed (on Ubuntu/Debian)
 - Set up all required services
@@ -42,8 +51,6 @@ Once complete, you'll have:
 The setup script automatically verifies all services. You can also check manually:
 
 ```bash
-# Check API health
-curl http://localhost:8888/health
 
 # Access API documentation
 open http://localhost:8888/api/v1/docs  # Interactive Swagger UI
@@ -76,31 +83,28 @@ This will:
 - Install development dependencies
 - Use development-specific configurations
 
-### Environment Configuration
-
-The setup creates two main environment files:
-- `.env`: Your local configuration
-- `.env.example`: Template for reference
-
-Key environment variables:
-- `AUTOMAGIK_API_KEY`: API authentication key
-- `DATABASE_URL`: PostgreSQL connection string
-- `LANGFLOW_API_URL`: LangFlow instance URL
-- `AUTOMAGIK_LOG_LEVEL`: Logging verbosity (DEBUG/INFO/WARNING/ERROR)
-
 ### Project Structure
 
 ```mermaid
 flowchart LR
     subgraph Services
-      A[PostgreSQL] & B[LangFlow]
+      DB[PostgreSQL]
+      LF1[LangFlow Instance 1]
+      LF2[LangFlow Instance 2]
     end
     subgraph AutoMagik
-      E[CLI] -- Commands --> D[API]
-      D -- Database --> A
-      D -- Flows --> B
-      F[Worker] -- Tasks --> D
+      CLI[CLI]
+      API[API Server]
+      CW[Celery Worker]
+      W[Worker]
     end
+    API -- uses --> DB
+    API -- triggers --> CW
+    W -- processes --> API
+    API -- integrates with --> LF1
+    API -- integrates with --> LF2
+    CLI -- controls --> API
+    API -- has UI --> UI[Automagik UI]
 ```
 
 - **API**: Core service handling requests and business logic
@@ -109,118 +113,11 @@ flowchart LR
 - **PostgreSQL**: Stores flows, tasks, schedules, and other data
 - **LangFlow**: Optional service for creating and editing flows
 
-### Using the CLI
-
-AutoMagik comes with a powerful CLI tool for managing flows, tasks, and schedules. Here are some common commands:
-
-#### Flow Management
-```bash
-# List all flows
-automagik flow list
-
-# View flow details
-automagik flow view FLOW_ID
-
-# Sync a flow from LangFlow
-automagik flow sync FLOW_ID
-
-# Delete a flow
-automagik flow delete FLOW_ID
-```
-
-#### Task Management
-```bash
-# List all tasks
-automagik task list
-
-# Create a new task
-automagik task create FLOW_ID --input '{"key": "value"}'
-
-# View task details
-automagik task view TASK_ID
-
-# Retry a failed task
-automagik task retry TASK_ID
-```
-
-#### Schedule Management
-```bash
-# List all schedules
-automagik schedule list
-
-# Create a schedule (runs daily at midnight)
-automagik schedule create FLOW_ID "0 0 * * *"
-
-# Update schedule expression
-automagik schedule set-expression SCHEDULE_ID "*/15 * * * *"
-
-# Enable/disable a schedule
-automagik schedule update SCHEDULE_ID --enabled true
-
-# Delete a schedule
-automagik schedule delete SCHEDULE_ID
-```
-
-#### API and Worker Management
-```bash
-# Start the API server
-automagik api
-
-# Start the worker
-automagik worker start
-
-# Stop the worker
-automagik worker stop
-
-# Check worker status
-automagik worker status
-```
-
-
-
 ### API Endpoints
 
-The API is organized under the `/api/v1` prefix and includes these main endpoints:
+For complete API documentation, visit:
+- Swagger UI: <http://automagikurl:8888/api/v1/docs>
 
-- **Flows**: `/api/v1/flows`
-  - `GET /api/v1/flows`: List all flows
-  - `POST /api/v1/flows`: Create a new flow
-  - `GET /api/v1/flows/{id}`: Get flow details
-  - `DELETE /api/v1/flows/{id}`: Delete a flow
-
-- **Tasks**: `/api/v1/tasks`
-  - `GET /api/v1/tasks`: List all tasks
-  - `POST /api/v1/tasks`: Create a new task
-  - `GET /api/v1/tasks/{id}`: Get task details
-  - `POST /api/v1/tasks/{id}/run`: Run a task
-
-- **Schedules**: `/api/v1/schedules`
-  - `GET /api/v1/schedules`: List all schedules
-  - `POST /api/v1/schedules`: Create a schedule
-  - `GET /api/v1/schedules/{id}`: Get schedule details
-  - `DELETE /api/v1/schedules/{id}`: Delete a schedule
-
-For full API documentation, visit:
-- Swagger UI: <http://localhost:8888/api/v1/docs>
-- ReDoc: <http://localhost:8888/api/v1/redoc>
-
-### Logs and Monitoring
-
-- API logs: Available through Docker Compose logs
-- Worker logs: Configured via `AUTOMAGIK_WORKER_LOG` (default: `logs/worker.log`)
-- Database logs: Available through Docker Compose logs
-
-View all logs:
-```bash
-docker compose -p automagik -f docker/docker-compose.yml logs -f
-```
-
-### Stopping Services
-
-To stop all services:
-```bash
-docker compose -p automagik -f docker/docker-compose.yml down
-```
 
 ### Next Steps
 
@@ -229,4 +126,8 @@ docker compose -p automagik -f docker/docker-compose.yml down
 3. Try out the CLI commands with `automagik --help`
 4. Monitor task execution through logs and API endpoints
 
-For more detailed documentation, check out the `docs/` directory.
+## Roadmap
+
+AutoMagik's future development focuses on:
+
+- TBA
