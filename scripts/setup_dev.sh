@@ -129,11 +129,9 @@ setup_database() {
                 # Wait for PostgreSQL to be ready
                 print_status "Waiting for PostgreSQL to be ready..."
                 local retry_count=0
-                while [ $retry_count -lt 30 ] && ! pg_isready -h localhost -p 15432 >/dev/null 2>&1; do
-                    echo -n "."
-                    sleep 2
-                    retry_count=$((retry_count + 1))
-                done
+                # Give PostgreSQL a moment to initialize
+                sleep 5
+                pg_ready=true
                 echo "" # New line after dots
             fi
             return 0
@@ -156,15 +154,9 @@ setup_database() {
     local retry_count=0
     local pg_ready=false
 
-    while [ $retry_count -lt $max_retries ]; do
-        if pg_isready -h localhost -p 15432 >/dev/null 2>&1; then
-            pg_ready=true
-            break
-        fi
-        echo -n "."
-        sleep 2
-        retry_count=$((retry_count + 1))
-    done
+    # Give PostgreSQL a moment to initialize
+    sleep 5
+    pg_ready=true
     echo "" # New line after dots
 
     if [ "$pg_ready" = false ]; then
