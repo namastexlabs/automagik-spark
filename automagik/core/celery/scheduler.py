@@ -126,29 +126,33 @@ class DatabaseScheduler(Scheduler):
                         elif schedule.schedule_type == 'one-time':
                             # Parse datetime
                             if schedule.schedule_expr.lower() == 'now':
-                                run_time = datetime.now(timezone.utc)
+                                # Add 2 seconds to avoid race conditions
+                                run_time = datetime.now(timezone.utc) + timedelta(seconds=2)
                             else:
                                 run_time = parser.parse(schedule.schedule_expr)
+                                # If the parsed datetime is naive, assume it is local time
                                 if not run_time.tzinfo:
-                                    run_time = run_time.replace(tzinfo=timezone.utc)
-                                else:
-                                    run_time = run_time.astimezone(timezone.utc)
+                                    local_tz = datetime.now().astimezone().tzinfo
+                                    run_time = run_time.replace(tzinfo=local_tz)
+                                # Now convert to UTC for comparison
+                                run_time = run_time.astimezone(timezone.utc)
                             
                             now = datetime.now(timezone.utc)
                             
-                            # Skip if in the past
-                            if run_time < now and schedule.schedule_expr.lower() != 'now':
-                                continue
-                            
-                            entry = ScheduleEntry(
-                                name=schedule_name,
-                                schedule=celery_schedule(timedelta(seconds=0), relative=True),
-                                task='automagik.core.tasks.workflow_tasks.execute_workflow',
-                                args=(schedule_id,),
-                                kwargs={},
-                                options=task_options,
-                                app=self.app
-                            )
+                            # For 'now' schedules or future schedules
+                            if schedule.schedule_expr.lower() == 'now' or run_time > now:
+                                # Calculate delay in seconds
+                                delay = (run_time - now).total_seconds()
+                                
+                                entry = ScheduleEntry(
+                                    name=schedule_name,
+                                    schedule=celery_schedule(timedelta(seconds=delay), relative=True),
+                                    task='automagik.core.tasks.workflow_tasks.execute_workflow',
+                                    args=(schedule_id,),
+                                    kwargs={},
+                                    options=task_options,
+                                    app=self.app
+                                )
                             self.schedule[schedule_name] = entry
                             
                     except Exception as e:
@@ -160,8 +164,23 @@ class DatabaseScheduler(Scheduler):
 
     def tick(self, *args, **kwargs):
         """Called by the beat service periodically."""
-        self.update_from_database()
-        return super().tick(*args, **kwargs)
+        start_time = datetime.now()
+        logger.info("Starting scheduler tick")
+        
+        try:
+            self.update_from_database()
+            result = super().tick(*args, **kwargs)
+            
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(f"Scheduler tick completed in {duration:.3f} seconds")
+            
+            return result
+        except Exception as e:
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.error(f"Scheduler tick failed after {duration:.3f} seconds: {e}")
+            raise
 
 def get_scheduler_instance():
     """Get the current scheduler instance."""

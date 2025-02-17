@@ -36,7 +36,10 @@ def get_celery_config():
         'task_serializer': 'json',
         'result_serializer': 'json',
         'accept_content': ['json'],
-        'broker_connection_retry_on_startup': True
+        'broker_connection_retry_on_startup': True,
+        # Beat scheduler configuration
+        'beat_max_loop_interval': 5,  # Maximum number of seconds to sleep between checking schedule
+        'beat_schedule_filename': None  # Disable file-based schedule persistence since we use database
     }
     
     return config
