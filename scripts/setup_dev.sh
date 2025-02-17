@@ -1,6 +1,17 @@
 
 #!/bin/bash
 
+# Ensure we're in the project root directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+cd "$PROJECT_ROOT"
+
+# Check for required files
+if [ ! -f ".env.dev" ]; then
+    echo "Error: .env.dev file not found in project root. Are you in the right directory?"
+    exit 1
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -96,8 +107,23 @@ setup_database() {
                 sleep 1
             done
         else
-            print_error "Cannot continue with existing database. Please remove it first."
-            exit 1
+            # User chose to keep existing database
+            print_status "Using existing database"
+            if ! docker ps -q | grep -q "$DB_CONTAINER"; then
+                print_status "Starting existing database container..."
+                docker start $DB_CONTAINER
+                
+                # Wait for PostgreSQL to be ready
+                print_status "Waiting for PostgreSQL to be ready..."
+                local retry_count=0
+                while [ $retry_count -lt 30 ] && ! pg_isready -h localhost -p 15432 >/dev/null 2>&1; do
+                    echo -n "."
+                    sleep 2
+                    retry_count=$((retry_count + 1))
+                done
+                echo "" # New line after dots
+            fi
+            return 0
         fi
     fi
 
@@ -168,20 +194,45 @@ if ! command -v uv &> /dev/null; then
     print_warning "uv is not installed. Installing..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add uv to PATH for current session if not already there
-    if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
-        export PATH="$HOME/.cargo/bin:$PATH"
+    # Source bashrc to make uv available in current session
+    if [ -f "$HOME/.bashrc" ]; then
+        source "$HOME/.bashrc"
+    fi
+
+    # If uv is still not in PATH, add it manually for this session
+    if ! command -v uv &> /dev/null; then
+        if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
+            export PATH="$HOME/.cargo/bin:$PATH"
+        fi
     fi
 fi
 
-# Check if docker and docker compose are installed
+# Check and install Docker if needed
 if ! command -v docker &> /dev/null; then
-    print_error "docker is not installed. Please install it first."
-    exit 1
+    print_warning "Docker is not installed. Installing..."
+    if check_os; then
+        sudo apt-get update
+        sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        sudo systemctl enable docker
+        sudo systemctl start docker
+        
+        # Add current user to docker group to avoid using sudo
+        sudo usermod -aG docker $USER
+        print_status "Docker installed successfully! You may need to log out and back in for group changes to take effect."
+    else
+        print_error "Automatic Docker installation is only supported on Ubuntu."
+        print_error "Please install Docker manually following the official documentation."
+        exit 1
+    fi
 fi
 
+# Verify docker compose
 if ! command -v docker compose &> /dev/null; then
-    print_error "docker compose is not installed. Please install it first."
+    print_error "Docker Compose is not available. Please check your Docker installation."
     exit 1
 fi
 

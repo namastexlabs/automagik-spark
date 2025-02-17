@@ -1,5 +1,3 @@
-# AutoMagik
-
 <p align="center">
   <img src=".github/images/automagik_logo.png" alt="AutoMagik Logo" width="600"/>
 </p>
