@@ -5,7 +5,7 @@ Workflow router.
 Provides endpoints for managing workflows.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
