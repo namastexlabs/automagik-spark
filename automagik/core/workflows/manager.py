@@ -86,20 +86,48 @@ class WorkflowManager:
             raise ValueError("Either workflow_id or source_url must be provided")
 
     async def list_remote_flows(self, workflow_id: Optional[str] = None, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List remote flows from all LangFlow sources, or a specific source if provided."""
-        if workflow_id or source_url:
-            self.langflow = await self._get_langflow_manager(workflow_id, source_url)
-            async with self.langflow:
-                flows = await self.langflow.list_flows()
-                if flows:
-                    # Add source info to each flow
-                    for flow in flows:
-                        flow["source_url"] = self.langflow.api_url
-                        # Get instance name from URL
-                        instance = self.langflow.api_url.split('://')[-1].split('/')[0]
-                        instance = instance.split('.')[0]
-                        flow["instance"] = instance
-                return flows
+        """List remote flows from all LangFlow sources, or a specific source if provided.
+        
+        Args:
+            workflow_id: Optional workflow ID to filter by
+            source_url: Optional source URL or instance name to filter by
+            
+        Returns:
+            List[Dict[str, Any]]: List of flows matching the criteria
+        """
+        if source_url:
+            # Try to find source by URL or instance name
+            sources_query = select(WorkflowSource).where(
+                or_(
+                    WorkflowSource.url == source_url,
+                    # Extract instance name from URL and compare
+                    func.split_part(func.split_part(WorkflowSource.url, '://', 2), '/', 1).ilike(f"{source_url}%")
+                )
+            )
+            sources = (await self.session.execute(sources_query)).scalars().all()
+            
+            if not sources:
+                logger.warning(f"No sources found matching {source_url}")
+                return []
+                
+            all_flows = []
+            for source in sources:
+                try:
+                    api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                    self.langflow = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+                    async with self.langflow:
+                        flows = await self.langflow.list_flows()
+                        if flows:
+                            # Add source info to each flow
+                            for flow in flows:
+                                flow["source_url"] = source.url
+                                instance = source.url.split('://')[-1].split('/')[0]
+                                instance = instance.split('.')[0]
+                                flow["instance"] = instance
+                            all_flows.extend(flows)
+                except Exception as e:
+                    logger.error(f"Failed to list flows from source {source.url}: {str(e)}")
+            return all_flows
         else:
             # List flows from all sources
             sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
@@ -114,7 +142,6 @@ class WorkflowManager:
                             # Add source info to each flow
                             for flow in flows:
                                 flow["source_url"] = source.url
-                                # Get instance name from URL
                                 instance = source.url.split('://')[-1].split('/')[0]
                                 instance = instance.split('.')[0]
                                 flow["instance"] = instance
@@ -122,6 +149,55 @@ class WorkflowManager:
                 except Exception as e:
                     logger.error(f"Failed to list flows from source {source.url}: {str(e)}")
             return all_flows
+            
+    async def get_remote_flow(self, flow_id: str, source_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get a remote flow by ID from any source or a specific source.
+        
+        Args:
+            flow_id: ID of the flow to get
+            source_url: Optional URL of the source to get the flow from
+            
+        Returns:
+            Optional[Dict[str, Any]]: The flow data if found, None otherwise
+        """
+        if source_url:
+            # Try specific source
+            try:
+                self.langflow = await self._get_langflow_manager(source_url=source_url)
+                async with self.langflow:
+                    flow = await self.langflow.get_flow(flow_id)
+                    if flow:
+                        flow["source_url"] = self.langflow.api_url
+                        instance = self.langflow.api_url.split('://')[-1].split('/')[0]
+                        instance = instance.split('.')[0]
+                        flow["instance"] = instance
+                        return flow
+            except Exception as e:
+                logger.error(f"Failed to get flow {flow_id} from source {source_url}: {str(e)}")
+                return None
+        else:
+            # Try all sources
+            sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
+            for source in sources:
+                try:
+                    api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                    self.langflow = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+                    async with self.langflow:
+                        # First check if flow exists in this source
+                        flows = await self.langflow.list_flows()
+                        if flows and any(f.get('id') == flow_id for f in flows):
+                            flow = await self.langflow.get_flow(flow_id)
+                            if flow:
+                                flow["source_url"] = source.url
+                                instance = source.url.split('://')[-1].split('/')[0]
+                                instance = instance.split('.')[0]
+                                flow["instance"] = instance
+                                return flow
+                except Exception as e:
+                    logger.error(f"Failed to get flow {flow_id} from source {source.url}: {str(e)}")
+                    continue
+            
+            return None
 
     async def get_flow_components(self, flow_id: str) -> Dict[str, Any]:
         """Get flow components from LangFlow API."""

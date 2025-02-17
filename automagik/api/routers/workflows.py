@@ -32,13 +32,81 @@ async def list_workflows(
         return [WorkflowResponse.model_validate(w) for w in workflows]
 
 
-@router.get("/remote", response_model=Dict[str, List[Dict[str, Any]]])
+@router.get("/remote", response_model=List[Dict[str, Any]])
 async def list_remote_flows(
+    simplified: bool = False,
+    source_url: Optional[str] = None,
     session: AsyncSession = Depends(get_session)
-) -> Dict[str, List[Dict[str, Any]]]:
-    """List remote flows from LangFlow API."""
+) -> List[Dict[str, Any]]:
+    """List remote flows from LangFlow API.
+    
+    Args:
+        simplified: If True, returns only essential flow information
+        source_url: Optional URL or instance name to filter flows by source
+        session: Database session
+    """
     async with WorkflowManager(session) as manager:
-        return await manager.list_remote_flows()
+        flows = await manager.list_remote_flows(source_url=source_url)
+        
+        if not flows:
+            return []
+        
+        if simplified:
+            simplified_flows = []
+            for flow in flows:
+                # Extract essential flow information
+                simplified_flow = {
+                    "id": flow.get("id"),
+                    "name": flow.get("name"),
+                    "description": flow.get("description"),
+                    "origin": {
+                        "instance": flow.get("instance"),
+                        "source_url": flow.get("source_url")
+                    },
+                    "components": []
+                }
+                
+                # Extract essential component information
+                if "data" in flow and "nodes" in flow["data"]:
+                    for node in flow["data"]["nodes"]:
+                        component = {
+                            "id": node.get("id"),
+                            "name": node.get("data", {}).get("name") or node.get("data", {}).get("type"),
+                            "description": node.get("data", {}).get("description", "")
+                        }
+                        simplified_flow["components"].append(component)
+                
+                simplified_flows.append(simplified_flow)
+            
+            return simplified_flows
+        
+        return flows
+
+
+@router.get("/remote/{flow_id}", response_model=Dict[str, Any])
+async def get_remote_flow(
+    flow_id: str,
+    source_url: Optional[str] = None,
+    session: AsyncSession = Depends(get_session)
+) -> Dict[str, Any]:
+    """Get full details of a remote flow.
+    
+    Args:
+        flow_id: ID of the flow to get
+        source_url: Optional URL of the source to get the flow from
+        session: Database session
+        
+    Raises:
+        HTTPException: If the flow is not found
+    """
+    async with WorkflowManager(session) as manager:
+        flow = await manager.get_remote_flow(flow_id, source_url)
+        if not flow:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Flow {flow_id} not found{' in source ' + source_url if source_url else ''}"
+            )
+        return flow
 
 
 @router.get("/{workflow_id}", response_model=WorkflowResponse)
