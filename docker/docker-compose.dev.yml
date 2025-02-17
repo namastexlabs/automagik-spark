@@ -1,4 +1,18 @@
 services:
+  # Redis for Celery
+  redis:
+    image: redis:7.4.2-alpine
+    ports:
+      - "16379:16379"
+    command: redis-server --port 16379 --appendonly yes
+    volumes:
+      - redis-data-dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "16379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # Only essential services for development
   automagik-db:
     image: postgres:16
@@ -6,15 +20,17 @@ services:
       POSTGRES_USER: automagik
       POSTGRES_PASSWORD: automagik
       POSTGRES_DB: automagik
+    command: postgres -p 15432
     ports:
-      - "15432:5432"
+      - "15432:15432"
     volumes:
       - automagik-postgres-dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automagik"]
+      test: ["CMD-SHELL", "pg_isready -U automagik -p 15432"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
   automagik-postgres-dev:
+  redis-data-dev:

@@ -1,4 +1,20 @@
 services:
+  # Redis for Celery
+  redis:
+    image: redis:7.4.2-alpine
+    ports:
+      - "16379:16379"
+    command: redis-server --port 16379 --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "16379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automagik-network
+
   # Automagik's PostgreSQL
   automagik-db:
     image: postgres:16
@@ -6,12 +22,13 @@ services:
       POSTGRES_USER: automagik
       POSTGRES_PASSWORD: automagik
       POSTGRES_DB: automagik
+    command: postgres -p 15432
     ports:
-      - "15432:5432"
+      - "15432:15432"
     volumes:
       - automagik-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automagik"]
+      test: ["CMD-SHELL", "pg_isready -U automagik -p 15432"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,8 +41,9 @@ services:
       - langflow
     image: langflowai/langflow:latest
     pull_policy: always
+    command: langflow run --host 0.0.0.0 --port 17860
     ports:
-      - "17860:7860"
+      - "17860:17860"
     environment:
       - LANGFLOW_WORKERS=2
     volumes:
@@ -42,10 +60,8 @@ services:
         BUILDKIT_INLINE_CACHE: 1
     image: automagik-api:local
     pull_policy: never
-    command: python -m automagik api
+    command: python -m automagik api start
     env_file: ../.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
     ports:
       - "8888:8888"
     volumes:
@@ -61,6 +77,8 @@ services:
       retries: 5
     networks:
       - automagik-network
+    extra_hosts:
+      - "localhost:host-gateway"
 
   # Automagik Worker service
   automagik-worker:
@@ -69,19 +87,22 @@ services:
       dockerfile: docker/Dockerfile
     command: python -m automagik worker start
     env_file: ../.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
     depends_on:
       automagik-db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       automagik-api:
         condition: service_healthy
     networks:
       - automagik-network
+    extra_hosts:
+      - "localhost:host-gateway"
 
 volumes:
   automagik-postgres:
   langflow-data:
+  redis-data:
 
 networks:
   automagik-network:

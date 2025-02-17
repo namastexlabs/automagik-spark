@@ -108,8 +108,12 @@ source .env
 set +a
 
 print_status "Creating logs directory..."
-mkdir -p "$(dirname "$AUTOMAGIK_WORKER_LOG")"
-touch "$AUTOMAGIK_WORKER_LOG"
+mkdir -p "$(eval echo "$(dirname "$AUTOMAGIK_WORKER_LOG")")"
+touch "$(eval echo "$AUTOMAGIK_WORKER_LOG")"
+
+# Update Redis URLs for local development
+sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
+sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
 
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
@@ -213,7 +217,7 @@ RETRY_COUNT=0
 PG_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-db pg_isready -U automagik; then
+    if docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-db pg_isready -U automagik -p 15432; then
         PG_READY=true
         break
     fi
@@ -230,8 +234,15 @@ if [ "$PG_READY" = false ]; then
 fi
 
 # Initialize database
+print_status "Initializing database..."
+if ! docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db init; then
+    print_error "Database initialization failed. Checking logs..."
+    docker compose -p automagik -f docker/docker-compose.yml logs automagik-api
+    exit 1
+fi
+
 print_status "Applying database migrations..."
-if ! docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
+if ! docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
     docker compose -p automagik -f docker/docker-compose.yml logs automagik-api
     exit 1

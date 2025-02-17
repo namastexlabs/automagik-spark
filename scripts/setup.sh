@@ -211,9 +211,16 @@ if [ "$API_READY" = false ]; then
 fi
 
 # Initialize database
-print_status "Applying database migrations..."
+print_status "Initializing database..."
 sleep 5  # Give PostgreSQL a moment to fully initialize
-if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api python -m automagik db upgrade; then
+if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db init; then
+    print_error "Database initialization failed. Checking logs..."
+    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
+    exit 1
+fi
+
+print_status "Applying database migrations..."
+if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
     docker compose -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1

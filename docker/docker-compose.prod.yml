@@ -1,4 +1,21 @@
 services:
+  # Redis for Celery
+  redis:
+    image: redis:7.4.2-alpine
+    container_name: automagik-redis
+    ports:
+      - "16379:16379"
+    command: redis-server --port 16379 --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "16379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automagik-network
+
   # Automagik's PostgreSQL
   automagik-db:
     image: postgres:15
@@ -9,10 +26,11 @@ services:
       POSTGRES_DB: automagik
     volumes:
       - automagik-db-data:/var/lib/postgresql/data
+    command: postgres -p 15432
     ports:
-      - "15432:5432"
+      - "15432:15432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automagik"]
+      test: ["CMD-SHELL", "pg_isready -U automagik -p 15432"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,8 +43,8 @@ services:
     container_name: automagik-api
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
+    env_file:
+      - .env
       AUTOMAGIK_ENV: production
       PYTHONUNBUFFERED: 1
     ports:
@@ -48,8 +66,8 @@ services:
     container_name: automagik-worker
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://automagik:automagik@automagik-db:5432/automagik
+    env_file:
+      - .env
       AUTOMAGIK_ENV: production
       PYTHONUNBUFFERED: 1
     depends_on:
@@ -74,6 +92,7 @@ services:
 
 volumes:
   automagik-db-data:
+  redis-data:
   langflow-data:
 
 networks:

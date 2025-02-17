@@ -54,6 +54,19 @@ check_os() {
     return 1
 }
 
+# Check if Redis container exists and is running
+check_redis_container() {
+    if docker ps -a --format '{{.Names}}' | grep -q "automagik-dev-redis-"; then
+        if docker ps --format '{{.Names}}' | grep -q "automagik-dev-redis-"; then
+            return 0  # Container exists and is running
+        else
+            return 2  # Container exists but is not running
+        fi
+    else
+        return 1  # Container does not exist
+    fi
+}
+
 # Check if PostgreSQL container exists and is running
 check_postgres_container() {
     if docker ps -a --format '{{.Names}}' | grep -q "automagik-dev-automagik-db-"; then
@@ -134,8 +147,8 @@ setup_database() {
         exit 1
     fi
 
-    print_status "Starting fresh PostgreSQL container..."
-    docker compose -p automagik-dev -f docker/docker-compose.dev.yml up -d automagik-db
+    print_status "Starting fresh PostgreSQL and Redis containers..."
+    docker compose -p automagik-dev -f docker/docker-compose.dev.yml up -d automagik-db redis
 
     # Wait for PostgreSQL to be ready
     print_status "Waiting for PostgreSQL to be ready..."
@@ -157,6 +170,28 @@ setup_database() {
     if [ "$pg_ready" = false ]; then
         print_error "PostgreSQL failed to start. Please check docker logs for more information."
         docker compose -p automagik-dev -f docker/docker-compose.dev.yml logs automagik-db
+        exit 1
+    fi
+
+    # Check Redis
+    print_status "Waiting for Redis to be ready..."
+    local redis_ready=false
+    local retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        if docker compose -p automagik-dev -f docker/docker-compose.dev.yml exec -T redis redis-cli -p 16379 ping | grep -q "PONG"; then
+            redis_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+        retry_count=$((retry_count + 1))
+    done
+    echo "" # New line after dots
+
+    if [ "$redis_ready" = false ]; then
+        print_error "Redis failed to start. Please check docker logs for more information."
+        docker compose -p automagik-dev -f docker/docker-compose.dev.yml logs redis
         exit 1
     fi
 }
@@ -262,8 +297,14 @@ else
     cp .env.dev .env
     # Ensure DATABASE_URL is set correctly
     sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik:automagik@localhost:15432/automagik|' .env
+    # Ensure Redis URLs are set correctly
+    sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
+    sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
     # Ensure worker log path is set correctly
-    sed -i 's|^AUTOMAGIK_WORKER_LOG=.*|AUTOMAGIK_WORKER_LOG=logs/worker.log|' .env
+    sed -i 's|^AUTOMAGIK_WORKER_LOG=.*|AUTOMAGIK_WORKER_LOG=~/.automagik/log/automagik/worker.log|' .env
+    # Ensure Redis URL is set correctly
+    sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
+    sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
     print_status "Environment file created successfully!"
 fi
 
@@ -273,8 +314,8 @@ source .env
 set +a
 
 print_status "Creating logs directory..."
-mkdir -p "$(dirname "$AUTOMAGIK_WORKER_LOG")"
-touch "$AUTOMAGIK_WORKER_LOG"
+mkdir -p "$(eval echo "$(dirname "$AUTOMAGIK_WORKER_LOG")")"
+touch "$(eval echo "$AUTOMAGIK_WORKER_LOG")"
 
 print_status "Creating virtual environment..."
 uv venv
@@ -286,8 +327,14 @@ setup_database
 print_status "Installing dependencies..."
 uv pip install -e ".[dev]"
 
+print_status "Initializing database..."
+if ! automagik db init; then
+    print_error "Database initialization failed. Please check the error above."
+    exit 1
+fi
+
 print_status "Applying database migrations..."
-if ! alembic upgrade head; then
+if ! automagik db upgrade; then
     print_error "Database migration failed. Please check the error above."
     exit 1
 fi
@@ -320,5 +367,6 @@ print_status "1. Run the API: automagik api"
 print_status "2. Access services at:"
 print_status "   - API: http://localhost:8888"
 print_status "   - PostgreSQL: localhost:15432"
+print_status "   - Redis: localhost:16379"
 
 
