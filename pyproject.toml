@@ -1,7 +1,6 @@
-
 [project]
 name = "automagik"
-version = "0.1.0"
+version = "0.2.0"
 description = "AutoMagik - Automated workflow management with LangFlow integration"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -53,5 +52,3 @@ markers = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_default_fixture_loop_scope = "function"
-
-
