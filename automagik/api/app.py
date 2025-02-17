@@ -5,6 +5,8 @@ import datetime
 from fastapi import FastAPI, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+
+from automagik.version import __version__
 from .config import get_cors_origins, get_api_key
 from .dependencies import verify_api_key
 from .routers import tasks, workflows, schedules, sources
@@ -12,7 +14,7 @@ from .routers import tasks, workflows, schedules, sources
 app = FastAPI(
     title="AutoMagik API",
     description="AutoMagik - Automated workflow management with LangFlow integration",
-    version="0.1.0",
+    version=__version__,
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",
@@ -48,7 +50,7 @@ async def root(api_key: str = Security(verify_api_key)):
     return {
         "status": "online",
         "service": "AutoMagik API",
-        "version": "0.1.0",
+        "version": __version__,
         "server_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
         "docs_url": "/api/v1/docs",
         "redoc_url": "/api/v1/redoc",

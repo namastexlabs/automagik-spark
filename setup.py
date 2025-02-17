@@ -7,7 +7,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="automagik",
-    version="0.1.0",
+    version=__import__("automagik.version").__version__,
     author="NamasteX Labs",
     author_email="dev@namastexlabs.com",
     description="AI-driven workflow automation with LangFlow integration",
