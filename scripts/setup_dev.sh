@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Ensure we're in the project root directory
@@ -319,3 +320,5 @@ print_status "1. Run the API: automagik api"
 print_status "2. Access services at:"
 print_status "   - API: http://localhost:8888"
 print_status "   - PostgreSQL: localhost:15432"
+
+

@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 
@@ -380,3 +381,5 @@ print_status "docker compose -p automagik -f docker/docker-compose.yml logs -f"
 print_status ""
 print_status "To stop services:"
 print_status "docker compose -p automagik -f docker/docker-compose.yml down"
+
+

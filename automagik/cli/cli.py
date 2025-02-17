@@ -1,46 +1,44 @@
-"""CLI entry point for automagik."""
 
-import os
+"""Main CLI entry point."""
+
 import click
 import logging
+import os
+
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 from .commands import (
-    flow_group,
-    schedule_group,
-    task_group,
+    api_group,
     db_group,
     worker_group,
-    api
+    workflow_group,
+    schedule_group,
+    task_group,
+    source,
 )
 
+
 @click.group()
-@click.option('--debug/--no-debug', default=False, help='Enable debug mode')
+@click.option("--debug/--no-debug", default=False)
 def main(debug):
-    """AutoMagik CLI"""
+    """Automagik CLI."""
     if debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
         logging.getLogger().setLevel(logging.DEBUG)
     else:
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
         logging.getLogger().setLevel(logging.INFO)
 
 # Add command groups
-main.add_command(flow_group)
-main.add_command(schedule_group)
-main.add_command(worker_group)
-main.add_command(task_group)
+main.add_command(api_group)
 main.add_command(db_group)
-main.add_command(api)
+main.add_command(worker_group)
+main.add_command(workflow_group)
+main.add_command(schedule_group)
+main.add_command(task_group)
+main.add_command(source.source)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
+
+

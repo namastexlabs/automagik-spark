@@ -1,7 +1,8 @@
+
 """
 Scheduler management module.
 
-Provides the main interface for managing schedules and running scheduled flows.
+Provides the main interface for managing schedules and running scheduled workflows.
 """
 
 import logging
@@ -11,14 +12,15 @@ from datetime import datetime, timezone, timedelta
 from croniter import croniter
 import re
 from dateutil import parser
+import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from ..database.models import Schedule, Task, Flow
-from ..flows.manager import FlowManager
-from .scheduler import FlowScheduler
+from ..database.models import Schedule, Task, Workflow
+from ..workflows.manager import WorkflowManager
+from .scheduler import WorkflowScheduler
 from .task_runner import TaskRunner
 
 logger = logging.getLogger(__name__)
@@ -27,18 +29,18 @@ logger = logging.getLogger(__name__)
 class SchedulerManager:
     """Scheduler management class."""
     
-    def __init__(self, session: AsyncSession, flow_manager: FlowManager):
+    def __init__(self, session: AsyncSession, workflow_manager: WorkflowManager):
         """
         Initialize scheduler manager.
         
         Args:
             session: Database session
-            flow_manager: Flow manager instance for executing flows
+            workflow_manager: Workflow manager instance for executing workflows
         """
         self.session = session
-        self.flow_manager = flow_manager
-        self.scheduler = FlowScheduler(session, flow_manager)
-        self.task_runner = TaskRunner(session, flow_manager)
+        self.workflow_manager = workflow_manager
+        self.scheduler = WorkflowScheduler(session, workflow_manager)
+        self.task_runner = TaskRunner(session, workflow_manager)
 
     async def __aenter__(self):
         """Enter context manager."""
@@ -131,6 +133,14 @@ class SchedulerManager:
         except (ValueError, TypeError):
             return False
 
+    def _validate_datetime(self, dt_str: str) -> bool:
+        """Validate datetime string."""
+        try:
+            parser.parse(dt_str)
+            return True
+        except (ValueError, TypeError):
+            return False
+
     def _calculate_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
         """Calculate next run time based on schedule type and expression."""
         now = datetime.now(timezone.utc)
@@ -154,63 +164,75 @@ class SchedulerManager:
             next_run = cron.get_next(datetime)
             return next_run.replace(tzinfo=timezone.utc)
             
+        elif schedule_type == "one-time":
+            if schedule_expr.lower() == "now":
+                return now
+            if not self._validate_datetime(schedule_expr):
+                logger.error(f"Invalid datetime expression: {schedule_expr}")
+                return None
+            try:
+                run_time = parser.parse(schedule_expr)
+                if not run_time.tzinfo:
+                    run_time = run_time.replace(tzinfo=timezone.utc)
+                if run_time < now:
+                    logger.error("Cannot schedule in the past")
+                    return None
+                return run_time
+            except ValueError as e:
+                logger.error(f"Error parsing datetime: {e}")
+                return None
+            
         return None
 
     # Schedule database operations
     async def create_schedule(
         self,
-        flow_id: UUID,
+        workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        flow_params: Optional[Dict[str, Any]] = None
+        input_value: Optional[str] = None,
     ) -> Optional[Schedule]:
-        """Create a schedule for a flow."""
-        try:
-            # Check if flow exists
-            result = await self.session.execute(
-                select(Flow).where(Flow.id == flow_id)
-            )
-            flow = result.scalar_one_or_none()
-            if not flow:
-                logger.error(f"Flow {flow_id} not found")
-                return None
-
-            # Validate schedule type
-            if schedule_type not in ["interval", "cron"]:
-                logger.error(f"Invalid schedule type: {schedule_type}")
-                return None
-
-            # Calculate next run time
-            next_run = self._calculate_next_run(schedule_type, schedule_expr)
-            if next_run is None:
-                logger.error(f"Invalid schedule expression: {schedule_expr}")
-                return None
-
-            schedule = Schedule(
-                id=uuid4(),
-                flow_id=flow_id,
-                schedule_type=schedule_type,
-                schedule_expr=schedule_expr,
-                flow_params=flow_params or {},
-                next_run_at=next_run
-            )
-            
-            self.session.add(schedule)
-            await self.session.commit()
-            await self.session.refresh(schedule)
-            
-            return schedule
-            
-        except Exception as e:
-            logger.error(f"Error creating schedule: {e}")
-            await self.session.rollback()
+        """Create a new schedule."""
+        # Validate workflow exists
+        workflow = await self.session.get(Workflow, workflow_id)
+        if not workflow:
             return None
+
+        # Validate schedule type and expression
+        if schedule_type == "interval":
+            if not self._validate_interval(schedule_expr):
+                return None
+        elif schedule_type == "cron":
+            if not self._validate_cron(schedule_expr):
+                return None
+        elif schedule_type == "one-time":
+            if schedule_expr.lower() != "now" and not self._validate_datetime(schedule_expr):
+                return None
+        else:
+            return None
+
+        # Calculate next run time
+        next_run = self._calculate_next_run(schedule_type, schedule_expr)
+        if not next_run:
+            return None
+
+        schedule = Schedule(
+            workflow_id=workflow_id,
+            schedule_type=schedule_type,
+            schedule_expr=schedule_expr,
+            input_data=input_value,
+            next_run_at=next_run,
+            status="active"
+        )
+        self.session.add(schedule)
+        await self.session.commit()
+        return schedule
 
     async def list_schedules(self) -> List[Schedule]:
         """List all schedules from database."""
         result = await self.session.execute(
             select(Schedule)
-            .options(joinedload(Schedule.flow))
+            .options(joinedload(Schedule.workflow))
             .order_by(Schedule.created_at)
         )
         return list(result.scalars().all())
@@ -360,3 +382,5 @@ class SchedulerManager:
             select(Schedule).where(Schedule.id == schedule_id)
         )
         return result.scalar_one_or_none()
+
+

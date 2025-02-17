@@ -41,5 +41,5 @@ postgres_data/
 redis_data/
 logs/*
 # windsurf rules
-.windsurfrules
+# .windsurfrules
 .coverage

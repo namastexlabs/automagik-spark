@@ -1,5 +1,10 @@
+
 import asyncio
 from logging.config import fileConfig
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -67,3 +72,5 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+

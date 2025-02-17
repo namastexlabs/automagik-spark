@@ -1,7 +1,8 @@
+
 """
 Task Runner Module
 
-Handles execution of flow tasks, including input/output processing and error handling.
+Handles execution of workflow tasks, including input/output processing and error handling.
 """
 
 import logging
@@ -14,24 +15,24 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..database.models import Task, TaskLog, Flow
-from ..flows.manager import FlowManager
+from ..database.models import Task, TaskLog, Workflow
+from ..workflows.manager import WorkflowManager
 
 logger = logging.getLogger(__name__)
 
 class TaskRunner:
-    """Handles execution of flow tasks."""
+    """Handles execution of workflow tasks."""
     
-    def __init__(self, session: AsyncSession, flow_manager: FlowManager):
+    def __init__(self, session: AsyncSession, workflow_manager: WorkflowManager):
         """
         Initialize task runner.
         
         Args:
             session: Database session
-            flow_manager: Flow manager instance
+            workflow_manager: Workflow manager instance
         """
         self.session = session
-        self.flow_manager = flow_manager
+        self.workflow_manager = workflow_manager
     
     async def execute_task(self, task_id: uuid.UUID) -> Optional[Dict[str, Any]]:
         """
@@ -62,10 +63,10 @@ class TaskRunner:
             await self.session.commit()
             
             try:
-                # Execute flow
-                output = await self.flow_manager.run_flow(task.flow_id, task.input_data)
+                # Execute workflow
+                output = await self.workflow_manager.run_workflow(task.workflow_id, task.input_data)
                 if not output:
-                    raise Exception("Flow execution failed - no output returned")
+                    raise Exception("Workflow execution failed - no output returned")
                 
                 # Update task on success
                 task.status = 'completed'
@@ -169,3 +170,5 @@ class TaskRunner:
         except Exception as e:
             logger.error(f"Error retrying task {task_id}: {str(e)}")
             return False
+
+

@@ -1,10 +1,11 @@
+
 """Schedules router for the AutoMagik API."""
 from typing import List
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Security, Depends
 from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse
 from ..dependencies import verify_api_key, get_session
-from ...core.flows.manager import FlowManager
+from ...core.workflows.manager import WorkflowManager
 from ...core.scheduler.manager import SchedulerManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +17,8 @@ router = APIRouter(
 
 async def get_scheduler_manager(session: AsyncSession = Depends(get_session)) -> SchedulerManager:
     """Get scheduler manager instance."""
-    flow_manager = FlowManager(session)
-    return SchedulerManager(session, flow_manager)
+    workflow_manager = WorkflowManager(session)
+    return SchedulerManager(session, workflow_manager)
 
 @router.post("", response_model=ScheduleResponse)
 async def create_schedule(
@@ -29,12 +30,12 @@ async def create_schedule(
     try:
         async with scheduler_manager as sm:
             # Convert flow_id to UUID
-            flow_id = UUID(schedule.flow_id)
+            workflow_id = UUID(schedule.workflow_id)
             created_schedule = await sm.create_schedule(
-                flow_id=flow_id,
+                workflow_id=workflow_id,
                 schedule_type=schedule.schedule_type,
                 schedule_expr=schedule.schedule_expr,
-                flow_params=schedule.flow_params
+                input_value=schedule.input_value
             )
             if not created_schedule:
                 raise HTTPException(status_code=400, detail="Failed to create schedule")
@@ -204,3 +205,5 @@ async def disable_schedule(
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+

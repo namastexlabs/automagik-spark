@@ -1,3 +1,4 @@
+
 """Main FastAPI application module."""
 
 import datetime
@@ -6,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from .config import get_cors_origins, get_api_key
 from .dependencies import verify_api_key
-from .routers import tasks, flows, schedules
+from .routers import tasks, workflows, schedules, sources
 
 app = FastAPI(
     title="AutoMagik API",
@@ -33,7 +34,11 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    current_time = datetime.datetime.now()
+    return {
+        "status": "healthy",
+        "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 
 @app.get("/")
@@ -51,6 +56,9 @@ async def root(api_key: str = Security(verify_api_key)):
 
 
 # Add routers with /api/v1 prefix
-app.include_router(flows.router, prefix="/api/v1")
+app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(schedules.router, prefix="/api/v1")
+app.include_router(sources.router, prefix="/api/v1")
+
+

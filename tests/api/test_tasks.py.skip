@@ -1,3 +1,4 @@
+
 """Tests for the tasks API endpoints."""
 import pytest
 from uuid import uuid4
@@ -296,3 +297,5 @@ async def test_run_task_not_found(client):
     """Test running a non-existent task."""
     response = client.post(f"/api/v1/tasks/{uuid4()}/run", headers=HEADERS)
     assert response.status_code == 404
+
+

@@ -1,9 +1,10 @@
+
 """Tasks router for the AutoMagik API."""
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Security, Depends
 from ..models import TaskCreate, TaskResponse, ErrorResponse
 from ..dependencies import verify_api_key, get_session
-from ...core.flows.manager import FlowManager
+from ...core.workflows.manager import WorkflowManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(
@@ -12,15 +13,15 @@ router = APIRouter(
     responses={401: {"model": ErrorResponse}}
 )
 
-async def get_flow_manager(session: AsyncSession = Depends(get_session)) -> FlowManager:
+async def get_flow_manager(session: AsyncSession = Depends(get_session)) -> WorkflowManager:
     """Get flow manager instance."""
-    return FlowManager(session)
+    return WorkflowManager(session)
 
 @router.post("", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
     api_key: str = Security(verify_api_key),
-    flow_manager: FlowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Create a new task."""
     try:
@@ -36,7 +37,7 @@ async def list_tasks(
     status: Optional[str] = None,
     limit: int = 50,
     api_key: str = Security(verify_api_key),
-    flow_manager: FlowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """List all tasks."""
     try:
@@ -50,7 +51,7 @@ async def list_tasks(
 async def get_task(
     task_id: str,
     api_key: str = Security(verify_api_key),
-    flow_manager: FlowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Get a specific task by ID."""
     try:
@@ -68,7 +69,7 @@ async def get_task(
 async def delete_task(
     task_id: str,
     api_key: str = Security(verify_api_key),
-    flow_manager: FlowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Delete a task by ID."""
     try:
@@ -84,7 +85,7 @@ async def delete_task(
 async def run_task(
     task_id: str,
     api_key: str = Security(verify_api_key),
-    flow_manager: FlowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Run a task by ID."""
     try:
@@ -97,3 +98,5 @@ async def run_task(
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
