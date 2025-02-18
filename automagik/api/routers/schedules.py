@@ -2,9 +2,10 @@
 """Schedules router for the AutoMagik API."""
 from typing import List
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Security, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse
-from ..dependencies import verify_api_key, get_session
+from ..middleware import verify_api_key
+from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
 from ...core.scheduler.manager import SchedulerManager
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,10 +21,9 @@ async def get_scheduler_manager(session: AsyncSession = Depends(get_session)) ->
     workflow_manager = WorkflowManager(session)
     return SchedulerManager(session, workflow_manager)
 
-@router.post("", response_model=ScheduleResponse)
+@router.post("", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def create_schedule(
     schedule: ScheduleCreate,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Create a new schedule."""
@@ -45,9 +45,8 @@ async def create_schedule(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("", response_model=List[ScheduleResponse])
+@router.get("", response_model=List[ScheduleResponse], dependencies=[Depends(verify_api_key)])
 async def list_schedules(
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """List all schedules."""
@@ -58,10 +57,9 @@ async def list_schedules(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/{schedule_id}", response_model=ScheduleResponse)
+@router.get("/{schedule_id}", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def get_schedule(
     schedule_id: str,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Get a specific schedule by ID."""
@@ -77,11 +75,10 @@ async def get_schedule(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/{schedule_id}", response_model=ScheduleResponse)
+@router.put("/{schedule_id}", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def update_schedule(
     schedule_id: str,
     schedule: ScheduleCreate,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Update a schedule by ID."""
@@ -118,10 +115,9 @@ async def update_schedule(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete("/{schedule_id}", response_model=ScheduleResponse)
+@router.delete("/{schedule_id}", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def delete_schedule(
     schedule_id: str,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Delete a schedule by ID."""
@@ -144,10 +140,9 @@ async def delete_schedule(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/{schedule_id}/enable", response_model=ScheduleResponse)
+@router.post("/{schedule_id}/enable", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def enable_schedule(
     schedule_id: str,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Enable a schedule."""
@@ -175,10 +170,9 @@ async def enable_schedule(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/{schedule_id}/disable", response_model=ScheduleResponse)
+@router.post("/{schedule_id}/disable", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def disable_schedule(
     schedule_id: str,
-    api_key: str = Security(verify_api_key),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager)
 ):
     """Disable a schedule."""

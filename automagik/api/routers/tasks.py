@@ -1,9 +1,10 @@
 
 """Tasks router for the AutoMagik API."""
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Security, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from ..models import TaskCreate, TaskResponse, ErrorResponse
-from ..dependencies import verify_api_key, get_session
+from ..middleware import verify_api_key
+from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,10 +18,9 @@ async def get_flow_manager(session: AsyncSession = Depends(get_session)) -> Work
     """Get flow manager instance."""
     return WorkflowManager(session)
 
-@router.post("", response_model=TaskResponse)
+@router.post("", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
 async def create_task(
     task: TaskCreate,
-    api_key: str = Security(verify_api_key),
     flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Create a new task."""
@@ -31,12 +31,11 @@ async def create_task(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("", response_model=List[TaskResponse])
+@router.get("", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)])
 async def list_tasks(
     flow_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
-    api_key: str = Security(verify_api_key),
     flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """List all tasks."""
@@ -47,10 +46,9 @@ async def list_tasks(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/{task_id}", response_model=TaskResponse)
+@router.get("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
 async def get_task(
     task_id: str,
-    api_key: str = Security(verify_api_key),
     flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Get a specific task by ID."""
@@ -65,10 +63,9 @@ async def get_task(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete("/{task_id}", response_model=TaskResponse)
+@router.delete("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
 async def delete_task(
     task_id: str,
-    api_key: str = Security(verify_api_key),
     flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Delete a task by ID."""
@@ -81,10 +78,9 @@ async def delete_task(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/{task_id}/run", response_model=TaskResponse)
+@router.post("/{task_id}/run", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
 async def run_task(
     task_id: str,
-    api_key: str = Security(verify_api_key),
     flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Run a task by ID."""
