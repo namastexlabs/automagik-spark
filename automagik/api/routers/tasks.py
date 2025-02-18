@@ -33,7 +33,7 @@ async def create_task(
 
 @router.get("", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)])
 async def list_tasks(
-    flow_id: Optional[str] = None,
+    workflow_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
     flow_manager: WorkflowManager = Depends(get_flow_manager)
@@ -41,7 +41,7 @@ async def list_tasks(
     """List all tasks."""
     try:
         async with flow_manager as fm:
-            tasks = await fm.list_tasks(flow_id, status, limit)
+            tasks = await fm.list_tasks(workflow_id, status, limit)
             return [TaskResponse.model_validate(task) for task in tasks]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
