@@ -10,7 +10,6 @@ class WorkflowSourceBase(BaseModel):
     """Base model for workflow sources."""
     source_type: constr(strip_whitespace=True, min_length=1)
     url: HttpUrl
-    status: Optional[str] = "active"
 
 class WorkflowSourceCreate(WorkflowSourceBase):
     """Model for creating a workflow source."""
@@ -26,6 +25,7 @@ class WorkflowSourceUpdate(BaseModel):
 class WorkflowSourceResponse(WorkflowSourceBase):
     """Model for workflow source responses."""
     id: UUID
+    status: str
     version_info: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime

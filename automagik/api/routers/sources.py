@@ -78,13 +78,13 @@ async def create_source(
         # Validate source and get version info
         version_info = await _validate_source(url_str, source.api_key)
         
-        # Create source
+        # Create source with status from health check
         db_source = WorkflowSource(
             source_type=source.source_type,
             url=url_str,
             encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),
             version_info=version_info,
-            status=source.status or "active"
+            status='active' if version_info.get('status') == 'ok' else 'inactive'
         )
         session.add(db_source)
         await session.commit()
