@@ -67,8 +67,12 @@ def add(type: str, url: str, api_key: str, status: str):
 
 @source_group.command()
 @click.argument("id_or_url")
-def remove(id_or_url: str):
-    """Remove a workflow source by ID or URL."""
+@click.option("--force/--no-force", default=False, help="Force delete without confirmation")
+def remove(id_or_url: str, force: bool):
+    """Remove a workflow source by ID or URL.
+    
+    This will also remove all associated workflows, their tasks, and schedules.
+    """
     async def _remove():
         async with get_session() as session:
             # Try to find by ID first
@@ -88,10 +92,37 @@ def remove(id_or_url: str):
             if not source:
                 click.echo(f"Source not found: {id_or_url}")
                 return
+
+            # Count associated workflows and their tasks/schedules
+            workflows = source.workflows
+            workflow_count = len(workflows)
+            task_count = sum(len(w.tasks) for w in workflows)
+            schedule_count = sum(len(w.schedules) for w in workflows)
+
+            # Confirm deletion if not forced
+            if not force:
+                click.echo(f"This will remove:")
+                click.echo(f"- Source: {source.url} (ID: {source.id})")
+                click.echo(f"- {workflow_count} workflow(s)")
+                click.echo(f"- {task_count} task(s)")
+                click.echo(f"- {schedule_count} schedule(s)")
+                if not click.confirm("Are you sure you want to continue?"):
+                    click.echo("Operation cancelled")
+                    return
             
+            # Delete all associated workflows (cascades to tasks and schedules)
+            for workflow in workflows:
+                await session.delete(workflow)
+            
+            # Delete the source
             await session.delete(source)
             await session.commit()
-            click.echo(f"Successfully removed source: {source.url} (ID: {source.id})")
+            
+            click.echo(f"Successfully removed:")
+            click.echo(f"- Source: {source.url} (ID: {source.id})")
+            click.echo(f"- {workflow_count} workflow(s)")
+            click.echo(f"- {task_count} task(s)")
+            click.echo(f"- {schedule_count} schedule(s)")
 
     asyncio.run(_remove())
 
