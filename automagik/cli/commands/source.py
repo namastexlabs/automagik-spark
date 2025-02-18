@@ -66,22 +66,32 @@ def add(type: str, url: str, api_key: str, status: str):
     asyncio.run(_add())
 
 @source_group.command()
-@click.argument("url")
-def remove(url: str):
-    """Remove a workflow source."""
+@click.argument("id_or_url")
+def remove(id_or_url: str):
+    """Remove a workflow source by ID or URL."""
     async def _remove():
         async with get_session() as session:
-            result = await session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == url)
-            )
+            # Try to find by ID first
+            from uuid import UUID
+            try:
+                uuid = UUID(id_or_url)
+                result = await session.execute(
+                    select(WorkflowSource).where(WorkflowSource.id == uuid)
+                )
+            except ValueError:
+                # If not a valid UUID, try URL
+                result = await session.execute(
+                    select(WorkflowSource).where(WorkflowSource.url == id_or_url)
+                )
+            
             source = result.scalar_one_or_none()
             if not source:
-                click.echo(f"Source not found: {url}")
+                click.echo(f"Source not found: {id_or_url}")
                 return
             
             await session.delete(source)
             await session.commit()
-            click.echo(f"Successfully removed source: {url}")
+            click.echo(f"Successfully removed source: {source.url} (ID: {source.id})")
 
     asyncio.run(_remove())
 
