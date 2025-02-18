@@ -8,12 +8,12 @@ Provides endpoints for managing workflows.
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_session
 from ..middleware import verify_api_key
-from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse
+from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse, TaskResponse
 from ...core.workflows.manager import WorkflowManager
 
 router = APIRouter(
@@ -149,5 +149,34 @@ async def sync_flow(
         if not workflow_data:
             raise HTTPException(status_code=404, detail="Flow not found in LangFlow")
         return workflow_data
+
+
+@router.post("/{workflow_id}/run", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
+async def run_workflow(
+    workflow_id: str,
+    input_data: str = Body(..., description="Input string to be passed to the workflow's input component"),
+    session: AsyncSession = Depends(get_session)
+) -> TaskResponse:
+    """Run a workflow with input data.
+    
+    Args:
+        workflow_id: ID of the workflow to run
+        input_data: Input string to be passed to the workflow's input component
+        session: Database session
+    
+    Returns:
+        TaskResponse: The created task
+        
+    Raises:
+        HTTPException: If the workflow is not found or if there's an error running it
+    """
+    try:
+        async with WorkflowManager(session) as manager:
+            task = await manager.run_workflow(workflow_id, input_data)
+            if not task:
+                raise HTTPException(status_code=404, detail="Workflow not found")
+            return TaskResponse.model_validate(task)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
