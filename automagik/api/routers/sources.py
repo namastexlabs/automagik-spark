@@ -26,7 +26,7 @@ async def _validate_source(url: str, api_key: str) -> dict:
             headers = {"accept": "application/json"}
             if api_key:
                 headers["x-api-key"] = api_key
-            response = await client.get(f"{url}/api/v1/version", headers=headers)
+            response = await client.get(f"{url}/health", headers=headers)
             response.raise_for_status()
             return response.json()
     except Exception as e:

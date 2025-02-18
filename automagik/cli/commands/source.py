@@ -48,17 +48,17 @@ def add(type: str, url: str, api_key: str, status: str):
                 )
                 session.add(source)
 
-            # Validate source by fetching version info
+            # Validate source by checking health endpoint
             try:
                 async with httpx.AsyncClient(verify=False) as client:
                     headers = {"accept": "application/json"}
                     if api_key:
                         headers["x-api-key"] = api_key
-                    response = await client.get(f"{url}/api/v1/version", headers=headers)
+                    response = await client.get(f"{url}/health", headers=headers)
                     response.raise_for_status()
                     source.version_info = response.json()
             except Exception as e:
-                click.echo(f"Warning: Failed to fetch version info: {str(e)}")
+                click.echo(f"Warning: Failed to check source health: {str(e)}")
 
             await session.commit()
             click.echo(f"Successfully {'updated' if existing else 'added'} source: {url}")
