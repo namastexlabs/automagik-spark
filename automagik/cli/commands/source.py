@@ -67,10 +67,10 @@ def add(type: str, url: str, api_key: str, status: str):
 
 @source_group.command()
 @click.argument("id_or_url")
-@click.option("--force", "-f", is_flag=True, help="Force removal even if workflows exist")
-def remove(id_or_url: str, force: bool = False):
-    """Remove a workflow source by ID or URL."""
-    async def _remove():
+@click.option("--force", "-f", is_flag=True, help="Force deletion even if workflows exist")
+def delete(id_or_url: str, force: bool = False):
+    """Delete a workflow source by ID or URL."""
+    async def _delete():
         async with get_session() as session:
             # Try to find by ID first
             from uuid import UUID
@@ -93,16 +93,16 @@ def remove(id_or_url: str, force: bool = False):
             # Check for associated workflows
             if source.workflows and not force:
                 workflow_count = len(source.workflows)
-                click.echo(f"Error: Cannot remove source {source.url} (ID: {source.id})")
+                click.echo(f"Error: Cannot delete source {source.url} (ID: {source.id})")
                 click.echo(f"There are {workflow_count} workflow(s) associated with this source.")
-                click.echo("Use --force to remove anyway or remove the workflows first.")
+                click.echo("Use --force to delete anyway or delete the workflows first.")
                 return
             
             await session.delete(source)
             await session.commit()
-            click.echo(f"Successfully removed source: {source.url} (ID: {source.id})")
+            click.echo(f"Successfully deleted source: {source.url} (ID: {source.id})")
 
-    asyncio.run(_remove())
+    asyncio.run(_delete())
 
 @source_group.command()
 @click.option("--status", "-s", help="Filter by status (active/inactive)")
