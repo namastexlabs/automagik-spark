@@ -14,8 +14,8 @@ class ErrorResponse(BaseModel):
 class TaskBase(BaseModel):
     """Base model for task operations."""
     workflow_id: str = Field(..., description="ID of the workflow this task belongs to")
-    input_data: Dict[str, Any] = Field(default_factory=dict, description="Task input data")
-    output_data: Optional[Dict[str, Any]] = Field(None, description="Task output data")
+    input_data: str | Dict[str, Any] = Field(default_factory=dict, description="Task input data")
+    output_data: Optional[str | Dict[str, Any]] = Field(None, description="Task output data")
     error: Optional[str] = Field(None, description="Task error message")
     tries: Optional[int] = Field(0, description="Number of tries")
     max_retries: Optional[int] = Field(3, description="Maximum number of retries")
@@ -42,12 +42,30 @@ class TaskResponse(TaskBase):
     def model_validate(cls, obj: Any) -> "TaskResponse":
         """Convert a Task object to TaskResponse."""
         if hasattr(obj, "__dict__"):
+            # Convert input_data from string to dict if needed
+            input_data = obj.input_data
+            if isinstance(input_data, str):
+                try:
+                    import json
+                    input_data = json.loads(input_data)
+                except json.JSONDecodeError:
+                    input_data = {"value": input_data}
+
+            # Convert output_data from string to dict if needed
+            output_data = obj.output_data
+            if isinstance(output_data, str):
+                try:
+                    import json
+                    output_data = json.loads(output_data)
+                except json.JSONDecodeError:
+                    output_data = {"value": output_data}
+
             data = {
                 "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
                 "workflow_id": str(obj.workflow_id) if isinstance(obj.workflow_id, UUID) else obj.workflow_id,
                 "status": obj.status,
-                "input_data": obj.input_data,
-                "output_data": obj.output_data,
+                "input_data": input_data,
+                "output_data": output_data,
                 "error": obj.error,
                 "tries": obj.tries,
                 "max_retries": obj.max_retries,

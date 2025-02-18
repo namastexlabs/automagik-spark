@@ -328,7 +328,10 @@ class LangFlowManager:
             # TODO: Get API key from source when we add that field
         
         try:
-            return await self._make_request_async("GET", "flows/")
+            # Add components_only=false to filter out components
+            flows = await self._make_request_async("GET", "flows/", params={"components_only": False})
+            # Double-check is_component flag as a safeguard
+            return [flow for flow in flows if not flow.get('is_component', False)]
         finally:
             # Restore original API URL and key if we switched
             if source_url:
@@ -352,7 +355,10 @@ class LangFlowManager:
             # TODO: Get API key from source when we add that field
         
         try:
-            return self._make_request_sync("GET", "flows/")
+            # Add components_only=false to filter out components
+            flows = self._make_request_sync("GET", "flows/", params={"components_only": False})
+            # Double-check is_component flag as a safeguard
+            return [flow for flow in flows if not flow.get('is_component', False)]
         finally:
             # Restore original API URL and key if we switched
             if source_url:
