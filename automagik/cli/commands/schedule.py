@@ -32,7 +32,7 @@ from ..utils.table_styles import (
 
 logger = logging.getLogger(__name__)
 
-@click.group(name='schedule')
+@click.group(name='schedules')
 def schedule_group():
     """Manage workflow schedules."""
     pass
