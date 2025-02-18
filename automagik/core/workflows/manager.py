@@ -248,6 +248,9 @@ class WorkflowManager:
                         # Found the flow, get its data
                         flow_data = await self.langflow.get_flow(flow_id)
                         if flow_data:
+                            # Update with input and output components
+                            flow_data['input_component'] = input_component
+                            flow_data['output_component'] = output_component
                             return await self._create_or_update_workflow(flow_data)
 
         raise ValueError(f"No source found containing flow {flow_id}")

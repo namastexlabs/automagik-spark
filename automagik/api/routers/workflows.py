@@ -141,12 +141,12 @@ async def sync_flow(
     input_component: str,
     output_component: str,
     session: AsyncSession = Depends(get_session)
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """Sync a flow from LangFlow API into a local workflow."""
     async with WorkflowManager(session) as manager:
-        workflow_id = await manager.sync_flow(flow_id, input_component, output_component)
-        if not workflow_id:
+        workflow_data = await manager.sync_flow(flow_id, input_component, output_component)
+        if not workflow_data:
             raise HTTPException(status_code=404, detail="Flow not found in LangFlow")
-        return {"workflow_id": str(workflow_id)}
+        return workflow_data
 
 
