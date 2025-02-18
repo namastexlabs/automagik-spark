@@ -48,17 +48,34 @@ def add(type: str, url: str, api_key: str, status: str):
                 )
                 session.add(source)
 
-            # Validate source by checking health endpoint
+            # Validate source by checking health and version
             try:
                 async with httpx.AsyncClient(verify=False) as client:
                     headers = {"accept": "application/json"}
                     if api_key:
                         headers["x-api-key"] = api_key
-                    response = await client.get(f"{url}/health", headers=headers)
-                    response.raise_for_status()
-                    source.version_info = response.json()
+
+                    # Check health first
+                    health_response = await client.get(f"{url}/health", headers=headers)
+                    health_response.raise_for_status()
+                    health_data = health_response.json()
+                    
+                    if health_data.get('status') != 'ok':
+                        click.echo(f"Warning: Source health check failed: {health_data}")
+                        source.status = 'inactive'
+                    else:
+                        source.status = 'active'
+                        click.echo("Health check passed: status ok")
+
+                    # Get version info
+                    version_response = await client.get(f"{url}/api/v1/version", headers=headers)
+                    version_response.raise_for_status()
+                    version_info = version_response.json()
+                    source.version_info = version_info
+                    click.echo(f"Version check passed: {version_info.get('version')}")
             except Exception as e:
-                click.echo(f"Warning: Failed to check source health: {str(e)}")
+                click.echo(f"Warning: Source validation failed: {str(e)}")
+                source.status = 'inactive'
 
             await session.commit()
             click.echo(f"Successfully {'updated' if existing else 'added'} source: {url}")

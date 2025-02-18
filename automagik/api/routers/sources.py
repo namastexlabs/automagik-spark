@@ -20,15 +20,35 @@ from ...core.schemas.source import (
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 async def _validate_source(url: str, api_key: str) -> dict:
-    """Validate a source by fetching its version info."""
+    """Validate a source by checking health and fetching version info."""
     try:
         async with httpx.AsyncClient(verify=False) as client:
             headers = {"accept": "application/json"}
             if api_key:
                 headers["x-api-key"] = api_key
-            response = await client.get(f"{url}/health", headers=headers)
-            response.raise_for_status()
-            return response.json()
+
+            # Check health first
+            health_response = await client.get(f"{url}/health", headers=headers)
+            health_response.raise_for_status()
+            health_data = health_response.json()
+            
+            if health_data.get('status') != 'ok':
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Source health check failed: {health_data}"
+                )
+
+            # Get version info
+            version_response = await client.get(f"{url}/api/v1/version", headers=headers)
+            version_response.raise_for_status()
+            version_data = version_response.json()
+
+            return {
+                **version_data,
+                'status': health_data.get('status', 'unknown')
+            }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=400,
