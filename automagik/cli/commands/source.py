@@ -13,12 +13,12 @@ from rich.table import Table
 from ...core.database.session import get_session
 from ...core.workflows.source import WorkflowSource
 
-@click.group()
-def source():
+@click.group(name='sources')
+def source_group():
     """Manage workflow sources."""
     pass
 
-@source.command()
+@source_group.command()
 @click.option("--type", "-t", required=True, help="Source type (e.g., langflow)")
 @click.option("--url", "-u", required=True, help="Source URL")
 @click.option("--api-key", "-k", required=True, help="API key for authentication")
@@ -65,7 +65,7 @@ def add(type: str, url: str, api_key: str, status: str):
 
     asyncio.run(_add())
 
-@source.command()
+@source_group.command()
 @click.argument("url")
 def remove(url: str):
     """Remove a workflow source."""
@@ -85,7 +85,7 @@ def remove(url: str):
 
     asyncio.run(_remove())
 
-@source.command()
+@source_group.command()
 @click.option("--status", "-s", help="Filter by status (active/inactive)")
 def list(status: Optional[str] = None):
     """List workflow sources."""
@@ -133,7 +133,7 @@ def list(status: Optional[str] = None):
 
     asyncio.run(_list())
 
-@source.command()
+@source_group.command()
 @click.argument("url")
 @click.option("--status", "-s", help="New status (active/inactive)")
 @click.option("--api-key", "-k", help="New API key")
