@@ -304,23 +304,27 @@ class WorkflowManager:
 
     async def delete_workflow(self, workflow_id: str) -> bool:
         """Delete a workflow and all its related objects."""
-        # Delete related tasks first
-        await self.session.execute(
-            delete(Task).where(cast(Task.workflow_id, String) == workflow_id)
-        )
-        
-        # Delete workflow components
-        await self.session.execute(
-            delete(WorkflowComponent).where(cast(WorkflowComponent.workflow_id, String) == workflow_id)
-        )
-        
-        # Delete workflow
-        result = await self.session.execute(
-            delete(Workflow).where(cast(Workflow.id, String) == workflow_id)
-        )
-        
-        await self.session.commit()
-        return result.rowcount > 0
+        # Check if workflow exists first
+        workflow = await self.get_workflow(workflow_id)
+        if not workflow:
+            return False
+
+        try:
+            # Delete related tasks first
+            await self.session.execute(
+                delete(Task).where(cast(Task.workflow_id, String) == workflow_id)
+            )
+            
+            # Delete workflow
+            await self.session.execute(
+                delete(Workflow).where(cast(Workflow.id, String) == workflow_id)
+            )
+            
+            await self.session.commit()
+            return True
+        except Exception as e:
+            await self.session.rollback()
+            raise e
 
     async def get_task(self, task_id: str) -> Optional[Task]:
         """Get a task by ID."""
@@ -507,6 +511,26 @@ class WorkflowManager:
             # Create new workflow
             workflow = Workflow(**workflow_fields)
             self.session.add(workflow)
+
+        # Delete existing components if any
+        await self.session.execute(
+            delete(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
+        )
+
+        # Create components from flow data
+        if 'data' in flow_data and 'nodes' in flow_data['data']:
+            for node in flow_data['data']['nodes']:
+                component = WorkflowComponent(
+                    id=uuid4(),
+                    workflow_id=workflow.id,
+                    component_id=node['id'],
+                    type=node.get('data', {}).get('type', 'genericNode'),
+                    template=node.get('data', {}),
+                    tweakable_params=node.get('data', {}).get('template', {}),
+                    is_input=workflow.input_component == node['id'],
+                    is_output=workflow.output_component == node['id']
+                )
+                self.session.add(component)
 
         await self.session.commit()
         # Detach the workflow from the session to avoid greenlet errors
