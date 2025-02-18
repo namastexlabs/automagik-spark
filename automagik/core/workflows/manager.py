@@ -260,11 +260,11 @@ class WorkflowManager:
         query = select(Workflow)
         options = options or {}
         
-        # Always load schedules by default
+        # Always load schedules and tasks by default
         if 'joinedload' not in options:
             options['joinedload'] = []
         if isinstance(options['joinedload'], list):
-            options['joinedload'].append('schedules')
+            options['joinedload'].extend(['schedules', 'tasks'])
         
         # Add other relationships if requested
         if options.get('with_source'):

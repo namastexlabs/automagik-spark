@@ -116,11 +116,23 @@ class WorkflowListResponse(WorkflowBase):
     id: str = Field(..., description="Workflow ID")
     created_at: datetime = Field(..., description="Workflow creation timestamp")
     updated_at: datetime = Field(..., description="Workflow last update timestamp")
+    latest_run: str = Field("NEW", description="Latest run status")
+    task_count: int = Field(0, description="Total number of tasks")
+    failed_task_count: int = Field(0, description="Number of failed tasks")
 
     @classmethod
     def model_validate(cls, obj: Any) -> "WorkflowListResponse":
         """Convert a Workflow object to WorkflowListResponse."""
         if hasattr(obj, "__dict__"):
+            # Get latest task
+            latest_task = None
+            task_count = 0
+            failed_task_count = 0
+            if hasattr(obj, 'tasks') and obj.tasks:
+                latest_task = max(obj.tasks, key=lambda t: t.created_at)
+                task_count = len(obj.tasks)
+                failed_task_count = sum(1 for t in obj.tasks if t.status == 'failed')
+
             data = {
                 "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
                 "name": obj.name,
@@ -139,7 +151,10 @@ class WorkflowListResponse(WorkflowBase):
                 "liked": obj.liked,
                 "tags": obj.tags,
                 "created_at": obj.created_at,
-                "updated_at": obj.updated_at
+                "updated_at": obj.updated_at,
+                "latest_run": 'NEW' if not latest_task else latest_task.status.upper(),
+                "task_count": task_count,
+                "failed_task_count": failed_task_count
             }
             return cls(**data)
         return obj

@@ -67,6 +67,15 @@ class Workflow(Base):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert workflow to dictionary."""
+        # Get latest task
+        latest_task = None
+        task_count = 0
+        failed_task_count = 0
+        if self.tasks:
+            latest_task = max(self.tasks, key=lambda t: t.created_at)
+            task_count = len(self.tasks)
+            failed_task_count = sum(1 for t in self.tasks if t.status == 'failed')
+
         return {
             'id': str(self.id),
             'name': self.name,
@@ -89,7 +98,10 @@ class Workflow(Base):
             'workflow_source_id': str(self.workflow_source_id) if self.workflow_source_id else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'schedules': [s.to_dict() for s in self.schedules] if self.schedules else []
+            'schedules': [s.to_dict() for s in self.schedules] if self.schedules else [],
+            'latest_run': 'NEW' if not latest_task else latest_task.status.upper(),
+            'task_count': task_count,
+            'failed_task_count': failed_task_count
         }
 
 
