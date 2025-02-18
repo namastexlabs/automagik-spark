@@ -37,7 +37,7 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     environment:
-      name: pypi
+      name: production
       url: https://pypi.org/p/automagik
 
     steps:
