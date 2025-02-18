@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_session
+from ..middleware import verify_api_key
 from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse
 from ...core.workflows.manager import WorkflowManager
 
@@ -22,7 +23,7 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=List[WorkflowListResponse])
+@router.get("", response_model=List[WorkflowListResponse], dependencies=[Depends(verify_api_key)])
 async def list_workflows(
     session: AsyncSession = Depends(get_session)
 ) -> List[WorkflowListResponse]:
@@ -32,7 +33,7 @@ async def list_workflows(
         return [WorkflowListResponse.model_validate(w) for w in workflows]
 
 
-@router.get("/remote", response_model=List[Dict[str, Any]])
+@router.get("/remote", response_model=List[Dict[str, Any]], dependencies=[Depends(verify_api_key)])
 async def list_remote_flows(
     simplified: bool = False,
     source_url: Optional[str] = None,
@@ -83,7 +84,7 @@ async def list_remote_flows(
         return flows
 
 
-@router.get("/remote/{flow_id}", response_model=Dict[str, Any])
+@router.get("/remote/{flow_id}", response_model=Dict[str, Any], dependencies=[Depends(verify_api_key)])
 async def get_remote_flow(
     flow_id: str,
     source_url: Optional[str] = None,
@@ -109,7 +110,7 @@ async def get_remote_flow(
         return flow
 
 
-@router.get("/{workflow_id}", response_model=WorkflowResponse)
+@router.get("/{workflow_id}", response_model=WorkflowResponse, dependencies=[Depends(verify_api_key)])
 async def get_workflow(
     workflow_id: str,
     session: AsyncSession = Depends(get_session)
@@ -122,7 +123,7 @@ async def get_workflow(
         return WorkflowResponse.model_validate(workflow)
 
 
-@router.delete("/{workflow_id}")
+@router.delete("/{workflow_id}", dependencies=[Depends(verify_api_key)])
 async def delete_workflow(
     workflow_id: str,
     session: AsyncSession = Depends(get_session)
@@ -135,7 +136,7 @@ async def delete_workflow(
         return {"success": True}
 
 
-@router.post("/sync/{flow_id}")
+@router.post("/sync/{flow_id}", dependencies=[Depends(verify_api_key)])
 async def sync_flow(
     flow_id: str,
     input_component: str,

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
+from ..middleware import verify_api_key
 from ...core.database.session import get_session
 from ...core.workflows.source import WorkflowSource
 from ...core.schemas.source import (
@@ -34,7 +35,7 @@ async def _validate_source(url: str, api_key: str) -> dict:
             detail=f"Failed to validate source: {str(e)}"
         )
 
-@router.post("/", response_model=WorkflowSourceResponse)
+@router.post("/", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
 async def create_source(
     source: WorkflowSourceCreate,
     session_factory: AsyncSession = Depends(get_session)
@@ -71,7 +72,7 @@ async def create_source(
         
         return WorkflowSourceResponse.from_orm(db_source)
 
-@router.get("/", response_model=List[WorkflowSourceResponse])
+@router.get("/", response_model=List[WorkflowSourceResponse], dependencies=[Depends(verify_api_key)])
 async def list_sources(
     status: Optional[str] = None,
     session_factory: AsyncSession = Depends(get_session)
@@ -86,7 +87,7 @@ async def list_sources(
         sources = result.scalars().all()
         return [WorkflowSourceResponse.from_orm(source) for source in sources]
 
-@router.get("/{source_id}", response_model=WorkflowSourceResponse)
+@router.get("/{source_id}", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
 async def get_source(
     source_id: UUID,
     session_factory: AsyncSession = Depends(get_session)
@@ -98,7 +99,7 @@ async def get_source(
             raise HTTPException(status_code=404, detail="Source not found")
         return WorkflowSourceResponse.from_orm(source)
 
-@router.patch("/{source_id}", response_model=WorkflowSourceResponse)
+@router.patch("/{source_id}", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
 async def update_source(
     source_id: UUID,
     update_data: WorkflowSourceUpdate,
@@ -137,7 +138,7 @@ async def update_source(
         await session.refresh(source)
         return WorkflowSourceResponse.from_orm(source)
 
-@router.delete("/{source_id}")
+@router.delete("/{source_id}", dependencies=[Depends(verify_api_key)])
 async def delete_source(
     source_id: UUID,
     session_factory: AsyncSession = Depends(get_session)
