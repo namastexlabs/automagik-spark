@@ -79,9 +79,13 @@ class WorkflowBase(BaseModel):
     gradient: Optional[bool] = Field(False, description="Whether to use gradient")
     liked: Optional[bool] = Field(False, description="Whether the workflow is liked")
     tags: Optional[List[str]] = Field(default_factory=list, description="Workflow tags")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Workflow data")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowWithData(WorkflowBase):
+    """Workflow model with data field."""
+    data: Dict[str, Any] = Field(default_factory=dict, description="Workflow data")
 
 class WorkflowCreate(WorkflowBase):
     """Model for creating a new workflow."""
@@ -89,8 +93,44 @@ class WorkflowCreate(WorkflowBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-class WorkflowResponse(WorkflowBase):
-    """Model for workflow response."""
+class WorkflowListResponse(WorkflowBase):
+    """Model for workflow list response (without data field)."""
+    id: str = Field(..., description="Workflow ID")
+    created_at: datetime = Field(..., description="Workflow creation timestamp")
+    updated_at: datetime = Field(..., description="Workflow last update timestamp")
+
+    @classmethod
+    def model_validate(cls, obj: Any) -> "WorkflowListResponse":
+        """Convert a Workflow object to WorkflowListResponse."""
+        if hasattr(obj, "__dict__"):
+            data = {
+                "id": str(obj.id) if isinstance(obj.id, UUID) else obj.id,
+                "name": obj.name,
+                "description": obj.description,
+                "source": obj.source,
+                "remote_flow_id": obj.remote_flow_id,
+                "flow_version": obj.flow_version,
+                "input_component": obj.input_component,
+                "output_component": obj.output_component,
+                "is_component": obj.is_component,
+                "folder_id": obj.folder_id,
+                "folder_name": obj.folder_name,
+                "icon": obj.icon,
+                "icon_bg_color": obj.icon_bg_color,
+                "gradient": obj.gradient,
+                "liked": obj.liked,
+                "tags": obj.tags,
+                "created_at": obj.created_at,
+                "updated_at": obj.updated_at
+            }
+            return cls(**data)
+        return obj
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowResponse(WorkflowWithData):
+    """Model for workflow response (with data field)."""
     id: str = Field(..., description="Workflow ID")
     created_at: datetime = Field(..., description="Workflow creation timestamp")
     updated_at: datetime = Field(..., description="Workflow last update timestamp")
@@ -120,8 +160,8 @@ class WorkflowResponse(WorkflowBase):
                 "created_at": obj.created_at,
                 "updated_at": obj.updated_at
             }
-            return super().model_validate(data)
-        return super().model_validate(obj)
+            return cls(**data)
+        return obj
 
     model_config = ConfigDict(from_attributes=True)
 

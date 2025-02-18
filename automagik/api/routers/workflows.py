@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_session
-from ..models import WorkflowResponse, ErrorResponse
+from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse
 from ...core.workflows.manager import WorkflowManager
 
 router = APIRouter(
@@ -22,14 +22,14 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=List[WorkflowResponse])
+@router.get("", response_model=List[WorkflowListResponse])
 async def list_workflows(
     session: AsyncSession = Depends(get_session)
-) -> List[WorkflowResponse]:
+) -> List[WorkflowListResponse]:
     """List all workflows."""
     async with WorkflowManager(session) as manager:
         workflows = await manager.list_workflows()
-        return [WorkflowResponse.model_validate(w) for w in workflows]
+        return [WorkflowListResponse.model_validate(w) for w in workflows]
 
 
 @router.get("/remote", response_model=List[Dict[str, Any]])
