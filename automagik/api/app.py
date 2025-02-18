@@ -8,6 +8,7 @@ from fastapi.security.api_key import APIKeyHeader
 
 from automagik.version import __version__
 from .config import get_cors_origins, get_api_key
+from ..core.config import get_settings
 from .dependencies import verify_api_key
 from .routers import tasks, workflows, schedules, sources
 
@@ -44,16 +45,20 @@ async def health():
 
 
 @app.get("/")
-async def root(api_key: str = Security(verify_api_key)):
+async def root():
     """Root endpoint returning API status"""
     current_time = datetime.datetime.now()
+    settings = get_settings()
+    base_url = settings.remote_url
     return {
-        "status": "online",
+        "status": 200,
         "service": "AutoMagik API",
+        "message": "Welcome to AutoMagik API, it's up and running!",
         "version": __version__,
         "server_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "docs_url": "/api/v1/docs",
-        "redoc_url": "/api/v1/redoc",
+        "docs_url": f"{base_url}/api/v1/docs",
+        "redoc_url": f"{base_url}/api/v1/redoc",
+        "openapi_url": f"{base_url}/api/v1/openapi.json",
     }
 
 

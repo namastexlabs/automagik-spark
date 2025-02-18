@@ -13,6 +13,7 @@ class Settings:
         
         # API settings
         self.api_key = os.getenv("AUTOMAGIK_API_KEY")
+        self.remote_url = os.getenv("AUTOMAGIK_REMOTE_URL", "http://localhost:8000").rstrip("/")
         
         # LangFlow settings
         self.langflow_api_url = os.getenv("LANGFLOW_API_URL", "http://localhost:7860/").rstrip("/")
