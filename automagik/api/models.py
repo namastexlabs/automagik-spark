@@ -203,9 +203,7 @@ class ScheduleBase(BaseModel):
     workflow_id: str = Field(..., description="ID of the workflow this schedule belongs to")
     schedule_type: str = Field(..., description="Type of schedule (cron, interval, or one-time)")
     schedule_expr: str = Field(..., description="Schedule expression (cron expression, interval like '1h', or datetime/now for one-time)")
-    input_value: Optional[str] = Field(None, description="Input string to be passed to the workflow's input component")
-    status: str = Field("active", description="Schedule status")
-    next_run_at: Optional[datetime] = Field(None, description="Next run timestamp")
+    input_value: str = Field(..., description="Input string to be passed to the workflow's input component")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -215,9 +213,15 @@ class ScheduleCreate(ScheduleBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-class ScheduleResponse(ScheduleBase):
+class ScheduleResponse(BaseModel):
     """Model for schedule response."""
     id: str = Field(..., description="Schedule ID")
+    workflow_id: str = Field(..., description="ID of the workflow this schedule belongs to")
+    schedule_type: str = Field(..., description="Type of schedule (cron, interval, or one-time)")
+    schedule_expr: str = Field(..., description="Schedule expression (cron expression, interval like '1h', or datetime/now for one-time)")
+    input_value: str = Field(..., description="Input string to be passed to the workflow's input component")
+    status: str = Field(..., description="Schedule status")
+    next_run_at: Optional[datetime] = Field(None, description="Next run timestamp")
     created_at: datetime = Field(..., description="Schedule creation timestamp")
     updated_at: datetime = Field(..., description="Schedule last update timestamp")
 
