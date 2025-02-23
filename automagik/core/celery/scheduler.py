@@ -43,7 +43,6 @@ class DatabaseScheduler(Scheduler):
 
     def update_from_database(self):
         """Update schedule from database."""
-        logger.info("Updating beat schedule from database")
         try:
             # Update scheduler
             self.schedule = {}
@@ -55,8 +54,6 @@ class DatabaseScheduler(Scheduler):
                 ).with_for_update()
                 result = session.execute(stmt)
                 schedules = result.scalars().all()
-                logger.info(f"Found {len(schedules)} active schedules")
-                
                 for schedule in schedules:
                     schedule_id = str(schedule.id)
                     schedule_name = f"schedule_{schedule_id}"
@@ -165,7 +162,6 @@ class DatabaseScheduler(Scheduler):
     def tick(self, *args, **kwargs):
         """Called by the beat service periodically."""
         start_time = datetime.now()
-        logger.info("Starting scheduler tick")
         
         try:
             self.update_from_database()
@@ -173,7 +169,6 @@ class DatabaseScheduler(Scheduler):
             
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
-            logger.info(f"Scheduler tick completed in {duration:.3f} seconds")
             
             return result
         except Exception as e:

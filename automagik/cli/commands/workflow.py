@@ -1,4 +1,3 @@
-
 """
 Workflow management commands.
 """
@@ -87,13 +86,14 @@ def list_workflows(folder: Optional[str]):
                     
                     # Get source display name from workflow source
                     instance_name = "unknown"
-                    source_type = w.get('source', 'unknown')
+                    source_type = "unknown"
                     if w.get('workflow_source_id') and str(w['workflow_source_id']) in sources:
                         source = sources[str(w['workflow_source_id'])]
                         url = source.url
                         instance = url.split('://')[-1].split('/')[0]
                         instance = instance.split('.')[0]
                         instance_name = instance
+                        source_type = source.source_type
                     
                     # Parse timestamp from ISO format
                     updated_at = w['updated_at']
@@ -304,5 +304,3 @@ def run_workflow(workflow_id: str, input: str):
 
 if __name__ == "__main__":
     workflow_group()
-
-

@@ -1,4 +1,3 @@
-
 """
 Workflow synchronization module.
 
@@ -23,6 +22,8 @@ from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 from ..database.models import Workflow, WorkflowComponent, Task, TaskLog, WorkflowSource
 from ..database.session import get_session
 from .remote import LangFlowManager  # Import from .remote module
+from .agents import AutoMagikAgentManager
+from ..schemas.source import SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +56,11 @@ class WorkflowSync:
 
     def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
         """Get the workflow source for a given workflow ID."""
-        workflow = self.session.get(Workflow, workflow_id)
+        workflow = self.session.execute(
+            select(Workflow).where(Workflow.id == workflow_id)
+        ).scalar_one_or_none()
         if not workflow:
             return None
-        
-        # Return the associated workflow source
         return workflow.workflow_source
 
     def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
@@ -73,12 +74,19 @@ class WorkflowSync:
             logger.info(f"Using workflow source: {source.url}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
 
-            # Initialize LangFlow manager with the correct source settings
+            # Get decrypted API key
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
-            self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
-            
-            # Run the workflow
-            result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+
+            # Initialize appropriate manager based on source type
+            if source.source_type == SourceType.LANGFLOW:
+                self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+                result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+            elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
+                self._manager = AutoMagikAgentManager(source.url, api_key, source_id=source.id)
+                result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
+            else:
+                raise ValueError(f"Unsupported source type: {source.source_type}")
+
             if not result:
                 raise ValueError("No result from workflow execution")
 
@@ -147,5 +155,3 @@ class WorkflowSyncSync:
         except Exception as e:
             logger.error(f"Failed to execute workflow: {str(e)}")
             raise e
-
-

@@ -1,4 +1,3 @@
-
 """LangFlow API integration."""
 
 import json
@@ -179,7 +178,7 @@ class LangFlowManager:
 
     def __init__(
         self,
-        session: AsyncSession | Session,
+        session: Optional[AsyncSession | Session] = None,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         source_id: Optional[UUID] = None,
@@ -200,7 +199,7 @@ class LangFlowManager:
         self.session = session
         self.source_id = source_id
         self.client = None
-        self.is_async = isinstance(session, AsyncSession)
+        self.is_async = isinstance(session, AsyncSession) if session else False
 
     def _get_endpoint(self, path: str) -> str:
         """Construct API endpoint URL."""
@@ -311,12 +310,27 @@ class LangFlowManager:
         )
         return self._process_response(response)
 
+    async def _get_folders(self) -> List[str]:
+        """Get list of valid folder IDs."""
+        folders = await self._make_request_async("GET", "folders/")
+        return [folder['id'] for folder in folders]
+
+    def _get_folders_sync(self) -> List[str]:
+        """Get list of valid folder IDs (sync version)."""
+        folders = self._make_request_sync("GET", "folders/")
+        return [folder['id'] for folder in folders]
+
     async def list_flows(self, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all flows from LangFlow API.
         
         Args:
             source_url: Optional URL to list flows from. If provided, will temporarily
                       switch to this URL for the request.
+            
+        Returns:
+            List[Dict[str, Any]]: List of flows, excluding:
+                - Components (is_component=True)
+                - Templates (flows without a valid folder_id)
         """
         # Save current API URL and key if we're switching
         current_url = None
@@ -325,13 +339,22 @@ class LangFlowManager:
             current_url = self.api_url
             current_key = self.api_key
             self.api_url = source_url
-            # TODO: Get API key from source when we add that field
         
         try:
-            # Add components_only=false to filter out components
-            flows = await self._make_request_async("GET", "flows/", params={"components_only": False})
-            # Double-check is_component flag as a safeguard
-            return [flow for flow in flows if not flow.get('is_component', False)]
+            # Get valid folder IDs first
+            valid_folders = await self._get_folders()
+            
+            # Get all flows
+            flows = await self._make_request_async("GET", "flows/")
+            
+            # Filter flows to exclude:
+            # 1. Components (is_component=True)
+            # 2. Templates (flows without a valid folder_id)
+            return [
+                flow for flow in flows 
+                if not flow.get('is_component', False)  # Not a component
+                and flow.get('folder_id') in valid_folders  # Has valid folder
+            ]
         finally:
             # Restore original API URL and key if we switched
             if source_url:
@@ -344,6 +367,11 @@ class LangFlowManager:
         Args:
             source_url: Optional URL to list flows from. If provided, will temporarily
                       switch to this URL for the request.
+            
+        Returns:
+            List[Dict[str, Any]]: List of flows, excluding:
+                - Components (is_component=True)
+                - Templates (flows without a valid folder_id)
         """
         # Save current API URL and key if we're switching
         current_url = None
@@ -352,13 +380,22 @@ class LangFlowManager:
             current_url = self.api_url
             current_key = self.api_key
             self.api_url = source_url
-            # TODO: Get API key from source when we add that field
         
         try:
-            # Add components_only=false to filter out components
-            flows = self._make_request_sync("GET", "flows/", params={"components_only": False})
-            # Double-check is_component flag as a safeguard
-            return [flow for flow in flows if not flow.get('is_component', False)]
+            # Get valid folder IDs first
+            valid_folders = self._get_folders_sync()
+            
+            # Get all flows
+            flows = self._make_request_sync("GET", "flows/")
+            
+            # Filter flows to exclude:
+            # 1. Components (is_component=True)
+            # 2. Templates (flows without a valid folder_id)
+            return [
+                flow for flow in flows 
+                if not flow.get('is_component', False)  # Not a component
+                and flow.get('folder_id') in valid_folders  # Has valid folder
+            ]
         finally:
             # Restore original API URL and key if we switched
             if source_url:
@@ -507,5 +544,3 @@ class LangFlowManager:
         if self.is_async != expected_async:
             method_type = "async" if expected_async else "sync"
             raise ValueError(f"Cannot call {method_type} method on {'async' if self.is_async else 'sync'} session")
-
-

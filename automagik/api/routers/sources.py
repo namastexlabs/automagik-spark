@@ -1,4 +1,3 @@
-
 """API endpoints for managing workflow sources."""
 
 from typing import List, Optional
@@ -16,10 +15,11 @@ from ...core.schemas.source import (
     WorkflowSourceUpdate,
     WorkflowSourceResponse
 )
+from ...core.schemas.source import SourceType
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
-async def _validate_source(url: str, api_key: str) -> dict:
+async def _validate_source(url: str, api_key: str, source_type: SourceType) -> dict:
     """Validate a source by checking health and fetching version info."""
     try:
         async with httpx.AsyncClient(verify=False) as client:
@@ -32,16 +32,34 @@ async def _validate_source(url: str, api_key: str) -> dict:
             health_response.raise_for_status()
             health_data = health_response.json()
             
-            if health_data.get('status') != 'ok':
+            # For automagik-agents, status should be 'healthy'
+            # For langflow, status should be 'ok'
+            expected_status = 'healthy' if source_type == SourceType.AUTOMAGIK_AGENTS else 'ok'
+            if health_data.get('status') != expected_status:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Source health check failed: {health_data}"
                 )
 
-            # Get version info
-            version_response = await client.get(f"{url}/api/v1/version", headers=headers)
-            version_response.raise_for_status()
-            version_data = version_response.json()
+            # Get version info based on source type
+            if source_type == SourceType.AUTOMAGIK_AGENTS:
+                # Get root info which contains version and service info
+                root_response = await client.get(f"{url}/", headers=headers)
+                root_response.raise_for_status()
+                root_data = root_response.json()
+                version_data = {
+                    'version': root_data.get('version', 'unknown'),
+                    'name': root_data.get('name', 'AutoMagik Agents'),
+                    'description': root_data.get('description', ''),
+                    'status': health_data.get('status', 'unknown'),
+                    'timestamp': health_data.get('timestamp'),
+                    'environment': health_data.get('environment', 'unknown')
+                }
+            else:
+                # For langflow, use /api/v1/version endpoint
+                version_response = await client.get(f"{url}/api/v1/version", headers=headers)
+                version_response.raise_for_status()
+                version_data = version_response.json()
 
             return {
                 **version_data,
@@ -76,7 +94,7 @@ async def create_source(
             )
         
         # Validate source and get version info
-        version_info = await _validate_source(url_str, source.api_key)
+        version_info = await _validate_source(url_str, source.api_key, source.source_type)
         
         # Create source with status from health check
         db_source = WorkflowSource(
@@ -149,7 +167,7 @@ async def update_source(
         if update_data.api_key is not None:
             source.encrypted_api_key = WorkflowSource.encrypt_api_key(update_data.api_key)
             # Validate new API key and update version info
-            version_info = await _validate_source(source.url, update_data.api_key)
+            version_info = await _validate_source(source.url, update_data.api_key, source.source_type)
             source.version_info = version_info
         if update_data.status is not None:
             source.status = update_data.status
@@ -172,5 +190,3 @@ async def delete_source(
         await session.delete(source)
         await session.commit()
         return {"message": "Source deleted successfully"}
-
-

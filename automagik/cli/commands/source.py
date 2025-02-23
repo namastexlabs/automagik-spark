@@ -1,4 +1,3 @@
-
 """CLI commands for managing workflow sources."""
 
 import json
@@ -60,17 +59,36 @@ def add(type: str, url: str, api_key: str, status: str):
                     health_response.raise_for_status()
                     health_data = health_response.json()
                     
-                    if health_data.get('status') != 'ok':
+                    # For automagik-agents, status should be 'healthy'
+                    # For langflow, status should be 'ok'
+                    expected_status = 'healthy' if type == 'automagik-agents' else 'ok'
+                    if health_data.get('status') != expected_status:
                         click.echo(f"Warning: Source health check failed: {health_data}")
                         source.status = 'inactive'
                     else:
                         source.status = 'active'
-                        click.echo("Health check passed: status ok")
+                        click.echo(f"Health check passed: status {expected_status}")
 
-                    # Get version info
-                    version_response = await client.get(f"{url}/api/v1/version", headers=headers)
-                    version_response.raise_for_status()
-                    version_info = version_response.json()
+                    # Get version info based on source type
+                    if type == 'automagik-agents':
+                        # Get root info which contains version and service info
+                        root_response = await client.get(f"{url}/", headers=headers)
+                        root_response.raise_for_status()
+                        root_data = root_response.json()
+                        version_info = {
+                            'version': root_data.get('version', 'unknown'),
+                            'name': root_data.get('name', 'AutoMagik Agents'),
+                            'description': root_data.get('description', ''),
+                            'status': health_data.get('status', 'unknown'),
+                            'timestamp': health_data.get('timestamp'),
+                            'environment': health_data.get('environment', 'unknown')
+                        }
+                    else:
+                        # For langflow, use /api/v1/version endpoint
+                        version_response = await client.get(f"{url}/api/v1/version", headers=headers)
+                        version_response.raise_for_status()
+                        version_info = version_response.json()
+                    
                     source.version_info = version_info
                     click.echo(f"Version check passed: {version_info.get('version')}")
             except Exception as e:
@@ -204,5 +222,3 @@ def update(url: str, status: Optional[str] = None, api_key: Optional[str] = None
             click.echo(f"Successfully updated source: {url}")
 
     asyncio.run(_update())
-
-

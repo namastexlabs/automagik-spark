@@ -32,6 +32,8 @@ from ...core.workflows.remote import LangFlowManager
 from ...core.celery_config import app as celery_app
 from ...core.tasks.workflow_tasks import execute_workflow, schedule_workflow
 from tabulate import tabulate
+from rich.console import Console
+from rich.table import Table
 
 # Initialize logger with basic configuration
 logger = logging.getLogger(__name__)
@@ -174,6 +176,52 @@ def remove_beat_pid():
         os.remove(BEAT_PID_FILE)
     except FileNotFoundError:
         pass
+
+def print_active_schedules():
+    """Print active schedules and their next run times."""
+    async def _get_schedules():
+        async with get_session() as session:
+            # Get all active schedules
+            query = select(Schedule).where(Schedule.active == True)
+            result = await session.execute(query)
+            schedules = result.scalars().all()
+            
+            console = Console()
+            
+            if not schedules:
+                console.print("\n[yellow]No active schedules found[/yellow]")
+                return
+            
+            # Create table
+            table = Table(title="Active Schedules", caption=f"Total: {len(schedules)} schedule(s)")
+            table.add_column("ID", justify="left", style="bright_blue", no_wrap=True)
+            table.add_column("Workflow", justify="left", style="green")
+            table.add_column("Type", justify="left", style="magenta")
+            table.add_column("Next Run", justify="left", style="cyan")
+            table.add_column("Input", justify="left", style="yellow")
+            
+            for schedule in schedules:
+                next_run = schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S UTC") if schedule.next_run_at else "Not scheduled"
+                workflow_name = schedule.workflow.name if schedule.workflow else "Unknown"
+                table.add_row(
+                    str(schedule.id),
+                    workflow_name,
+                    schedule.schedule_type,
+                    next_run,
+                    str(schedule.workflow_params)[:50] + "..." if len(str(schedule.workflow_params)) > 50 else str(schedule.workflow_params)
+                )
+            
+            console.print("\n")
+            console.print(table)
+            console.print("\n")
+    
+    asyncio.run(_get_schedules())
+
+def worker_process_init():
+    """Initialize worker process."""
+    logger.info("Initializing worker process")
+    print_active_schedules()
+    logger.info("Worker process initialized")
 
 worker_group = click.Group(name="worker", help="Worker management commands")
 
