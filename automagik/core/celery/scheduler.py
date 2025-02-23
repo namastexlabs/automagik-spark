@@ -84,6 +84,12 @@ class DatabaseScheduler(Scheduler):
                                 'd': lambda x: x * 86400,
                             }.get(unit, lambda x: x)(value)
                             
+                            # Calculate next run time based on current time
+                            now = datetime.now(timezone.utc)
+                            next_run = now + timedelta(seconds=seconds)
+                            schedule.next_run_at = next_run
+                            session.commit()
+                            
                             entry = ScheduleEntry(
                                 name=schedule_name,
                                 schedule=celery_schedule(timedelta(seconds=seconds)),

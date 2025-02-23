@@ -208,7 +208,7 @@ def print_active_schedules():
                     workflow_name,
                     schedule.schedule_type,
                     next_run,
-                    str(schedule.workflow_params)[:50] + "..." if len(str(schedule.workflow_params)) > 50 else str(schedule.workflow_params)
+                    str(schedule.input_data)[:50] + "..." if len(str(schedule.input_data)) > 50 else str(schedule.input_data)
                 )
             
             console.print("\n")

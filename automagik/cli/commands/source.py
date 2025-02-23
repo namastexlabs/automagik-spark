@@ -70,6 +70,7 @@ def add(type: str, url: str, api_key: str, status: str):
                         click.echo(f"Health check passed: status {expected_status}")
 
                     # Get version info based on source type
+                    version_info = None
                     if type == 'automagik-agents':
                         # Get root info which contains version and service info
                         root_response = await client.get(f"{url}/", headers=headers)
@@ -89,8 +90,9 @@ def add(type: str, url: str, api_key: str, status: str):
                         version_response.raise_for_status()
                         version_info = version_response.json()
                     
-                    source.version_info = version_info
-                    click.echo(f"Version check passed: {version_info.get('version')}")
+                    if version_info:
+                        source.version_info = version_info
+                        click.echo(f"Version check passed: {version_info.get('version')}")
             except Exception as e:
                 click.echo(f"Warning: Source validation failed: {str(e)}")
                 source.status = 'inactive'

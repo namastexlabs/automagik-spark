@@ -360,6 +360,22 @@ class WorkflowManager:
             existing_task=task
         )
 
+    def _format_result_for_logging(self, result: Any) -> str:
+        """Format result for logging, keeping it concise."""
+        if isinstance(result, dict):
+            # For automagik-agents, show just the result/message
+            if 'result' in result:
+                return str(result['result'])
+            # For other responses, show a summary
+            return f"Response with keys: {', '.join(result.keys())}"
+        elif isinstance(result, str):
+            # Truncate long strings
+            max_length = 100
+            if len(result) > max_length:
+                return result[:max_length] + "..."
+            return result
+        return str(result)
+
     async def run_workflow(
         self,
         workflow_id: str | UUID,
@@ -392,10 +408,6 @@ class WorkflowManager:
 
             logger.info(f"Using workflow source: {source.url}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
-
-            # Initialize LangFlow manager with the correct source settings
-            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
-            logger.info(f"Decrypted API key length: {len(api_key) if api_key else 0}")
             
             self.source_manager = await self._get_source_manager(source=source)
             
@@ -415,6 +427,7 @@ class WorkflowManager:
             
             if result:
                 logger.info(f"Task {task.id} completed successfully")
+                logger.info(f"Result: {self._format_result_for_logging(result)}")
                 # Store the result appropriately based on its type
                 if isinstance(result, (dict, list)):
                     task.output_data = json.dumps(result)
@@ -432,7 +445,6 @@ class WorkflowManager:
             logger.error(f"Failed to run workflow: {str(e)}")
             if isinstance(e, httpx.HTTPStatusError):
                 logger.error(f"HTTP Status: {e.response.status_code}")
-                logger.error(f"Response text: {e.response.text}")
             task.status = 'failed'
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
@@ -604,7 +616,7 @@ class SyncWorkflowManager:
             logger.info(f"Using workflow source: {source.url}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
 
-            # Initialize appropriate manager with the correct source settings
+            # Initialize appropriate manager based on source type
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             logger.info(f"Decrypted API key length: {len(api_key) if api_key else 0}")
             
@@ -624,7 +636,7 @@ class SyncWorkflowManager:
                 )
                 with self.source_manager:
                     result = self.source_manager.run_flow_sync(workflow.remote_flow_id, task.input_data)
-                    # For automagik-agents, extract just the message from the response
+                    # For automagik-agents, extract just the result field
                     if isinstance(result, dict):
                         result = result.get('result', result)
             else:
