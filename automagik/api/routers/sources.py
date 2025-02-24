@@ -57,9 +57,9 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 }
             else:
                 # For langflow, use /api/v1/version endpoint
-            version_response = await client.get(f"{url}/api/v1/version", headers=headers)
-            version_response.raise_for_status()
-            version_data = version_response.json()
+                version_response = await client.get(f"{url}/api/v1/version", headers=headers)
+                version_response.raise_for_status()
+                version_data = version_response.json()
 
             return {
                 **version_data,
