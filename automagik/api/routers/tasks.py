@@ -1,4 +1,3 @@
-
 """Tasks router for the AutoMagik API."""
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
@@ -27,9 +26,8 @@ async def list_tasks(
 ):
     """List all tasks."""
     try:
-        async with flow_manager as fm:
-            tasks = await fm.list_tasks(workflow_id, status, limit)
-            return [TaskResponse.model_validate(task) for task in tasks]
+        tasks = await flow_manager.list_tasks(workflow_id, status, limit)
+        return [TaskResponse.model_validate(task) for task in tasks]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -40,11 +38,10 @@ async def get_task(
 ):
     """Get a specific task by ID."""
     try:
-        async with flow_manager as fm:
-            task = await fm.get_task(task_id)
-            if not task:
-                raise HTTPException(status_code=404, detail="Task not found")
-            return TaskResponse.model_validate(task)
+        task = await flow_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse.model_validate(task)
     except HTTPException:
         raise
     except Exception as e:
@@ -57,11 +54,9 @@ async def delete_task(
 ):
     """Delete a task by ID."""
     try:
-        async with flow_manager as fm:
-            deleted_task = await fm.task.delete_task(task_id)
-            if not deleted_task:
-                raise HTTPException(status_code=404, detail="Task not found")
-            return TaskResponse.model_validate(deleted_task)
+        deleted_task = await flow_manager.task.delete_task(task_id)
+        if not deleted_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse.model_validate(deleted_task)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-

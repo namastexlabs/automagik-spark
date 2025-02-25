@@ -288,32 +288,42 @@ class LangFlowManager:
             return [dict(item) for item in data]
         return {}
 
-    async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
-        """Make an async request to the API."""
-        # Log a warning instead of raising an error if session type doesn't match
-        if not self.is_async:
-            logger.warning("Calling async method on sync session. This may cause issues.")
-        
-        # Create a temporary client if one doesn't exist
-        if self.client is None:
-            logger.info("Creating temporary async client for request")
-            async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, verify=False) as temp_client:
-                response = await temp_client.request(
-                    method,
-                    self._get_endpoint(endpoint),
-                    **kwargs
-                )
-                self._handle_error_response(response)
-                return self._process_response(response)
-        else:
-            # Use existing client
-            response = await self._request_with_retry(
-                self.client,
+    async def _execute_async_request(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Execute an async request with a temporary client."""
+        async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, verify=False) as temp_client:
+            response = await temp_client.request(
                 method,
                 self._get_endpoint(endpoint),
                 **kwargs
             )
+            self._handle_error_response(response)
             return self._process_response(response)
+
+    async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Make an async request to the API."""
+        # If we're in an async context, proceed normally
+        if self.is_async or asyncio.get_event_loop().is_running():
+            if not self.is_async:
+                logger.info("Calling async method in sync context, but within an event loop.")
+            
+            # Create a temporary client if one doesn't exist
+            if self.client is None:
+                logger.info("Creating temporary async client for request")
+                return await self._execute_async_request(method, endpoint, **kwargs)
+            else:
+                # Use existing client
+                response = await self._request_with_retry(
+                    self.client,
+                    method,
+                    self._get_endpoint(endpoint),
+                    **kwargs
+                )
+                return self._process_response(response)
+        else:
+            # We're in a completely synchronous context with no event loop
+            # This is better than logging a warning and still using async code in a sync context
+            logger.info("Running async request in a new event loop (sync context)")
+            return asyncio.run(self._execute_async_request(method, endpoint, **kwargs))
 
     def _make_request_sync(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make a sync request to the API."""

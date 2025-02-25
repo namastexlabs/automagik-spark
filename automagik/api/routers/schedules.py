@@ -1,4 +1,3 @@
-
 """Schedules router for the AutoMagik API."""
 from typing import List
 from uuid import UUID
@@ -16,9 +15,15 @@ router = APIRouter(
     responses={401: {"model": ErrorResponse}}
 )
 
-async def get_scheduler_manager(session: AsyncSession = Depends(get_session)) -> SchedulerManager:
+async def get_workflow_manager(session: AsyncSession = Depends(get_session)) -> WorkflowManager:
+    """Get workflow manager instance."""
+    return WorkflowManager(session)
+
+async def get_scheduler_manager(
+    session: AsyncSession = Depends(get_session),
+    workflow_manager: WorkflowManager = Depends(get_workflow_manager)
+) -> SchedulerManager:
     """Get scheduler manager instance."""
-    workflow_manager = WorkflowManager(session)
     return SchedulerManager(session, workflow_manager)
 
 @router.post("", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
@@ -28,18 +33,17 @@ async def create_schedule(
 ):
     """Create a new schedule."""
     try:
-        async with scheduler_manager as sm:
-            # Convert flow_id to UUID
-            workflow_id = UUID(schedule.workflow_id)
-            created_schedule = await sm.create_schedule(
-                workflow_id=workflow_id,
-                schedule_type=schedule.schedule_type,
-                schedule_expr=schedule.schedule_expr,
-                input_value=schedule.input_value
-            )
-            if not created_schedule:
-                raise HTTPException(status_code=400, detail="Failed to create schedule")
-            return ScheduleResponse.model_validate(created_schedule)
+        # Convert flow_id to UUID
+        workflow_id = UUID(schedule.workflow_id)
+        created_schedule = await scheduler_manager.create_schedule(
+            workflow_id=workflow_id,
+            schedule_type=schedule.schedule_type,
+            schedule_expr=schedule.schedule_expr,
+            input_value=schedule.input_value
+        )
+        if not created_schedule:
+            raise HTTPException(status_code=400, detail="Failed to create schedule")
+        return ScheduleResponse.model_validate(created_schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
@@ -51,9 +55,8 @@ async def list_schedules(
 ):
     """List all schedules."""
     try:
-        async with scheduler_manager as sm:
-            schedules = await sm.list_schedules()
-            return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        schedules = await scheduler_manager.list_schedules()
+        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -65,11 +68,10 @@ async def get_schedule(
     """Get a specific schedule by ID."""
     try:
         schedule_uuid = UUID(schedule_id)
-        async with scheduler_manager as sm:
-            schedule = await sm.get_schedule(schedule_uuid)
-            if not schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-            return ScheduleResponse.model_validate(schedule)
+        schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        return ScheduleResponse.model_validate(schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
@@ -84,32 +86,32 @@ async def update_schedule(
     """Update a schedule by ID."""
     try:
         schedule_uuid = UUID(schedule_id)
-        flow_uuid = UUID(schedule.flow_id)
-        async with scheduler_manager as sm:
-            # First check if schedule exists
-            existing_schedule = await sm.get_schedule(schedule_uuid)
-            if not existing_schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-            
-            # Update schedule expression if changed
-            if existing_schedule.schedule_expr != schedule.schedule_expr:
-                success = await sm.update_schedule_expression(schedule_uuid, schedule.schedule_expr)
-                if not success:
-                    raise HTTPException(status_code=400, detail="Failed to update schedule expression")
-            
-            # Update schedule status if changed
-            if existing_schedule.status != schedule.status:
-                action = "resume" if schedule.status == "active" else "pause"
-                success = await sm.update_schedule_status(str(schedule_uuid), action)
-                if not success:
-                    raise HTTPException(status_code=400, detail="Failed to update schedule status")
-            
-            # Get updated schedule
-            updated_schedule = await sm.get_schedule(schedule_uuid)
-            if not updated_schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found after update")
-            
-            return ScheduleResponse.model_validate(updated_schedule)
+        flow_uuid = UUID(schedule.workflow_id)
+        
+        # First check if schedule exists
+        existing_schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not existing_schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Update schedule expression if changed
+        if existing_schedule.schedule_expr != schedule.schedule_expr:
+            success = await scheduler_manager.update_schedule_expression(schedule_uuid, schedule.schedule_expr)
+            if not success:
+                raise HTTPException(status_code=400, detail="Failed to update schedule expression")
+        
+        # Update schedule status if changed
+        if existing_schedule.status != schedule.status:
+            action = "resume" if schedule.status == "active" else "pause"
+            success = await scheduler_manager.update_schedule_status(str(schedule_uuid), action)
+            if not success:
+                raise HTTPException(status_code=400, detail="Failed to update schedule status")
+        
+        # Get updated schedule
+        updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not updated_schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
+        
+        return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
@@ -123,18 +125,18 @@ async def delete_schedule(
     """Delete a schedule by ID."""
     try:
         schedule_uuid = UUID(schedule_id)
-        async with scheduler_manager as sm:
-            # First get the schedule
-            schedule = await sm.get_schedule(schedule_uuid)
-            if not schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-            
-            # Delete the schedule
-            success = await sm.delete_schedule(schedule_uuid)
-            if not success:
-                raise HTTPException(status_code=400, detail="Failed to delete schedule")
-            
-            return ScheduleResponse.model_validate(schedule)
+        
+        # First get the schedule
+        schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Delete the schedule
+        success = await scheduler_manager.delete_schedule(schedule_uuid)
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to delete schedule")
+        
+        return ScheduleResponse.model_validate(schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
@@ -148,23 +150,23 @@ async def enable_schedule(
     """Enable a schedule."""
     try:
         schedule_uuid = UUID(schedule_id)
-        async with scheduler_manager as sm:
-            # First check if schedule exists
-            schedule = await sm.get_schedule(schedule_uuid)
-            if not schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-            
-            # Enable the schedule
-            success = await sm.update_schedule_status(str(schedule_uuid), "resume")
-            if not success:
-                raise HTTPException(status_code=400, detail="Failed to enable schedule")
-            
-            # Get updated schedule
-            updated_schedule = await sm.get_schedule(schedule_uuid)
-            if not updated_schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found after update")
-            
-            return ScheduleResponse.model_validate(updated_schedule)
+        
+        # First check if schedule exists
+        schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Enable the schedule
+        success = await scheduler_manager.update_schedule_status(str(schedule_uuid), "resume")
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to enable schedule")
+        
+        # Get updated schedule
+        updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not updated_schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
+        
+        return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
@@ -178,26 +180,24 @@ async def disable_schedule(
     """Disable a schedule."""
     try:
         schedule_uuid = UUID(schedule_id)
-        async with scheduler_manager as sm:
-            # First check if schedule exists
-            schedule = await sm.get_schedule(schedule_uuid)
-            if not schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-            
-            # Disable the schedule
-            success = await sm.update_schedule_status(str(schedule_uuid), "pause")
-            if not success:
-                raise HTTPException(status_code=400, detail="Failed to disable schedule")
-            
-            # Get updated schedule
-            updated_schedule = await sm.get_schedule(schedule_uuid)
-            if not updated_schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found after update")
-            
-            return ScheduleResponse.model_validate(updated_schedule)
+        
+        # First check if schedule exists
+        schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Disable the schedule
+        success = await scheduler_manager.update_schedule_status(str(schedule_uuid), "pause")
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to disable schedule")
+        
+        # Get updated schedule
+        updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
+        if not updated_schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
+        
+        return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid UUID format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
