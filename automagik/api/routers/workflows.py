@@ -1,4 +1,3 @@
-
 """
 Workflow router.
 
@@ -171,12 +170,11 @@ async def run_workflow(
         HTTPException: If the workflow is not found or if there's an error running it
     """
     try:
-        async with WorkflowManager(session) as manager:
-            task = await manager.run_workflow(workflow_id, input_data)
-            if not task:
-                raise HTTPException(status_code=404, detail="Workflow not found")
-            return TaskResponse.model_validate(task)
+        # Create the manager but don't use context manager to avoid session type issues
+        manager = WorkflowManager(session)
+        task = await manager.run_workflow(workflow_id, input_data)
+        if not task:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        return TaskResponse.model_validate(task)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-

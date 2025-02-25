@@ -411,19 +411,19 @@ class WorkflowManager:
             
             self.source_manager = await self._get_source_manager(source=source)
             
-            # Execute workflow
-            async with self.source_manager:
-                try:
-                    result = await self.source_manager.run_flow(workflow.remote_flow_id, input_data)
-                    # For automagik-agents, extract just the message from the response
-                    if isinstance(self.source_manager, AutoMagikAgentManager) and isinstance(result, dict):
-                        result = result.get('result', result)
-                except Exception as e:
-                    logger.error(f"Error executing flow: {str(e)}")
-                    if isinstance(e, httpx.HTTPStatusError):
-                        logger.error(f"HTTP Status: {e.response.status_code}")
-                        logger.error(f"Response text: {e.response.text}")
-                    raise
+            # Execute workflow - don't use context manager to avoid session type issues
+            try:
+                # Call run_flow directly without context manager
+                result = await self.source_manager.run_flow(workflow.remote_flow_id, input_data)
+                # For automagik-agents, extract just the message from the response
+                if isinstance(self.source_manager, AutoMagikAgentManager) and isinstance(result, dict):
+                    result = result.get('result', result)
+            except Exception as e:
+                logger.error(f"Error executing flow: {str(e)}")
+                if isinstance(e, httpx.HTTPStatusError):
+                    logger.error(f"HTTP Status: {e.response.status_code}")
+                    logger.error(f"Response text: {e.response.text}")
+                raise
             
             if result:
                 logger.info(f"Task {task.id} completed successfully")

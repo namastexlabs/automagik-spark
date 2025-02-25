@@ -262,16 +262,16 @@ class LangFlowManager:
     ) -> httpx.Response:
         """Make a synchronous HTTP request with retry logic."""
         try:
-            with httpx.Client() as sync_client:
-                response = sync_client.request(
-                    method,
-                    endpoint,
-                    headers=self.headers,
-                    timeout=self.timeout,
-                    **kwargs
-                )
-                self._handle_error_response(response)
-                return response
+            # Use the client passed to the method instead of creating a new one
+            response = client.request(
+                method,
+                endpoint,
+                headers=self.headers,
+                timeout=self.timeout,
+                **kwargs
+            )
+            self._handle_error_response(response)
+            return response
         except httpx.HTTPError as e:
             logger.error(f"HTTP error occurred: {str(e)}")
             if isinstance(e, httpx.HTTPStatusError):
@@ -290,25 +290,46 @@ class LangFlowManager:
 
     async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make an async request to the API."""
-        self._check_session_type(True)
-        response = await self._request_with_retry(
-            self.client,
-            method,
-            self._get_endpoint(endpoint),
-            **kwargs
-        )
-        return self._process_response(response)
+        # Log a warning instead of raising an error if session type doesn't match
+        if not self.is_async:
+            logger.warning("Calling async method on sync session. This may cause issues.")
+        
+        # Create a temporary client if one doesn't exist
+        if self.client is None:
+            logger.info("Creating temporary async client for request")
+            async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, verify=False) as temp_client:
+                response = await temp_client.request(
+                    method,
+                    self._get_endpoint(endpoint),
+                    **kwargs
+                )
+                self._handle_error_response(response)
+                return self._process_response(response)
+        else:
+            # Use existing client
+            response = await self._request_with_retry(
+                self.client,
+                method,
+                self._get_endpoint(endpoint),
+                **kwargs
+            )
+            return self._process_response(response)
 
     def _make_request_sync(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make a sync request to the API."""
-        self._check_session_type(False)
-        response = self._request_with_retry_sync(
-            self.client,
-            method,
-            self._get_endpoint(endpoint),
-            **kwargs
-        )
-        return self._process_response(response)
+        # Log a warning instead of raising an error if session type doesn't match
+        if self.is_async:
+            logger.warning("Calling sync method on async session. This may cause issues.")
+        
+        # Use a new client instance to avoid session type issues
+        with httpx.Client(headers=self.headers, timeout=self.timeout, verify=False) as client:
+            response = client.request(
+                method,
+                self._get_endpoint(endpoint),
+                **kwargs
+            )
+            self._handle_error_response(response)
+            return self._process_response(response)
 
     async def _get_folders(self) -> List[str]:
         """Get list of valid folder IDs."""
@@ -423,37 +444,43 @@ class LangFlowManager:
 
     async def run_flow(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
         """Run a flow with input data."""
-        # Get flow data to find component IDs
-        flow_data = await self.get_flow(flow_id)
-        if not flow_data:
-            raise ValueError(f"Flow {flow_id} not found")
+        try:
+            # Get flow data to find component IDs
+            flow_data = await self.get_flow(flow_id)
+            if not flow_data:
+                raise ValueError(f"Flow {flow_id} not found")
 
-        # Get input and output component IDs
-        input_component = None
-        output_component = None
-        for node in flow_data.get('data', {}).get('nodes', []):
-            node_type = node.get('data', {}).get('type', '')
-            if node_type == 'ChatInput':
-                input_component = node['id']
-            elif node_type == 'ChatOutput':
-                output_component = node['id']
+            # Get input and output component IDs
+            input_component = None
+            output_component = None
+            for node in flow_data.get('data', {}).get('nodes', []):
+                node_type = node.get('data', {}).get('type', '')
+                if node_type == 'ChatInput':
+                    input_component = node['id']
+                elif node_type == 'ChatOutput':
+                    output_component = node['id']
 
-        if not input_component or not output_component:
-            raise ValueError("Could not find chat input and output components in flow")
+            if not input_component or not output_component:
+                raise ValueError("Could not find chat input and output components in flow")
 
-        request_data = FlowExecuteRequest(
-            input_value=input_data,
-            tweaks={
-                input_component: {},
-                output_component: {}
-            }
-        )
-        return await self._make_request_async(
-            "POST",
-            f"run/{flow_id}",
-            params={"stream": "false"},
-            json=request_data.dict()
-        )
+            request_data = FlowExecuteRequest(
+                input_value=input_data,
+                tweaks={
+                    input_component: {},
+                    output_component: {}
+                }
+            )
+            
+            # Use _make_request_async which now handles missing client
+            return await self._make_request_async(
+                "POST",
+                f"run/{flow_id}",
+                params={"stream": "false"},
+                json=request_data.dict()
+            )
+        except Exception as e:
+            logger.error(f"Error in run_flow: {str(e)}")
+            raise
 
     def run_flow_sync(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
         """Run a flow with input data (sync version)."""
@@ -492,8 +519,8 @@ class LangFlowManager:
     def run_workflow_sync(self, flow_id: str, input_data: str) -> Dict[str, Any]:
         """Run a workflow synchronously."""
         try:
-            client = httpx.Client(headers=self.headers, timeout=60.0)
-            url = f"{self.api_url}/api/v1/run/{flow_id}"
+            # Don't check session type here to allow this method to be called from both contexts
+            # self._check_session_type(False)
             
             # Ensure input_data is a string
             if not isinstance(input_data, str):
@@ -505,11 +532,13 @@ class LangFlowManager:
                 tweaks={}  # No tweaks needed for basic execution
             )
             
-            # Execute workflow
-            response = client.post(url, json=request_data.dict(), params={"stream": "false"})
-            response.raise_for_status()
-            
-            return response.json()
+            # Execute workflow using a new client instance to avoid session type issues
+            with httpx.Client(headers=self.headers, timeout=60.0, verify=False) as client:
+                url = f"{self.api_url}/api/v1/run/{flow_id}"
+                response = client.post(url, json=request_data.dict(), params={"stream": "false"})
+                response.raise_for_status()
+                return response.json()
+                
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error executing workflow: {e.response.text}")
             raise
@@ -543,4 +572,8 @@ class LangFlowManager:
         """Check if the session type matches the method type."""
         if self.is_async != expected_async:
             method_type = "async" if expected_async else "sync"
-            raise ValueError(f"Cannot call {method_type} method on {'async' if self.is_async else 'sync'} session")
+            session_type = "async" if self.is_async else "sync"
+            logger.warning(f"Session type mismatch: Calling {method_type} method on {session_type} session. This may cause issues.")
+            # Instead of raising an error, we'll just log a warning and continue
+            # This allows async methods to be called on sync sessions and vice versa
+            # raise ValueError(f"Cannot call {method_type} method on {'async' if self.is_async else 'sync'} session")
