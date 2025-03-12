@@ -6,6 +6,7 @@ Because magic shouldn't be complicated.
 
 AutoMagik is an agent-first automation engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
 
+Develop production-level agents with [AutoMagik Agents](https://github.com/namastexlabs/automagik-agents).
 Create agents using natural language with our dedicated UI available at [AutoMagik UI](https://github.com/namastexlabs/automagik-ui).
 
 ---
