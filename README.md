@@ -2,171 +2,133 @@
   <img src=".github/images/automagik_logo.png" alt="AutoMagik Logo" width="600"/>
 </p>
 
-# AutoMagik Agents
+# AutoMagik
 
-A powerful toolkit for quickly building and deploying AI agents using the Pydantic AI framework. Create custom agents from templates, expose them through a RESTful API, and manage conversations with built-in memory and tool support. Perfect for teams looking to rapidly prototype and deploy AI agents with standardized patterns and best practices.
+> **Because magic shouldn't be complicated.**
 
-## 🌟 Features
+AutoMagik is an agent-first automation engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
 
-### Extensible Agent System
-- **Template-Based Development**: Create new agents from pre-built templates
-- **Ready-to-Use Templates**: Start with Simple Agent or Notion Agent
-- **Intuitive CLI**: Generate agents with simple commands
-- **Automatic Tool Registration**: Register and manage tools effortlessly
+## 🔗 Ecosystem
 
-### Powerful API Integration
-- **FastAPI Backend**: High-performance RESTful endpoints
-- **Sophisticated Session Management**: Track conversation history
-- **Structured Data Models**: Clear request/response patterns
-- **Security**: Built-in authentication and CORS support
-- **Monitoring**: Health checks and version tracking
+- **[AutoMagik Agents](https://github.com/namastexlabs/automagik-agents)**: Develop production-level AI agents
+- **[AutoMagik UI](https://github.com/namastexlabs/automagik-ui)**: Create agents using natural language with our dedicated UI
 
-### Advanced Memory System
-- **Persistent Conversation History**: Maintain context across sessions
-- **Session-Based Organization**: Efficient memory management
-- **Tool Interaction Tracking**: Record tool calls and outputs
-- **Structured Storage**: Organized message repository
+## 🚀 Installation
 
-### Built-in Templates
-- **Simple Agent**: Basic chat functionality with datetime tools
-- **Notion Agent**: Full Notion integration with database management
+AutoMagik provides two setup options:
 
-## 🚀 Quick Start
+### Prerequisites
 
-### Installation
+- Linux-based system (Ubuntu/Debian recommended)
+- Docker and Docker Compose (automatically installed on Ubuntu/Debian if not present)
+
+### Local Production Setup
+
+For a production-ready local environment:
 
 ```bash
-pip install automagik-agents
+./scripts/setup_local.sh
 ```
 
-### Environment Setup
+### Development Setup
+
+For development with PostgreSQL and Redis Docker containers:
 
 ```bash
-# Copy example environment file
-cp .env-example .env
-
-# Configure required variables
-AM_API_KEY=your_api_key_here
-AM_HOST=0.0.0.0
-AM_PORT=8000
-OPENAI_API_KEY=your_openai_key_here
-OPENAI_MODEL=openai:gpt-4o-mini  # or your preferred model
-
-# For Notion agent (optional)
-NOTION_TOKEN=your_notion_token
+./scripts/setup_dev.sh
 ```
 
-### Creating Your First Agent
+### What Happens During Setup
+
+Both setup scripts will:
+- Create necessary environment files
+- Install Docker if needed (on Ubuntu/Debian)
+- Set up all required services
+- Install the CLI tool (optional)
+- Guide you through the entire process
+
+### After Installation
+
+You'll have access to:
+- **AutoMagik API**: Running at [http://localhost:8888](http://localhost:8888)
+- **PostgreSQL Database**: Available at `localhost:15432`
+- **Worker Service**: Running and ready to process tasks
+- **CLI Tool**: Installed (if chosen during setup)
+
+### Verifying Your Installation
+
+The setup automatically verifies all services, but you can also check manually:
 
 ```bash
-# Create from simple template
-automagik-agents create-agent -n my_agent -t simple_agent
+# Access API documentation
+open http://localhost:8888/api/v1/docs  # Interactive Swagger UI
+open http://localhost:8888/api/v1/redoc # ReDoc documentation
 
-# Create from Notion template
-automagik-agents create-agent -n my_notion_agent -t notion_agent
+# List flows (requires CLI installation)
+source .venv/bin/activate
+automagik flow list
 ```
 
-### Starting the API Server
+## 🧩 System Components
 
-```bash
-automagik-agents api start --reload
+- **API Server**: Handles all HTTP requests and core logic
+- **Worker**: Processes tasks and schedules
+- **Database**: PostgreSQL with all required tables automatically created
+- **LangFlow** (optional): Visual flow editor for creating AI workflows
+- **CLI Tool** (optional): Command-line interface for managing flows and tasks
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart LR
+    subgraph Services
+      DB[PostgreSQL]
+      LF1[LangFlow Instance 1]
+      LF2[LangFlow Instance 2]
+    end
+    subgraph AutoMagik
+      CLI[CLI]
+      API[API Server]
+      CW[Celery Worker]
+      W[Worker]
+    end
+    API -- uses --> DB
+    API -- triggers --> CW
+    W -- processes --> API
+    API -- integrates with --> LF1
+    API -- integrates with --> LF2
+    CLI -- controls --> API
+    API -- has UI --> UI[Automagik UI]
 ```
 
-## 💡 Usage Examples
+### Core Components Explained
 
-### API Endpoints
+- **API**: Core service handling requests and business logic
+- **Worker**: Processes tasks and schedules
+- **CLI**: Command-line tool for managing flows and tasks
+- **PostgreSQL**: Stores flows, tasks, schedules, and other data
+- **LangFlow**: Optional service for creating and editing flows
 
-#### Health Check
+## 📚 API Documentation
 
-```bash
-curl http://localhost:8000/health
-```
+For complete API documentation, visit:
+- **Swagger UI**: [http://localhost:8888/api/v1/docs](http://localhost:8888/api/v1/docs)
+- **ReDoc**: [http://localhost:8888/api/v1/redoc](http://localhost:8888/api/v1/redoc)
 
-#### Running Agents
+## 🛠️ Next Steps
 
-**Simple Agent**
-```bash
-curl -X POST http://localhost:8000/agent/simple_agent/run \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message_input": "What time is it?",
-    "session_id": "optional_session_id"
-  }'
-```
+1. If you installed LangFlow, visit [http://localhost:17860](http://localhost:17860) to create your first flow
+2. Use the API at [http://localhost:8888/api/v1/docs](http://localhost:8888/api/v1/docs) to manage your flows and tasks
+3. Try out the CLI commands with `automagik --help`
+4. Monitor task execution through logs and API endpoints
 
-**Notion Agent**
-```bash
-curl -X POST http://localhost:8000/agent/notion_agent/run \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message_input": "List my databases",
-    "session_id": "optional_session_id"
-  }'
-```
+## 🗺️ Roadmap
 
-#### Session Management
-
-**Retrieve Session History**
-```bash
-curl http://localhost:8000/session/your_session_id \
-  -H "X-API-Key: your_api_key"
-```
-
-**Clear Session Data**
-```bash
-curl -X DELETE http://localhost:8000/session/your_session_id \
-  -H "X-API-Key: your_api_key"
-```
-
-### Creating Custom Agents
-
-#### 1. Create Agent Template
-
-```bash
-automagik-agents create-agent -n custom -t simple_agent
-```
-
-#### 2. Customize Agent Files
-
-- Edit `src/agents/custom_agent/prompts.py` for system prompts
-- Modify `src/agents/custom_agent/agent.py` for agent behavior
-- Update `src/agents/custom_agent/__init__.py` for configuration
-
-#### 3. Register Custom Tools
-
-```python
-def register_tools(self):
-    """Register custom tools with the agent."""
-    # Register built-in tools
-    self.agent.tool(self.get_current_time)
-    
-    # Register custom tools
-    self.agent.tool(your_custom_tool)
-    
-def your_custom_tool(self, param1: str) -> str:
-    """Custom tool description.
-    
-    Args:
-        param1: Description of parameter
-        
-    Returns:
-        Description of return value
-    """
-    # Tool implementation
-    return f"Processed: {param1}"
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+AutoMagik's future development focuses on:
+- TBA
 
 ---
 
 <p align="center">
-  <b>Part of the AutoMagik Ecosystem</b><br>
-  <a href="https://github.com/namastexlabs/automagik">AutoMagik</a> |
-  <a href="https://github.com/namastexlabs/automagik-agents">AutoMagik Agents</a> |
-  <a href="https://github.com/namastexlabs/automagik-ui">AutoMagik UI</a>
+  <b>AutoMagik: Bringing AI Automation to Life</b>
 </p>
