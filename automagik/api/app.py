@@ -1,10 +1,9 @@
-
 """Main FastAPI application module."""
 
 import datetime
 from fastapi import FastAPI, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security.api_key import APIKeyHeader
+from fastapi.openapi.utils import get_openapi
 
 from automagik.version import __version__
 from .config import get_cors_origins, get_api_key
@@ -30,9 +29,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API Key security scheme
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+# Custom OpenAPI schema to include security components
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Add API Key security scheme
+    openapi_schema["components"] = openapi_schema.get("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "APIKeyHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "API key authentication"
+        },
+        "APIKeyQuery": {
+            "type": "apiKey",
+            "in": "query",
+            "name": "api_key",
+            "description": "API key authentication via query parameter"
+        }
+    }
+    
+    # Apply security to all endpoints except those that don't need auth
+    security_requirement = [{"APIKeyHeader": []}, {"APIKeyQuery": []}]
+    
+    # These endpoints don't require authentication
+    no_auth_paths = ["/health", "/", "/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"]
+    
+    # Update security for each path
+    for path, path_item in openapi_schema["paths"].items():
+        if path not in no_auth_paths:
+            for operation in path_item.values():
+                operation["security"] = security_requirement
+                
+                # Add authentication description to each endpoint
+                if "description" in operation:
+                    operation["description"] += "\n\n**Requires Authentication**: This endpoint requires an API key."
+                else:
+                    operation["description"] = "**Requires Authentication**: This endpoint requires an API key."
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
 
+# Set the custom OpenAPI schema
+app.openapi = custom_openapi
 
 @app.get("/health")
 async def health():
@@ -67,5 +115,3 @@ app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(schedules.router, prefix="/api/v1")
 app.include_router(sources.router, prefix="/api/v1")
-
-

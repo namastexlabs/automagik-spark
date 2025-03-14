@@ -1,18 +1,31 @@
-
 """API dependencies."""
 from typing import Optional
-from fastapi import Security, HTTPException, status
-from fastapi.security.api_key import APIKeyHeader
+from fastapi import Security, HTTPException, status, Depends, Query
+from fastapi.security import APIKeyHeader, APIKeyQuery
 from .config import get_api_key
 from ..core.database.session import get_async_session
 
-X_API_KEY = APIKeyHeader(name="X-API-Key", auto_error=False)
+# Define API key security schemes
+API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+API_KEY_QUERY = APIKeyQuery(name="api_key", auto_error=False)
 
-async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
+async def get_api_key_from_header(api_key_header: str = Security(API_KEY_HEADER)):
+    return api_key_header
+
+async def get_api_key_from_query(api_key_query: str = Security(API_KEY_QUERY)):
+    return api_key_query
+
+async def verify_api_key(
+    api_key_header: str = Depends(get_api_key_from_header),
+    api_key_query: str = Depends(get_api_key_from_query)
+) -> str:
     """
-    Verify the API key from the X-API-Key header.
+    Verify the API key from the X-API-Key header or api_key query parameter.
     If AUTOMAGIK_API_KEY is not set, all requests are allowed.
     """
+    # Use header by default, fall back to query parameter
+    api_key = api_key_header or api_key_query
+    
     configured_api_key = get_api_key()
     
     # If no API key is configured, allow all requests
@@ -24,7 +37,7 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-API-Key header is missing",
+            detail="API key is missing",
             headers={"WWW-Authenticate": "ApiKey"},
         )
     
@@ -40,5 +53,3 @@ async def verify_api_key(api_key: str = Security(X_API_KEY)) -> str:
 
 # Use the FastAPI-compatible session dependency
 get_session = get_async_session
-
-
