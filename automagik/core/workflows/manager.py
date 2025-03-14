@@ -21,7 +21,7 @@ from ..schemas.source import SourceType
 from .remote import LangFlowManager
 from .task import TaskManager
 from .source import WorkflowSource
-from .agents import AutoMagikAgentManager
+from .automagik_agents import AutoMagikAgentManager
 
 import os
 

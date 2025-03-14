@@ -71,7 +71,7 @@ class AutoMagikAgentManager:
 
             # Combine health and root data
             return {
-                'version': root_data.get('version', 'unknown'),
+                'version': root_data.get('version', health_data.get('version', 'unknown')),
                 'name': root_data.get('name', 'AutoMagik Agents'),
                 'description': root_data.get('description', ''),
                 'status': health_data.get('status', 'unknown'),
@@ -93,7 +93,7 @@ class AutoMagikAgentManager:
             List[Dict[str, Any]]: List of available agents
         """
         try:
-            response = await self._client.get("/agent/list")
+            response = await self._client.get("/api/v1/agent/list")
             response.raise_for_status()
             agents = response.json()
             
@@ -103,9 +103,10 @@ class AutoMagikAgentManager:
                 transformed_agents.append({
                     'id': agent['name'],  # Use name as ID
                     'name': agent['name'],
-                    'description': f"AutoMagik Agent of type: {agent.get('type', 'Unknown')}",
+                    'description': agent.get('description') or f"AutoMagik Agent of type: {agent.get('type', 'Unknown')}",
                     'data': {
                         'type': agent.get('type'),
+                        'model': agent.get('model'),
                         'configuration': agent.get('configuration', {})
                     },
                     'is_component': False,
@@ -175,10 +176,13 @@ class AutoMagikAgentManager:
                 input_data = "Hello"  # Default greeting if no input provided
 
             response = await self._client.post(
-                f"/agent/{agent_id}/run",
+                f"/api/v1/agent/{agent_id}/run",
                 json={
-                    "message_input": input_data,
-                    "session_id": session_id
+                    "message_content": input_data,
+                    "session_id": session_id,
+                    "user_id": 1,
+                    "message_limit": 10,
+                    "session_origin": "automagik"
                 }
             )
             response.raise_for_status()
@@ -226,10 +230,13 @@ class AutoMagikAgentManager:
                 verify=False  # TODO: Make this configurable
             ) as client:
                 response = client.post(
-                    f"/agent/{agent_id}/run",
+                    f"/api/v1/agent/{agent_id}/run",
                     json={
-                        "message_input": input_data,
-                        "session_id": session_id
+                        "message_content": input_data,
+                        "session_id": session_id,
+                        "user_id": 1,
+                        "message_limit": 10,
+                        "session_origin": "automagik"
                     }
                 )
                 response.raise_for_status()

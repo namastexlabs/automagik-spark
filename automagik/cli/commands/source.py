@@ -77,7 +77,7 @@ def add(type: str, url: str, api_key: str, status: str):
                         root_response.raise_for_status()
                         root_data = root_response.json()
                         version_info = {
-                            'version': root_data.get('version', 'unknown'),
+                            'version': root_data.get('version', health_data.get('version', 'unknown')),
                             'name': root_data.get('name', 'AutoMagik Agents'),
                             'description': root_data.get('description', ''),
                             'status': health_data.get('status', 'unknown'),
@@ -224,3 +224,55 @@ def update(url: str, status: Optional[str] = None, api_key: Optional[str] = None
             click.echo(f"Successfully updated source: {url}")
 
     asyncio.run(_update())
+
+@source_group.command()
+@click.argument("source_id", required=True)
+@click.argument("agent_name", required=True)
+@click.option("--input", "-i", required=True, help="Input for the agent")
+@click.option("--session-id", "-s", help="Session ID for conversation history")
+def run_agent(source_id, agent_name, input, session_id):
+    """Run an agent from a specific source."""
+    async def _run_agent():
+        async with get_session() as session:
+            # Get source
+            source = await session.get(WorkflowSource, source_id)
+            if not source:
+                click.echo(f"Source with ID {source_id} not found.")
+                return
+
+            if source.source_type != 'automagik-agents':
+                click.echo(f"Source with ID {source_id} is not an automagik-agents source.")
+                return
+
+            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+            url = source.url.rstrip('/')
+
+            # Run agent
+            async with httpx.AsyncClient(verify=False) as client:
+                try:
+                    headers = {
+                        "accept": "application/json",
+                        "x-api-key": api_key
+                    }
+                    
+                    # Use the updated endpoint path and payload structure
+                    response = await client.post(
+                        f"{url}/api/v1/agent/{agent_name}/run",
+                        headers=headers,
+                        json={
+                            "message_content": input,
+                            "session_id": session_id,
+                            "user_id": 1,
+                            "message_limit": 10,
+                            "session_origin": "automagik-cli"
+                        }
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    # Format the result
+                    click.echo(f"Agent response: {result}")
+                except Exception as e:
+                    click.echo(f"Error running agent: {str(e)}")
+    
+    asyncio.run(_run_agent())

@@ -48,7 +48,7 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 root_response.raise_for_status()
                 root_data = root_response.json()
                 version_data = {
-                    'version': root_data.get('version', 'unknown'),
+                    'version': root_data.get('version', health_data.get('version', 'unknown')),
                     'name': root_data.get('name', 'AutoMagik Agents'),
                     'description': root_data.get('description', ''),
                     'status': health_data.get('status', 'unknown'),
@@ -97,12 +97,14 @@ async def create_source(
         version_info = await _validate_source(url_str, source.api_key, source.source_type)
         
         # Create source with status from health check
+        # Determine expected status based on source type
+        expected_status = 'healthy' if source.source_type == SourceType.AUTOMAGIK_AGENTS else 'ok'
         db_source = WorkflowSource(
             source_type=source.source_type,
             url=url_str,
             encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),
             version_info=version_info,
-            status='active' if version_info.get('status') == 'ok' else 'inactive'
+            status='active' if version_info.get('status') == expected_status else 'inactive'
         )
         session.add(db_source)
         await session.commit()

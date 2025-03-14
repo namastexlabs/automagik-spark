@@ -22,11 +22,10 @@ from ..config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 from ..database.models import Workflow, WorkflowComponent, Task, TaskLog, WorkflowSource
 from ..database.session import get_session
 from .remote import LangFlowManager  # Import from .remote module
-from .agents import AutoMagikAgentManager
+from .automagik_agents import AutoMagikAgentManager
 from ..schemas.source import SourceType
 
 logger = logging.getLogger(__name__)
-
 
 class WorkflowSync:
     """Workflow synchronization class.
