@@ -49,17 +49,11 @@ def custom_openapi():
             "in": "header",
             "name": "X-API-Key",
             "description": "API key authentication"
-        },
-        "APIKeyQuery": {
-            "type": "apiKey",
-            "in": "query",
-            "name": "api_key",
-            "description": "API key authentication via query parameter"
         }
     }
     
     # Apply security to all endpoints except those that don't need auth
-    security_requirement = [{"APIKeyHeader": []}, {"APIKeyQuery": []}]
+    security_requirement = [{"APIKeyHeader": []}]
     
     # These endpoints don't require authentication
     no_auth_paths = ["/health", "/", "/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"]

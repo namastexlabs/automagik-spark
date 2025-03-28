@@ -198,7 +198,7 @@ class LangFlowManager:
             self.headers["x-api-key"] = self.api_key
         self.session = session
         self.source_id = source_id
-        self.client = None
+        self._client = None
         self.is_async = isinstance(session, AsyncSession) if session else False
 
     def _get_endpoint(self, path: str) -> str:
@@ -299,31 +299,63 @@ class LangFlowManager:
             self._handle_error_response(response)
             return self._process_response(response)
 
-    async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
-        """Make an async request to the API."""
-        # If we're in an async context, proceed normally
-        if self.is_async or asyncio.get_event_loop().is_running():
-            if not self.is_async:
-                logger.info("Calling async method in sync context, but within an event loop.")
+    async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Any:
+        """
+        Make a request to the LangFlow API with automatic client creation.
+        
+        This handles the case where the client may not be initialized yet.
+        """
+        # Create client if it doesn't exist
+        if not self._client:
+            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+        
+        url = f"{self.api_url}/api/v1/{endpoint}"
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        
+        try:
+            response = await self._client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                **kwargs
+            )
             
-            # Create a temporary client if one doesn't exist
-            if self.client is None:
-                logger.info("Creating temporary async client for request")
-                return await self._execute_async_request(method, endpoint, **kwargs)
-            else:
-                # Use existing client
-                response = await self._request_with_retry(
-                    self.client,
-                    method,
-                    self._get_endpoint(endpoint),
-                    **kwargs
-                )
-                return self._process_response(response)
-        else:
-            # We're in a completely synchronous context with no event loop
-            # This is better than logging a warning and still using async code in a sync context
-            logger.info("Running async request in a new event loop (sync context)")
-            return asyncio.run(self._execute_async_request(method, endpoint, **kwargs))
+            # Log the request URL and status
+            logger.debug(f"LangFlow API request: {method} {url}")
+            logger.debug(f"Response status: {response.status_code}")
+            
+            # Raise for HTTP errors
+            response.raise_for_status()
+            
+            # Try to parse as JSON, return empty dict if not JSON
+            try:
+                return response.json()
+            except ValueError:
+                # Handle non-JSON responses (might be text or other content)
+                return {"content": response.text, "status": "success"}
+                
+        except httpx.HTTPStatusError as e:
+            # Log and handle HTTP errors (4xx, 5xx)
+            logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")
+            
+            # Try to parse error response as JSON, or use raw text
+            try:
+                error_data = e.response.json()
+                error_message = error_data.get("detail", str(e))
+            except ValueError:
+                error_message = e.response.text or str(e)
+                
+            return {"error": error_message, "status": "error", "status_code": e.response.status_code}
+            
+        except httpx.RequestError as e:
+            # Log and handle request errors (connection, timeout, etc.)
+            logger.error(f"Request error for {url}: {str(e)}")
+            return {"error": str(e), "status": "error"}
+            
+        except Exception as e:
+            # Log and handle any other exceptions
+            logger.error(f"Unexpected error for {url}: {str(e)}")
+            return {"error": str(e), "status": "error"}
 
     def _make_request_sync(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make a sync request to the API."""
@@ -559,24 +591,24 @@ class LangFlowManager:
     async def __aenter__(self):
         """Enter async context manager."""
         if self.is_async:
-            self.client = httpx.AsyncClient(verify=False, follow_redirects=True)
+            self._client = httpx.AsyncClient(verify=False, follow_redirects=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager."""
-        if self.is_async and self.client:
-            await self.client.aclose()
+        if self.is_async and self._client:
+            await self._client.aclose()
 
     def __enter__(self):
         """Enter sync context manager."""
         if not self.is_async:
-            self.client = httpx.Client(verify=False)
+            self._client = httpx.Client(verify=False)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit sync context manager."""
-        if not self.is_async and self.client:
-            self.client.close()
+        if not self.is_async and self._client:
+            self._client.close()
 
     def _check_session_type(self, expected_async: bool):
         """Check if the session type matches the method type."""

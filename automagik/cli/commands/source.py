@@ -127,6 +127,9 @@ def delete(id_or_url: str, force: bool = False):
                 click.echo(f"Source not found: {id_or_url}")
                 return
 
+            # Load workflows relationship
+            await session.refresh(source, ['workflows'])
+            
             # Check for associated workflows
             if source.workflows and not force:
                 workflow_count = len(source.workflows)

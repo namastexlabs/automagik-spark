@@ -289,15 +289,19 @@ class AutoMagikAgentManager:
                 },
                 verify=False  # TODO: Make this configurable
             ) as client:
+                # Format the payload according to the API requirements
+                payload = {
+                    "message_content": input_data,
+                    "message_type": "text",
+                    "session_name": session_id,
+                    "session_origin": "automagik-agent",
+                    "user_id": 1,
+                    "message_limit": 10
+                }
+                
                 response = client.post(
                     f"/api/v1/agent/{agent_id}/run",
-                    json={
-                        "message_content": input_data,
-                        "session_id": session_id,
-                        "user_id": 1,
-                        "message_limit": 10,
-                        "session_origin": "automagik"
-                    }
+                    json=payload
                 )
                 response.raise_for_status()
                 result = response.json()

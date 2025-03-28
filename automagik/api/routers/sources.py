@@ -185,10 +185,13 @@ async def delete_source(
 ) -> dict:
     """Delete a workflow source."""
     async with session_factory as session:
-        source = await session.get(WorkflowSource, source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
-        
-        await session.delete(source)
-        await session.commit()
-        return {"message": "Source deleted successfully"}
+        try:
+            source = await session.get(WorkflowSource, source_id)
+            if not source:
+                raise HTTPException(status_code=404, detail="Source not found")
+            
+            await session.delete(source)
+            await session.commit()
+            return {"message": "Source deleted successfully"}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error deleting source: {str(e)}")
