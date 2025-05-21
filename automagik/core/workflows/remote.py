@@ -59,7 +59,6 @@ class FlowResponse(BaseModel):
     folder_name: Optional[str] = None
     icon: Optional[str] = None
     icon_bg_color: Optional[str] = None
-    gradient: Any = False  # API returns '2' instead of boolean
     liked: Optional[bool] = False
     tags: Optional[List[str]] = Field(default_factory=list)
     created_at: Optional[datetime] = None
@@ -69,14 +68,6 @@ class FlowResponse(BaseModel):
 
     # Pydantic v2 config
     model_config = ConfigDict(extra="allow")
-
-    @field_validator('gradient', mode='before')
-    def _validate_gradient(cls, v):
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            return v == '1' or v.lower() == 'true'
-        return bool(v)
 
     @field_validator('instance', mode='after')
     def _set_instance_from_source(cls, v, info):

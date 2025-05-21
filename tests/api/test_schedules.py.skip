@@ -28,9 +28,7 @@ def test_flow():
         folder_id="folder-1",
         folder_name="Test Folder",
         icon="test-icon",
-        icon_bg_color="#FFFFFF",
-        gradient=False,
-        liked=False,
+        icon_bg_color="#FFFFFF"
         tags=["test"],
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)

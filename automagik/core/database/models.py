@@ -48,7 +48,6 @@ class Workflow(Base):
     folder_name = Column(String(255))
     icon = Column(String(255))
     icon_bg_color = Column(String(50))
-    gradient = Column(Boolean, default=False)
     liked = Column(Boolean, default=False)
     tags = Column(JSON)
     
@@ -92,7 +91,6 @@ class Workflow(Base):
             'folder_name': self.folder_name,
             'icon': self.icon,
             'icon_bg_color': self.icon_bg_color,
-            'gradient': self.gradient,
             'liked': self.liked,
             'tags': self.tags,
             'workflow_source_id': str(self.workflow_source_id) if self.workflow_source_id else None,

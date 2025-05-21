@@ -1,4 +1,3 @@
-
 """API models for request/response validation."""
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
@@ -94,7 +93,6 @@ class WorkflowBase(BaseModel):
     folder_name: Optional[str] = Field(None, description="Folder name")
     icon: Optional[str] = Field(None, description="Icon name")
     icon_bg_color: Optional[str] = Field(None, description="Icon background color")
-    gradient: Optional[bool] = Field(False, description="Whether to use gradient")
     liked: Optional[bool] = Field(False, description="Whether the workflow is liked")
     tags: Optional[List[str]] = Field(default_factory=list, description="Workflow tags")
 
@@ -147,7 +145,6 @@ class WorkflowListResponse(WorkflowBase):
                 "folder_name": obj.folder_name,
                 "icon": obj.icon,
                 "icon_bg_color": obj.icon_bg_color,
-                "gradient": obj.gradient,
                 "liked": obj.liked,
                 "tags": obj.tags,
                 "created_at": obj.created_at,
@@ -186,7 +183,6 @@ class WorkflowResponse(WorkflowWithData):
                 "folder_name": obj.folder_name,
                 "icon": obj.icon,
                 "icon_bg_color": obj.icon_bg_color,
-                "gradient": obj.gradient,
                 "liked": obj.liked,
                 "tags": obj.tags,
                 "data": obj.data,

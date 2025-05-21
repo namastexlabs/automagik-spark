@@ -587,7 +587,6 @@ class WorkflowManager:
             'folder_name': flow_data.get('folder_name'),
             'icon': flow_data.get('icon'),
             'icon_bg_color': flow_data.get('icon_bg_color'),
-            'gradient': self.to_bool(flow_data.get('gradient', False)),
             'liked': self.to_bool(flow_data.get('liked', False)),
             'tags': flow_data.get('tags', []),
             'workflow_source_id': source.id,  # Use the actual source ID
@@ -641,7 +640,6 @@ class WorkflowManager:
             'folder_name': workflow.folder_name,
             'icon': workflow.icon,
             'icon_bg_color': workflow.icon_bg_color,
-            'gradient': workflow.gradient,
             'liked': workflow.liked,
             'tags': workflow.tags,
             'workflow_source_id': str(workflow.workflow_source_id) if workflow.workflow_source_id else None,

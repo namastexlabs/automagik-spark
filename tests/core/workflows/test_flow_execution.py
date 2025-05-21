@@ -1,4 +1,3 @@
-
 """Test flow execution functionality."""
 
 import pytest
@@ -32,7 +31,6 @@ async def test_flow(session: AsyncSession) -> Workflow:
         data={"test": "data"},
         flow_version=1,
         is_component=False,
-        gradient=False,
         liked=False
     )
     session.add(flow)

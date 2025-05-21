@@ -1,4 +1,3 @@
-
 """Test local workflow manager functionality."""
 
 import pytest
@@ -33,7 +32,6 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         remote_flow_id="test_id",
         input_component="input_node",
         output_component="output_node",
-        gradient=False,
         liked=False
     )
     session.add(workflow)

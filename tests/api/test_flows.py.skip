@@ -34,7 +34,6 @@ async def test_create_flow(client, session):
         "folder_name": "Test Folder",
         "icon": "test-icon",
         "icon_bg_color": "#FFFFFF",
-        "gradient": False,
         "liked": False,
         "tags": ["test"]
     }
@@ -55,7 +54,6 @@ async def test_create_flow(client, session):
     assert data["folder_name"] == flow_data["folder_name"]
     assert data["icon"] == flow_data["icon"]
     assert data["icon_bg_color"] == flow_data["icon_bg_color"]
-    assert data["gradient"] == flow_data["gradient"]
     assert data["liked"] == flow_data["liked"]
     assert data["tags"] == flow_data["tags"]
     assert "id" in data
@@ -81,7 +79,6 @@ async def test_list_flows(client, session):
         folder_name="Test Folder",
         icon="test-icon",
         icon_bg_color="#FFFFFF",
-        gradient=False,
         liked=False,
         tags=["test"],
         created_at=datetime.now(timezone.utc),
@@ -107,7 +104,6 @@ async def test_list_flows(client, session):
     assert flows[0]["folder_name"] == flow.folder_name
     assert flows[0]["icon"] == flow.icon
     assert flows[0]["icon_bg_color"] == flow.icon_bg_color
-    assert flows[0]["gradient"] == flow.gradient
     assert flows[0]["liked"] == flow.liked
     assert flows[0]["tags"] == flow.tags
 
@@ -131,7 +127,6 @@ async def test_get_flow(client, session):
         folder_name="Test Folder",
         icon="test-icon",
         icon_bg_color="#FFFFFF",
-        gradient=False,
         liked=False,
         tags=["test"],
         created_at=datetime.now(timezone.utc),
@@ -157,7 +152,6 @@ async def test_get_flow(client, session):
     assert data["folder_name"] == flow.folder_name
     assert data["icon"] == flow.icon
     assert data["icon_bg_color"] == flow.icon_bg_color
-    assert data["gradient"] == flow.gradient
     assert data["liked"] == flow.liked
     assert data["tags"] == flow.tags
 
@@ -187,7 +181,6 @@ async def test_update_flow(client, session):
         folder_name="Test Folder",
         icon="test-icon",
         icon_bg_color="#FFFFFF",
-        gradient=False,
         liked=False,
         tags=["test"],
         created_at=datetime.now(timezone.utc),
@@ -211,7 +204,6 @@ async def test_update_flow(client, session):
         "folder_name": "Updated Test Folder",
         "icon": "updated-icon",
         "icon_bg_color": "#000000",
-        "gradient": True,
         "liked": True,
         "tags": ["updated"]
     }
@@ -233,7 +225,6 @@ async def test_update_flow(client, session):
     assert data["folder_name"] == update_data["folder_name"]
     assert data["icon"] == update_data["icon"]
     assert data["icon_bg_color"] == update_data["icon_bg_color"]
-    assert data["gradient"] == update_data["gradient"]
     assert data["liked"] == update_data["liked"]
     assert data["tags"] == update_data["tags"]
 
@@ -254,7 +245,6 @@ async def test_update_flow_not_found(client):
         "folder_name": "Updated Test Folder",
         "icon": "updated-icon",
         "icon_bg_color": "#000000",
-        "gradient": True,
         "liked": True,
         "tags": ["updated"]
     }
@@ -282,7 +272,6 @@ async def test_delete_flow(client, session):
         folder_name="Test Folder",
         icon="test-icon",
         icon_bg_color="#FFFFFF",
-        gradient=False,
         liked=False,
         tags=["test"],
         created_at=datetime.now(timezone.utc),
