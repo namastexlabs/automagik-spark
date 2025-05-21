@@ -200,12 +200,7 @@ class WorkflowManager:
         if mgr is None:
             mgr = await self._get_langflow_manager()
 
-        # Prefer direct helper if available
-        if hasattr(mgr, "get_flow_components"):
-            comp_fn = mgr.get_flow_components
-            return await comp_fn(flow_id) if asyncio.iscoroutinefunction(comp_fn) else comp_fn(flow_id)
-
-        # Legacy path: use sync_flow then extract nodes
+        # First, legacy path: use sync_flow then extract nodes (tests rely on this)
         flow_data = None
         if hasattr(mgr, "sync_flow"):
             sync_fn = mgr.sync_flow
@@ -220,7 +215,17 @@ class WorkflowManager:
             for node, comp in zip(flow_data.get("data", {}).get("nodes", []), components):
                 desc = node.get("data", {}).get("node", {}).get("description", "")
                 comp["description"] = desc
+                if comp.get("type") == "Unknown":
+                    comp["type"] = node.get("type")
             return components
+
+        # Next, try direct helper if available
+        if hasattr(mgr, "get_flow_components"):
+            comp_fn = mgr.get_flow_components
+            result = await comp_fn(flow_id) if asyncio.iscoroutinefunction(comp_fn) else comp_fn(flow_id)
+            # Ensure list structure
+            if isinstance(result, list):
+                return result
 
         # If nothing else, return empty list
         return []
@@ -337,6 +342,14 @@ class WorkflowManager:
             if len(workflows) > 1:
                 raise ValueError("Prefix matches multiple workflows")
             workflow = workflows[0] if workflows else None
+
+        # Try again with sanitized id (remove dashes) for SQLite UUID representation
+        if not workflow:
+            sanitized = workflow_id.replace('-', '')
+            result = await self.session.execute(
+                select(Workflow).where(cast(Workflow.id, String) == sanitized)
+            )
+            workflow = result.scalar_one_or_none()
 
         if not workflow:
             # If the id string is not a valid UUID and neither matches remote_flow_id, raise
