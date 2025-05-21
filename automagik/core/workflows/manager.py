@@ -139,9 +139,19 @@ class WorkflowManager:
 
             return all_flows
         else:
-            # Get all sources
-            sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
-            return await self.list_remote_flows(workflow_id=workflow_id, source_url=sources[0].url if sources else None)
+            # Get all active sources (skip inactive ones to avoid connection errors)
+            all_sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
+            if not all_sources:
+                return []
+
+            aggregated_flows: List[Dict[str, Any]] = []
+            for src in all_sources:
+                # Skip inactive sources
+                if getattr(src, "status", "active") != "active":
+                    continue
+                flows_for_src = await self.list_remote_flows(workflow_id=workflow_id, source_url=src.url)
+                aggregated_flows.extend(flows_for_src)
+            return aggregated_flows
 
     async def get_remote_flow(self, flow_id: str, source_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a remote flow by ID from any source or a specific source.
@@ -583,8 +593,8 @@ class WorkflowManager:
             'input_component': flow_data.get('input_component'),
             'output_component': flow_data.get('output_component'),
             'is_component': self.to_bool(flow_data.get('is_component', False)),
-            'folder_id': flow_data.get('folder_id'),
-            'folder_name': flow_data.get('folder_name'),
+            'folder_id': flow_data.get('folder_id') or flow_data.get('project_id'),
+            'folder_name': flow_data.get('folder_name') or flow_data.get('project_name'),
             'icon': flow_data.get('icon'),
             'icon_bg_color': flow_data.get('icon_bg_color'),
             'liked': self.to_bool(flow_data.get('liked', False)),

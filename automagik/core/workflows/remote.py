@@ -65,6 +65,8 @@ class FlowResponse(BaseModel):
     updated_at: Optional[datetime] = None
     source_url: Optional[str] = None  # Added for source tracking
     instance: Optional[str] = None  # Added for instance name
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
 
     # Pydantic v2 config
     model_config = ConfigDict(extra="allow")
@@ -366,14 +368,49 @@ class LangFlowManager:
             return self._process_response(response)
 
     async def _get_folders(self) -> List[str]:
-        """Get list of valid folder IDs."""
-        folders = await self._make_request_async("GET", "folders/")
-        return [folder['id'] for folder in folders]
+        """Get list of valid folder or project IDs.
+
+        Tries the legacy `/folders/` endpoint first for backward compatibility.
+        If that fails (or returns an unexpected payload), falls back to the
+        newer `/projects/` endpoint introduced in recent LangFlow versions.
+        """
+        # Legacy attempt – /folders/
+        try:
+            folders = await self._make_request_async("GET", "folders/")
+            if isinstance(folders, list) and folders:
+                return [item.get("id") for item in folders if item and item.get("id")]
+        except Exception:
+            logger.debug("/folders endpoint unavailable, trying /projects")
+
+        # Fallback – /projects/
+        try:
+            projects = await self._make_request_async("GET", "projects/")
+            if isinstance(projects, list) and projects:
+                return [proj.get("id") for proj in projects if proj and proj.get("id")]
+        except Exception as e:
+            logger.error(f"Failed to retrieve folders/projects: {e}")
+
+        return []  # No valid containers found
 
     def _get_folders_sync(self) -> List[str]:
-        """Get list of valid folder IDs (sync version)."""
-        folders = self._make_request_sync("GET", "folders/")
-        return [folder['id'] for folder in folders]
+        """Sync variant for _get_folders supporting both projects & folders."""
+        # Legacy attempt – /folders/
+        try:
+            folders = self._make_request_sync("GET", "folders/")
+            if isinstance(folders, list) and folders:
+                return [item.get("id") for item in folders if item and item.get("id")]
+        except Exception:
+            logger.debug("/folders endpoint unavailable (sync), trying /projects")
+
+        # Fallback – /projects/
+        try:
+            projects = self._make_request_sync("GET", "projects/")
+            if isinstance(projects, list) and projects:
+                return [proj.get("id") for proj in projects if proj and proj.get("id")]
+        except Exception as e:
+            logger.error(f"Failed to retrieve folders/projects (sync): {e}")
+
+        return []
 
     async def list_flows(self, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all flows from LangFlow API.
@@ -385,7 +422,7 @@ class LangFlowManager:
         Returns:
             List[Dict[str, Any]]: List of flows, excluding:
                 - Components (is_component=True)
-                - Templates (flows without a valid folder_id)
+                - Templates (flows without a valid folder/project id)
         """
         # Save current API URL and key if we're switching
         current_url = None
@@ -396,19 +433,21 @@ class LangFlowManager:
             self.api_url = source_url
         
         try:
-            # Get valid folder IDs first
-            valid_folders = await self._get_folders()
+            # Get valid container IDs first (projects or folders)
+            valid_containers = await self._get_folders()
             
             # Get all flows
             flows = await self._make_request_async("GET", "flows/")
             
+            def _get_container_id(flow: Dict[str, Any]):
+                return flow.get("folder_id") or flow.get("project_id")
+            
             # Filter flows to exclude:
             # 1. Components (is_component=True)
-            # 2. Templates (flows without a valid folder_id)
+            # 2. Templates (flows without a valid folder/project id)
             return [
-                flow for flow in flows 
-                if not flow.get('is_component', False)  # Not a component
-                and flow.get('folder_id') in valid_folders  # Has valid folder
+                flow for flow in flows
+                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched
@@ -426,7 +465,7 @@ class LangFlowManager:
         Returns:
             List[Dict[str, Any]]: List of flows, excluding:
                 - Components (is_component=True)
-                - Templates (flows without a valid folder_id)
+                - Templates (flows without a valid folder/project id)
         """
         # Save current API URL and key if we're switching
         current_url = None
@@ -437,19 +476,21 @@ class LangFlowManager:
             self.api_url = source_url
         
         try:
-            # Get valid folder IDs first
-            valid_folders = self._get_folders_sync()
+            # Get valid container IDs first (projects or folders)
+            valid_containers = self._get_folders_sync()
             
             # Get all flows
             flows = self._make_request_sync("GET", "flows/")
             
+            def _get_container_id(flow: Dict[str, Any]):
+                return flow.get("folder_id") or flow.get("project_id")
+            
             # Filter flows to exclude:
             # 1. Components (is_component=True)
-            # 2. Templates (flows without a valid folder_id)
+            # 2. Templates (flows without a valid folder/project id)
             return [
-                flow for flow in flows 
-                if not flow.get('is_component', False)  # Not a component
-                and flow.get('folder_id') in valid_folders  # Has valid folder
+                flow for flow in flows
+                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched

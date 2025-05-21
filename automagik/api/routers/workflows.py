@@ -36,14 +36,14 @@ async def list_workflows(
 
 @router.get("/remote", response_model=List[Dict[str, Any]], dependencies=[Depends(verify_api_key)])
 async def list_remote_flows(
-    simplified: bool = False,
+    simplified: bool = True,
     source_url: Optional[str] = None,
     workflow_manager: WorkflowManager = Depends(get_workflow_manager)
 ) -> List[Dict[str, Any]]:
     """List remote flows from LangFlow API.
     
     Args:
-        simplified: If True, returns only essential flow information
+        simplified: Flag to return only essential flow information. Defaults to True.
         source_url: Optional URL or instance name to filter flows by source
         workflow_manager: Workflow manager instance
     """
