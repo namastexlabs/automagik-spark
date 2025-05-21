@@ -313,12 +313,21 @@ class LangFlowManager:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         
         try:
-            response = await self._client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                **kwargs
-            )
+            # Use verb-specific method if it exists (helps with unit tests that patch .get etc.)
+            verb = method.lower()
+            if hasattr(self._client, verb):
+                response = await getattr(self._client, verb)(
+                    url,
+                    headers=headers,
+                    **kwargs
+                )
+            else:
+                response = await self._client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    **kwargs
+                )
             
             # Log the request URL and status
             logger.debug(f"LangFlow API request: {method} {url}")
@@ -335,17 +344,9 @@ class LangFlowManager:
                 return {"content": response.text, "status": "success"}
                 
         except httpx.HTTPStatusError as e:
-            # Log and handle HTTP errors (4xx, 5xx)
+            # Log and re-raise so callers/tests can handle it
             logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")
-            
-            # Try to parse error response as JSON, or use raw text
-            try:
-                error_data = e.response.json()
-                error_message = error_data.get("detail", str(e))
-            except ValueError:
-                error_message = e.response.text or str(e)
-                
-            return {"error": error_message, "status": "error", "status_code": e.response.status_code}
+            raise
             
         except httpx.RequestError as e:
             # Log and handle request errors (connection, timeout, etc.)
