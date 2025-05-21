@@ -87,13 +87,13 @@ async def health():
 
 
 @app.get("/")
-async def root():
+async def root(api_key: str = Depends(verify_api_key)):
     """Root endpoint returning API status"""
     current_time = datetime.datetime.now()
     settings = get_settings()
     base_url = settings.remote_url
     return {
-        "status": 200,
+        "status": "online",
         "service": "AutoMagik API",
         "message": "Welcome to AutoMagik API, it's up and running!",
         "version": __version__,

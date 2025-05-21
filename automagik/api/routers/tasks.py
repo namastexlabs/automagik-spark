@@ -2,7 +2,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from ..models import TaskResponse, ErrorResponse
-from ..middleware import verify_api_key
+from ..dependencies import verify_api_key
 from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
 from sqlalchemy.ext.asyncio import AsyncSession

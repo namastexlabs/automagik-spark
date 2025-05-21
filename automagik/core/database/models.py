@@ -10,7 +10,7 @@ import base64
 from cryptography.fernet import Fernet
 import logging
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID, func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 
 from automagik.core.database.base import Base
 
@@ -270,7 +270,12 @@ class Schedule(Base):
     workflow_id = Column(UUID(as_uuid=True), ForeignKey('workflows.id'), nullable=False)
     schedule_type = Column(String, nullable=False)  # cron, interval, or one-time
     schedule_expr = Column(String, nullable=False)
-    input_data = Column(String, nullable=True, comment="Input string to be passed to the workflow's input_value")
+    # Optional parameters to be passed when running the workflow
+    params = Column(JSON, nullable=True, comment="JSON parameters for workflow execution")
+    # Provide backward compatibility alias for code/tests using 'workflow_params'
+    workflow_params = synonym('params')
+    # Back-compat: keep old field name but mark deprecated
+    input_data = Column(String, nullable=True, comment="[DEPRECATED] Use 'params' instead. Input string to be passed to the workflow's input_value")
     status = Column(String, nullable=False, default="active")
     next_run_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -287,6 +292,7 @@ class Schedule(Base):
             'workflow_id': str(self.workflow_id),
             'schedule_type': self.schedule_type,
             'schedule_expr': self.schedule_expr,
+            'params': self.params,
             'input_data': self.input_data,
             'status': self.status,
             'next_run_at': self.next_run_at.isoformat() if self.next_run_at else None,

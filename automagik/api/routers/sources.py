@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
-from ..middleware import verify_api_key
+from ..dependencies import verify_api_key
 from ...core.database.session import get_session
 from ...core.workflows.source import WorkflowSource
 from ...core.schemas.source import (

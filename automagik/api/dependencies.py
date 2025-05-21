@@ -32,7 +32,7 @@ async def verify_api_key(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is missing",
+            detail="X-API-Key header is missing",
             headers={"WWW-Authenticate": "ApiKey"},
         )
     

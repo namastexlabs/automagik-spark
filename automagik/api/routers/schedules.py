@@ -3,7 +3,7 @@ from typing import List
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends
 from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse
-from ..middleware import verify_api_key
+from ..dependencies import verify_api_key
 from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
 from ...core.scheduler.manager import SchedulerManager
@@ -39,7 +39,7 @@ async def create_schedule(
             workflow_id=workflow_id,
             schedule_type=schedule.schedule_type,
             schedule_expr=schedule.schedule_expr,
-            input_value=schedule.input_value
+            params={"value": schedule.input_value} if schedule.input_value is not None else None
         )
         if not created_schedule:
             raise HTTPException(status_code=400, detail="Failed to create schedule")

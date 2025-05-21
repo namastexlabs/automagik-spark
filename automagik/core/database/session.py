@@ -1,4 +1,3 @@
-
 """
 Database Session Management
 
@@ -59,6 +58,9 @@ sync_session = sessionmaker(
     sync_engine,
     expire_on_commit=False
 )
+
+# Expose async_session alias for backward compatibility with tests
+async_session = async_session_factory
 
 @asynccontextmanager
 async def get_session() -> AsyncSession:

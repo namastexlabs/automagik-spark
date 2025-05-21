@@ -10,8 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..dependencies import get_session
-from ..middleware import verify_api_key
+from ..dependencies import get_session, verify_api_key
 from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse, TaskResponse
 from ...core.workflows.manager import WorkflowManager
 

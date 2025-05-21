@@ -1,4 +1,3 @@
-
 """
 Scheduler management module.
 
@@ -190,7 +189,7 @@ class SchedulerManager:
         workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        input_value: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> Optional[Schedule]:
         """Create a new schedule."""
         # Validate workflow exists
@@ -220,7 +219,7 @@ class SchedulerManager:
             workflow_id=workflow_id,
             schedule_type=schedule_type,
             schedule_expr=schedule_expr,
-            input_data=input_value,
+            params=params,
             next_run_at=next_run,
             status="active"
         )
