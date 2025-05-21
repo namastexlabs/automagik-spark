@@ -272,11 +272,18 @@ class WorkflowManager:
 
         # Try each source until we find the flow
         for source in sources:
+            # Skip inactive sources
+            if getattr(source, "status", "active") != "active":
+                continue
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             self.source_manager = await self._get_source_manager(source=source)
             
             # Use sync methods since we're in a sync context
-            flows = self.source_manager.list_flows_sync()
+            try:
+                flows = self.source_manager.list_flows_sync()
+            except Exception as e:
+                logger.error(f"Failed to list flows from source {source.url}: {e}")
+                continue
             if flows:
                 # Check if the flow exists in this source
                 flow_exists = any(flow.get('id') == flow_id for flow in flows)
