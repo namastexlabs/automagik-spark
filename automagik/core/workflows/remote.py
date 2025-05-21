@@ -13,7 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from ...api.config import get_langflow_api_url, get_langflow_api_key
 from ...api.models import (
     WorkflowBase,
@@ -67,21 +67,21 @@ class FlowResponse(BaseModel):
     source_url: Optional[str] = None  # Added for source tracking
     instance: Optional[str] = None  # Added for instance name
 
-    class Config:
-        extra = "allow"  # Allow extra fields from the API
+    # Pydantic v2 config
+    model_config = ConfigDict(extra="allow")
 
-    @validator('gradient')
-    def validate_gradient(cls, v):
+    @field_validator('gradient', mode='before')
+    def _validate_gradient(cls, v):
         if isinstance(v, bool):
             return v
         if isinstance(v, str):
             return v == '1' or v.lower() == 'true'
         return bool(v)
 
-    @validator('instance', always=True)
-    def set_instance_from_source(cls, v, values):
-        if not v and 'source_url' in values:
-            src_url = values['source_url']
+    @field_validator('instance', mode='after')
+    def _set_instance_from_source(cls, v, info):
+        if not v:
+            src_url = info.data.get('source_url') if info else None
             if src_url:
                 instance = src_url.split('://')[-1].split('/')[0]
                 instance = instance.split('.')[0]
