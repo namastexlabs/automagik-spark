@@ -31,6 +31,21 @@ print_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
 }
 
+# Function to detect and set the correct Docker Compose command
+detect_docker_compose() {
+    if command -v docker compose &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+        print_status "Using Docker Compose V2 (docker compose)"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+        print_status "Using Docker Compose V1 (docker-compose)"
+    else
+        print_error "Neither 'docker compose' nor 'docker-compose' is available."
+        print_error "Please install Docker Compose."
+        exit 1
+    fi
+}
+
 # Function to prompt yes/no questions
 prompt_yes_no() {
     while true; do
@@ -146,7 +161,7 @@ setup_database() {
     fi
 
     print_status "Starting fresh PostgreSQL and Redis containers..."
-    docker compose -p automagik-dev -f docker/docker-compose.dev.yml up -d automagik-db redis
+    $DOCKER_COMPOSE -p automagik-dev -f docker/docker-compose.dev.yml up -d automagik-db redis
 
     # Wait for PostgreSQL to be ready
     print_status "Waiting for PostgreSQL to be ready..."
@@ -161,7 +176,7 @@ setup_database() {
 
     if [ "$pg_ready" = false ]; then
         print_error "PostgreSQL failed to start. Please check docker logs for more information."
-        docker compose -p automagik-dev -f docker/docker-compose.dev.yml logs automagik-db
+        $DOCKER_COMPOSE -p automagik-dev -f docker/docker-compose.dev.yml logs automagik-db
         exit 1
     fi
 
@@ -171,7 +186,7 @@ setup_database() {
     local retry_count=0
 
     while [ $retry_count -lt $max_retries ]; do
-        if docker compose -p automagik-dev -f docker/docker-compose.dev.yml exec -T redis redis-cli -p 16379 ping | grep -q "PONG"; then
+        if $DOCKER_COMPOSE -p automagik-dev -f docker/docker-compose.dev.yml exec -T redis redis-cli -p 16379 ping | grep -q "PONG"; then
             redis_ready=true
             break
         fi
@@ -183,7 +198,7 @@ setup_database() {
 
     if [ "$redis_ready" = false ]; then
         print_error "Redis failed to start. Please check docker logs for more information."
-        docker compose -p automagik-dev -f docker/docker-compose.dev.yml logs redis
+        $DOCKER_COMPOSE -p automagik-dev -f docker/docker-compose.dev.yml logs redis
         exit 1
     fi
 }
@@ -257,11 +272,8 @@ if ! command -v docker &> /dev/null; then
     fi
 fi
 
-# Verify docker compose
-if ! command -v docker compose &> /dev/null; then
-    print_error "Docker Compose is not available. Please check your Docker installation."
-    exit 1
-fi
+# Detect and set the correct Docker Compose command
+detect_docker_compose
 
 # Create .env file from example
 if [ -f .env ]; then

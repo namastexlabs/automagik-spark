@@ -1,7 +1,4 @@
-
 #!/bin/bash
-
-
 
 # Colors for output
 RED='\033[0;31m'
@@ -20,6 +17,21 @@ print_error() {
 
 print_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
+}
+
+# Function to detect and set the correct Docker Compose command
+detect_docker_compose() {
+    if command -v docker compose &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+        print_status "Using Docker Compose V2 (docker compose)"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+        print_status "Using Docker Compose V1 (docker-compose)"
+    else
+        print_error "Neither 'docker compose' nor 'docker-compose' is available."
+        print_error "Please install Docker Compose."
+        exit 1
+    fi
 }
 
 # Function to prompt yes/no questions
@@ -80,9 +92,15 @@ install_docker() {
 
 # Function to create .env file from example
 create_env_file() {
+    # Create .env.example if it doesn't exist
     if [ ! -f .env.example ]; then
-        print_error ".env.example file not found"
-        exit 1
+        if [ -f .env.dev ]; then
+            print_status "Creating .env.example from .env.dev..."
+            cp .env.dev .env.example
+        else
+            print_error "Neither .env.example nor .env.dev file found"
+            exit 1
+        fi
     fi
 
     if [ -f .env ]; then
@@ -132,11 +150,8 @@ if ! command -v docker &> /dev/null; then
     fi
 fi
 
-# Check if Docker Compose is available
-if ! docker compose version &> /dev/null; then
-    print_error "Docker Compose (V2) is not available. Please install it manually."
-    exit 1
-fi
+# Detect and set the correct Docker Compose command
+detect_docker_compose
 
 # Check if LangFlow is already running
 check_langflow() {
@@ -184,13 +199,13 @@ fi
 
 cd docker
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    DOCKER_BUILDKIT=1 docker compose -p automagik -f docker-compose.yml --profile langflow --profile api build && \
-    docker compose -p automagik -f docker-compose.yml --profile langflow --profile api pull && \
-    docker compose -p automagik -f docker-compose.yml --profile langflow --profile api up -d
+    DOCKER_BUILDKIT=1 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api build && \
+    $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api pull && \
+    $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api up -d
 else
-    DOCKER_BUILDKIT=1 docker compose -p automagik -f docker-compose.yml --profile api build && \
-    docker compose -p automagik -f docker-compose.yml --profile api pull && \
-    docker compose -p automagik -f docker-compose.yml --profile api up -d
+    DOCKER_BUILDKIT=1 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api build && \
+    $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api pull && \
+    $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api up -d
 fi
 cd ..
 
@@ -217,7 +232,7 @@ RETRY_COUNT=0
 PG_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-db pg_isready -U automagik -p 15432; then
+    if $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml exec -T automagik-db pg_isready -U automagik -p 15432; then
         PG_READY=true
         break
     fi
@@ -229,22 +244,22 @@ echo "" # New line after dots
 
 if [ "$PG_READY" = false ]; then
     print_error "PostgreSQL failed to start. Checking logs..."
-    docker compose -p automagik -f docker/docker-compose.yml logs automagik-db
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs automagik-db
     exit 1
 fi
 
 # Initialize database
 print_status "Initializing database..."
-if ! docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db init; then
+if ! $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db init; then
     print_error "Database initialization failed. Checking logs..."
-    docker compose -p automagik -f docker/docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs automagik-api
     exit 1
 fi
 
 print_status "Applying database migrations..."
-if ! docker compose -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db upgrade; then
+if ! $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml exec -T automagik-api automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
-    docker compose -p automagik -f docker/docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs automagik-api
     exit 1
 fi
 
@@ -267,16 +282,16 @@ echo "" # New line after dots
 
 if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
-    docker compose -p automagik -f docker/docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs automagik-api
     exit 1
 fi
 
 # Start worker containers after API is ready
 print_status "Starting worker containers..."
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    docker compose -p automagik -f docker/docker-compose.yml --profile langflow --profile worker up -d
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml --profile langflow --profile worker up -d
 else
-    docker compose -p automagik -f docker/docker-compose.yml --profile worker up -d
+    $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml --profile worker up -d
 fi
 
 # Check LangFlow if installed
@@ -298,7 +313,7 @@ if [ "$INSTALL_LANGFLOW" = true ]; then
 
     if [ "$LANGFLOW_READY" = false ]; then
         print_error "LangFlow failed to start. Checking logs..."
-        docker compose -p automagik -f docker/docker-compose.yml logs langflow
+        $DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs langflow
         exit 1
     fi
 fi
@@ -324,7 +339,7 @@ print_status "- PostgreSQL: localhost:15432"
 print_status ""
 
 # Ask to install CLI
-if prompt_yes_no "Would you like to install the AutoMagik CLI? (Recommended for managing flows and tasks)"; then
+if prompt_yes_no "Would you like to install the AutoMagik CLI? Recommended for managing flows and tasks"; then
     print_status "Installing CLI..."
     # Check if Python 3.10 or higher is installed
     PYTHON_VERSION=$(python3 -c 'import sys; print("".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "0")
@@ -388,9 +403,9 @@ fi
 
 print_status ""
 print_status "To view logs:"
-print_status "docker compose -p automagik -f docker/docker-compose.yml logs -f"
+print_status "$DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml logs -f"
 print_status ""
 print_status "To stop services:"
-print_status "docker compose -p automagik -f docker/docker-compose.yml down"
+print_status "$DOCKER_COMPOSE -p automagik -f docker/docker-compose.yml down"
 
 

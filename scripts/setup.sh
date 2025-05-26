@@ -22,6 +22,21 @@ print_warning() {
     echo -e "[${YELLOW}!${NC}] $1"
 }
 
+# Function to detect and set the correct Docker Compose command
+detect_docker_compose() {
+    if command -v docker compose &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+        print_status "Using Docker Compose V2 (docker compose)"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+        print_status "Using Docker Compose V1 (docker-compose)"
+    else
+        print_error "Neither 'docker compose' nor 'docker-compose' is available."
+        print_error "Please install Docker Compose."
+        exit 1
+    fi
+}
+
 # Function to prompt yes/no questions
 prompt_yes_no() {
     local prompt="$1"
@@ -106,6 +121,9 @@ install_docker() {
     return 0
 }
 
+# Detect and set the correct Docker Compose command
+detect_docker_compose
+
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     print_warning "Docker is not installed"
@@ -158,10 +176,10 @@ create_env_file
 # Start services with docker compose
 if [ "$INSTALL_LANGFLOW" = true ]; then
     print_status "Starting services with LangFlow..."
-    docker compose -p automagik -f ./docker-compose.yml --profile langflow up -d automagik-db automagik-api
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml --profile langflow up -d automagik-db automagik-api
 else
     print_status "Starting services..."
-    docker compose -p automagik -f ./docker-compose.yml up -d automagik-db automagik-api
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml up -d automagik-db automagik-api
 fi
 
 # Wait for PostgreSQL
@@ -171,7 +189,7 @@ RETRY_COUNT=0
 PG_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker compose -p automagik -f ./docker-compose.yml exec -T automagik-db pg_isready -U automagik; then
+    if $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml exec -T automagik-db pg_isready -U automagik; then
         PG_READY=true
         break
     fi
@@ -183,7 +201,7 @@ echo "" # New line after dots
 
 if [ "$PG_READY" = false ]; then
     print_error "PostgreSQL failed to start. Checking logs..."
-    docker compose -p automagik -f ./docker-compose.yml logs automagik-db
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml logs automagik-db
     exit 1
 fi
 
@@ -206,29 +224,29 @@ echo "" # New line after dots
 
 if [ "$API_READY" = false ]; then
     print_error "API failed to start. Checking logs..."
-    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
 
 # Initialize database
 print_status "Initializing database..."
 sleep 5  # Give PostgreSQL a moment to fully initialize
-if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db init; then
+if ! $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db init; then
     print_error "Database initialization failed. Checking logs..."
-    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
 
 print_status "Applying database migrations..."
-if ! docker compose -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db upgrade; then
+if ! $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml exec -T automagik-api automagik db upgrade; then
     print_error "Database migration failed. Checking logs..."
-    docker compose -p automagik -f ./docker-compose.yml logs automagik-api
+    $DOCKER_COMPOSE -p automagik -f ./docker-compose.yml logs automagik-api
     exit 1
 fi
 
 # Start worker after migrations
 print_status "Starting worker..."
-docker compose -p automagik -f ./docker-compose.yml up -d automagik-worker
+$DOCKER_COMPOSE -p automagik -f ./docker-compose.yml up -d automagik-worker
 
 # Print AutoMagik ASCII art
 cat << "EOF"                                                                                                                                                                                
@@ -266,9 +284,9 @@ fi
 
 print_status ""
 print_status "To view logs:"
-print_status "docker compose -p automagik -f ./docker-compose.yml logs -f"
+print_status "$DOCKER_COMPOSE -p automagik -f ./docker-compose.yml logs -f"
 print_status ""
 print_status "To stop services:"
-print_status "docker compose -p automagik -f ./docker-compose.yml down"
+print_status "$DOCKER_COMPOSE -p automagik -f ./docker-compose.yml down"
 
 
