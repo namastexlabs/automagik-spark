@@ -13,6 +13,7 @@ class SourceType(str, Enum):
 
 class WorkflowSourceBase(BaseModel):
     """Base model for workflow sources."""
+    name: Optional[str] = None
     source_type: SourceType
     url: HttpUrl
 
@@ -22,6 +23,7 @@ class WorkflowSourceCreate(WorkflowSourceBase):
 
 class WorkflowSourceUpdate(BaseModel):
     """Model for updating a workflow source."""
+    name: Optional[str] = None
     source_type: Optional[SourceType] = None
     url: Optional[HttpUrl] = None
     api_key: Optional[str] = None

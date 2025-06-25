@@ -18,7 +18,7 @@ def get_api_host() -> str:
 
 def get_api_port() -> int:
     """Get API port from environment variable."""
-    port_str = os.getenv("AUTOMAGIK_API_PORT", "8888")
+    port_str = os.getenv("AUTOMAGIK_API_PORT", "8883")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:

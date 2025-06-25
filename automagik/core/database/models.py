@@ -108,6 +108,7 @@ class WorkflowSource(Base):
     __tablename__ = "workflow_sources"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(255), nullable=True)  # Human-readable name for the source
     source_type = Column(String(50), nullable=False)  # e.g., "langflow"
     url = Column(String(255), nullable=False, unique=True)
     encrypted_api_key = Column(String, nullable=False)

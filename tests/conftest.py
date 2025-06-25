@@ -17,7 +17,7 @@ from automagik.core.workflows import WorkflowManager  # Fix import path
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 # Test API key
-TEST_API_KEY = "mock-api-key-12345"
+TEST_API_KEY = "namastex888"
 
 # Set up test environment variables
 os.environ["AUTOMAGIK_ENV"] = "testing"

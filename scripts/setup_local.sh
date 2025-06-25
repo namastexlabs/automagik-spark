@@ -21,7 +21,8 @@ print_warning() {
 
 # Function to detect and set the correct Docker Compose command
 detect_docker_compose() {
-    if command -v docker compose &> /dev/null; then
+    # First check if docker compose v2 actually works (not just if docker command exists)
+    if docker compose version &> /dev/null 2>&1; then
         DOCKER_COMPOSE="docker compose"
         print_status "Using Docker Compose V2 (docker compose)"
     elif command -v docker-compose &> /dev/null; then
@@ -140,7 +141,7 @@ if ! command -v docker &> /dev/null; then
         if prompt_yes_no "Would you like to install Docker?"; then
             install_docker
         else
-            print_error "Docker is required to run AutoMagik. Please install it manually."
+            print_error "Docker is required to run AutoMagik Spark. Please install it manually."
             exit 1
         fi
     else
@@ -175,7 +176,7 @@ if ! check_langflow; then
 fi
 
 # Start the services
-print_status "Building and starting AutoMagik services..."
+print_status "Building and starting AutoMagik Spark services..."
 
 # Check for existing containers and handle accordingly
 if docker ps -a | grep -q "automagik.*db.*"; then
@@ -199,11 +200,11 @@ fi
 
 cd docker
 if [ "$INSTALL_LANGFLOW" = true ]; then
-    DOCKER_BUILDKIT=1 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api build && \
+    DOCKER_BUILDKIT=0 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api build && \
     $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api pull && \
     $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile langflow --profile api up -d
 else
-    DOCKER_BUILDKIT=1 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api build && \
+    DOCKER_BUILDKIT=0 $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api build && \
     $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api pull && \
     $DOCKER_COMPOSE -p automagik -f docker-compose.yml --profile api up -d
 fi
@@ -270,7 +271,7 @@ RETRY_COUNT=0
 API_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s -f http://localhost:8888/health > /dev/null; then
+    if curl -s -f http://localhost:8883/health > /dev/null; then
         API_READY=true
         break
     fi
@@ -317,7 +318,7 @@ if [ "$INSTALL_LANGFLOW" = true ]; then
         exit 1
     fi
 fi
-# Print AutoMagik ASCII art
+# Print AutoMagik Spark ASCII art
 cat << "EOF"                                                                                                                                                                                
        ██            ███████████  ████████   ███        ███     █       ▓███████ ░██▓ ███   ████    
        ███   ▓██     ██          ███    ▒██░ ████      ████    ███     ███        ██  ██▒  ███      
@@ -331,7 +332,7 @@ cat << "EOF"
 EOF
 print_status "Setup completed successfully! 🎉"
 print_status "You can access:"
-print_status "- API: http://localhost:8888"
+print_status "- API: http://localhost:8883"
 if [ "$INSTALL_LANGFLOW" = true ]; then
     print_status "- LangFlow: http://localhost:17860"
 fi
@@ -339,7 +340,7 @@ print_status "- PostgreSQL: localhost:15432"
 print_status ""
 
 # Ask to install CLI
-if prompt_yes_no "Would you like to install the AutoMagik CLI? Recommended for managing flows and tasks"; then
+if prompt_yes_no "Would you like to install the AutoMagik Spark CLI? Recommended for managing flows and tasks"; then
     print_status "Installing CLI..."
     # Check if Python 3.10 or higher is installed
     PYTHON_VERSION=$(python3 -c 'import sys; print("".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "0")
@@ -390,7 +391,7 @@ if prompt_yes_no "Would you like to install the AutoMagik CLI? Recommended for m
     fi
 
     # Install AutoMagik with CLI dependencies
-    print_status "Installing AutoMagik CLI..."
+    print_status "Installing AutoMagik Spark CLI..."
     uv pip install --no-cache-dir -e .
 
     print_status "CLI installed successfully! 🎉"

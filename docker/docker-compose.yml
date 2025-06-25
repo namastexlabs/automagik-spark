@@ -56,14 +56,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      args:
-        BUILDKIT_INLINE_CACHE: 1
-    image: automagik-api:local
-    pull_policy: never
     command: python -m automagik api start
     env_file: ../.env
     ports:
-      - "8888:8888"
+      - "8883:8883"
     volumes:
       - ..:/app
     working_dir: /app
@@ -71,7 +67,7 @@ services:
       automagik-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8883/health"]
       interval: 5s
       timeout: 5s
       retries: 5

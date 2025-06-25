@@ -1,12 +1,12 @@
 <p align="center">
-  <img src=".github/images/automagik_logo.png" alt="AutoMagik Logo" width="600"/>
+  <img src=".github/images/automagik_logo.png" alt="AutoMagik Spark Logo" width="600"/>
 </p>
 
-# AutoMagik
+# AutoMagik Spark
 
 > **Because magic shouldn't be complicated. **
 
-AutoMagik is an agent-first automation engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
+AutoMagik Spark is an automagion engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
 
 ## 🔗 Ecosystem
 
@@ -15,7 +15,7 @@ AutoMagik is an agent-first automation engine that seamlessly integrates with mu
 
 ## 🚀 Installation
 
-AutoMagik provides two setup options:
+AutoMagik Spark provides two setup options:
 
 ### Prerequisites
 
@@ -50,7 +50,7 @@ Both setup scripts will:
 ### After Installation
 
 You'll have access to:
-- **AutoMagik API**: Running at [http://localhost:8888](http://localhost:8888)
+- **AutoMagik Spark API**: Running at [http://localhost:8883](http://localhost:8883)
 - **PostgreSQL Database**: Available at `localhost:15432`
 - **Worker Service**: Running and ready to process tasks
 - **CLI Tool**: Installed (if chosen during setup)
@@ -61,8 +61,8 @@ The setup automatically verifies all services, but you can also check manually:
 
 ```bash
 # Access API documentation
-open http://localhost:8888/api/v1/docs  # Interactive Swagger UI
-open http://localhost:8888/api/v1/redoc # ReDoc documentation
+open http://localhost:8883/api/v1/docs  # Interactive Swagger UI
+open http://localhost:8883/api/v1/redoc # ReDoc documentation
 
 # List flows (requires CLI installation)
 source .venv/bin/activate
@@ -86,7 +86,7 @@ flowchart LR
       LF1[LangFlow Instance 1]
       LF2[LangFlow Instance 2]
     end
-    subgraph AutoMagik
+    subgraph AutoMagik Spark
       CLI[CLI]
       API[API Server]
       CW[Celery Worker]
@@ -112,23 +112,23 @@ flowchart LR
 ## 📚 API Documentation
 
 For complete API documentation, visit:
-- **Swagger UI**: [http://localhost:8888/api/v1/docs](http://localhost:8888/api/v1/docs)
-- **ReDoc**: [http://localhost:8888/api/v1/redoc](http://localhost:8888/api/v1/redoc)
+- **Swagger UI**: [http://localhost:8883/api/v1/docs](http://localhost:8883/api/v1/docs)
+- **ReDoc**: [http://localhost:8883/api/v1/redoc](http://localhost:8883/api/v1/redoc)
 
 ## 🛠️ Next Steps
 
 1. If you installed LangFlow, visit [http://localhost:17860](http://localhost:17860) to create your first flow
-2. Use the API at [http://localhost:8888/api/v1/docs](http://localhost:8888/api/v1/docs) to manage your flows and tasks
+2. Use the API at [http://localhost:8883/api/v1/docs](http://localhost:8883/api/v1/docs) to manage your flows and tasks
 3. Try out the CLI commands with `automagik --help`
 4. Monitor task execution through logs and API endpoints
 
 ## 🗺️ Roadmap
 
-AutoMagik's future development focuses on:
+AutoMagik Spark's future development focuses on:
 - TBA
 
 ---
 
 <p align="center">
-  <b>AutoMagik: Bringing AI Automation to Life</b>
+  <b>AutoMagik Spark: Bringing AI Automation to Life</b>
 </p>
