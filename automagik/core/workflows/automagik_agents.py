@@ -237,7 +237,7 @@ class AutoMagikAgentManager:
                         "session_id": session_id,
                         "user_id": 1,
                         "message_limit": 10,
-                        "session_origin": "automagik"
+                        "session_origin": "automagik-spark"
                     }
                 )
                 response.raise_for_status()
@@ -293,7 +293,7 @@ class AutoMagikAgentManager:
                     "message_content": input_data,
                     "message_type": "text",
                     "session_name": session_id,
-                    "session_origin": "automagik-agent",
+                    "session_origin": "automagik-spark",
                     "user_id": 1,
                     "message_limit": 10
                 }

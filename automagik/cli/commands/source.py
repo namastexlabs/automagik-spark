@@ -267,7 +267,7 @@ def run_agent(source_id, agent_name, input, session_id):
                             "session_id": session_id,
                             "user_id": 1,
                             "message_limit": 10,
-                            "session_origin": "automagik-cli"
+                            "session_origin": "automagik-spark"
                         }
                     )
                     response.raise_for_status()

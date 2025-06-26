@@ -1,0 +1,129 @@
+[35m🔮 Starting AutoMagik Spark API server...(B[m
+INFO:     Will watch for changes in these directories: ['/home/cezar/automagik-bundle/automagik']
+INFO:     Uvicorn running on http://127.0.0.1:8883 (Press CTRL+C to quit)
+INFO:     Started reloader process [20497] using WatchFiles
+INFO:     Started server process [20499]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:57918 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37290 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55464 - "GET /api/v1/sources/ HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/applications.py", line 112, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/home/cezar/automagik-bundle/automagik/automagik/api/routers/sources.py", line 126, in list_sources
+    result = await session.execute(query)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
+    result = await greenlet_spawn(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+  File "<string>", line 2, in _connection_for_bind
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3274, in connect
+    return self._connection_cls(self)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 146, in __init__
+    self._dbapi_connection = engine.raw_connection()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3298, in raw_connection
+    return self.pool.connect()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 1263, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 712, in checkout
+    rec = pool._do_get()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/impl.py", line 179, in _do_get
+    with util.safe_reraise():
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/impl.py", line 177, in _do_get
+    return self._create_connection()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 390, in _create_connection
+    return _ConnectionRecord(self)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 674, in __init__
+    self.__connect()
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 900, in __connect
+    with util.safe_reraise():
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 896, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/engine/create.py", line 646, in connect
+    return dialect.connect(*cargs, **cparams)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 622, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 961, in connect
+    await_only(creator_fn(*arg, **kw)),
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connection.py", line 2421, in connect
+    return await connect_utils._connect(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 1075, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 1049, in _connect
+    conn = await _connect_addr(
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 886, in _connect_addr
+    return await __connect_addr(params, True, *args)
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 931, in __connect_addr
+    tr, pr = await connector
+  File "/home/cezar/automagik-bundle/automagik/.venv/lib/python3.10/site-packages/asyncpg/connect_utils.py", line 802, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+INFO:     127.0.0.1:45666 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53624 - "OPTIONS /health HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57018 - "OPTIONS /health HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57018 - "OPTIONS /health HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:35470 - "GET / HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [20499]
+INFO:     Stopping reloader process [20497]

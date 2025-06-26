@@ -120,7 +120,7 @@ define ensure_env_file
 			touch .env; \
 			$(call print_info,.env file created); \
 		fi; \
-		echo -e "$(FONT_YELLOW)💡 Edit .env and configure your settings$(FONT_RESET)"; \
+		@echo -e "$(FONT_YELLOW)💡 Edit .env and configure your settings$(FONT_RESET)"; \
 	fi
 endef
 
