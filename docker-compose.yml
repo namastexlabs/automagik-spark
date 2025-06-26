@@ -43,8 +43,7 @@ services:
     container_name: automagik-spark-api
     env_file:
       - .env
-    env_file:
-      - .env
+    environment:
       AUTOMAGIK_SPARK_ENV: production
       PYTHONUNBUFFERED: 1
     ports:
@@ -66,8 +65,7 @@ services:
     container_name: automagik-spark-worker
     env_file:
       - .env
-    env_file:
-      - .env
+    environment:
       AUTOMAGIK_SPARK_ENV: production
       PYTHONUNBUFFERED: 1
     depends_on:
