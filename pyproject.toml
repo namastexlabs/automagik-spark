@@ -5,6 +5,23 @@ dynamic = ["version"]
 description = "AutoMagik Spark - Automagion Engine with LangFlow integration"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    {name = "NamasteX Labs", email = "support@namastexlabs.com"}
+]
+license = "MIT"
+keywords = ["automation", "workflow", "langflow", "ai", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration"
+]
+
 dependencies = [
     "click",
     "alembic",
@@ -32,6 +49,12 @@ dependencies = [
     "celery>=5.4.0",
     "tenacity>=9.0.0",
 ]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/namastexlabs/automagik-spark/issues"
+"Documentation" = "https://github.com/namastexlabs/automagik-spark/tree/main/docs"
+"Homepage" = "https://github.com/namastexlabs/automagik-spark"
+"Repository" = "https://github.com/namastexlabs/automagik-spark"
 
 [project.scripts]
 automagik-spark = "automagik.cli.cli:main"

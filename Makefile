@@ -693,14 +693,22 @@ build: ## Build the project
 publish-test: ## Publish to Test PyPI
 	$(call check_prerequisites)
 	$(call print_status,Publishing to Test PyPI)
-	@$(UV) publish --repository testpypi
+	@if [ -n "$$PYPI_TOKEN" ]; then \
+		$(UV) publish --repository testpypi --token "$$PYPI_TOKEN"; \
+	else \
+		$(UV) publish --repository testpypi; \
+	fi
 	$(call print_success,Published to Test PyPI)
 
 .PHONY: publish-pypi
 publish-pypi: ## Publish to PyPI
 	$(call check_prerequisites)
 	$(call print_status,Publishing to PyPI)
-	@$(UV) publish
+	@if [ -n "$$PYPI_TOKEN" ]; then \
+		$(UV) publish --token "$$PYPI_TOKEN"; \
+	else \
+		$(UV) publish; \
+	fi
 	$(call print_success,Published to PyPI)
 
 .PHONY: publish-docker
