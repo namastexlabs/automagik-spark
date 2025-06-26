@@ -24,11 +24,11 @@ RUN . /root/.bashrc && \
     uv pip install --system --no-cache-dir -e .
 
 # Create directory for logs
-RUN mkdir -p /root/.automagik/logs
+RUN mkdir -p /root/.automagik-spark/logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV AUTOMAGIK_ENV=production
+ENV AUTOMAGIK_SPARK_ENV=production
 
 # Run worker
 CMD ["python", "-m", "automagik", "worker", "start"]

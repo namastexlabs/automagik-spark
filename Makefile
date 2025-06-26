@@ -35,7 +35,7 @@ PROJECT_ROOT := $(shell pwd)
 VENV_PATH := $(PROJECT_ROOT)/.venv
 PYTHON := python3
 UV := uv
-SERVICE_NAME := automagik
+SERVICE_NAME := automagik-spark
 SERVICE_FILE := /etc/systemd/system/$(SERVICE_NAME).service
 SYSTEMCTL := systemctl
 DOCKER_COMPOSE_DEV := docker/docker-compose.dev.yml
@@ -545,25 +545,25 @@ db-revision: ## Create new migration revision
 cli-workflows: ## List workflows via CLI
 	$(call check_prerequisites)
 	$(call print_status,Listing workflows)
-	@$(UV) run automagik workflow list
+	@$(UV) run automagik-spark workflow list
 
 .PHONY: cli-sources
 cli-sources: ## List sources via CLI
 	$(call check_prerequisites)
 	$(call print_status,Listing sources)
-	@$(UV) run automagik source list
+	@$(UV) run automagik-spark source list
 
 .PHONY: cli-tasks
 cli-tasks: ## List tasks via CLI
 	$(call check_prerequisites)
 	$(call print_status,Listing tasks)
-	@$(UV) run automagik task list
+	@$(UV) run automagik-spark task list
 
 .PHONY: cli-schedules
 cli-schedules: ## List schedules via CLI
 	$(call check_prerequisites)
 	$(call print_status,Listing schedules)
-	@$(UV) run automagik schedule list
+	@$(UV) run automagik-spark schedule list
 
 # ===========================================
 # 🐳 Docker Commands

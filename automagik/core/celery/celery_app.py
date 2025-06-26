@@ -14,7 +14,7 @@ def get_celery_config():
     result_backend = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
     # Get timezone from AUTOMAGIK_TIMEZONE setting
-    timezone = os.getenv('AUTOMAGIK_TIMEZONE', 'UTC')
+    timezone = os.getenv('AUTOMAGIK_SPARK_TIMEZONE', 'UTC')
     
     # Define queues
     task_queues = [

@@ -1,6 +1,6 @@
 
 [project]
-name = "automagik"
+name = "automagik-spark"
 dynamic = ["version"]
 description = "AutoMagik Spark - Automagion Engine with LangFlow integration"
 readme = "README.md"
@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.scripts]
-automagik = "automagik.cli.cli:main"
+automagik-spark = "automagik.cli.cli:main"
 
 [project.optional-dependencies]
 dev = [

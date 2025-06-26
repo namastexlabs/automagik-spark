@@ -123,11 +123,11 @@ class WorkflowSource(Base):
     @staticmethod
     def _get_encryption_key():
         """Get encryption key from environment or generate a default one."""
-        key = os.environ.get('AUTOMAGIK_ENCRYPTION_KEY')
+        key = os.environ.get('AUTOMAGIK_SPARK_ENCRYPTION_KEY')
         
         if not key:
             # Log a warning that we're using a testing key
-            logger.warning("No AUTOMAGIK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
+            logger.warning("No AUTOMAGIK_SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
             # Use a fixed testing key that's URL-safe base64 encoded
             return b'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
             

@@ -66,7 +66,7 @@ open http://localhost:8883/api/v1/redoc # ReDoc documentation
 
 # List flows (requires CLI installation)
 source .venv/bin/activate
-automagik flow list
+automagik-spark flow list
 ```
 
 ## 🧩 System Components
@@ -119,7 +119,7 @@ For complete API documentation, visit:
 
 1. If you installed LangFlow, visit [http://localhost:17860](http://localhost:17860) to create your first flow
 2. Use the API at [http://localhost:8883/api/v1/docs](http://localhost:8883/api/v1/docs) to manage your flows and tasks
-3. Try out the CLI commands with `automagik --help`
+3. Try out the CLI commands with `automagik-spark --help`
 4. Monitor task execution through logs and API endpoints
 
 ## 🗺️ Roadmap

@@ -2,7 +2,7 @@ services:
   # Redis for Celery
   redis:
     image: redis:7.4.2-alpine
-    container_name: automagik-redis
+    container_name: automagik-spark-redis
     ports:
       - "16379:16379"
     command: redis-server --port 16379 --appendonly yes
@@ -14,18 +14,18 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - automagik-network
+      - automagik-spark-network
 
   # Automagik's PostgreSQL
-  automagik-db:
+  automagik-spark-db:
     image: postgres:15
-    container_name: automagik-db
+    container_name: automagik-spark-db
     environment:
       POSTGRES_USER: automagik
       POSTGRES_PASSWORD: automagik
       POSTGRES_DB: automagik
     volumes:
-      - automagik-db-data:/var/lib/postgresql/data
+      - automagik-spark-db-data:/var/lib/postgresql/data
     command: postgres -p 15432
     ports:
       - "15432:15432"
@@ -35,22 +35,22 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - automagik-network
+      - automagik-spark-network
 
   # Automagik API service
-  automagik-api:
-    image: namastexlabs/automagik-api:latest
-    container_name: automagik-api
+  automagik-spark-api:
+    image: namastexlabs/automagik-spark-api:latest
+    container_name: automagik-spark-api
     env_file:
       - .env
     env_file:
       - .env
-      AUTOMAGIK_ENV: production
+      AUTOMAGIK_SPARK_ENV: production
       PYTHONUNBUFFERED: 1
     ports:
       - "8883:8883"
     depends_on:
-      automagik-db:
+      automagik-spark-db:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8883/health || exit 1"]
@@ -58,25 +58,25 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - automagik-network
+      - automagik-spark-network
 
   # Automagik Worker service
-  automagik-worker:
-    image: namastexlabs/automagik-worker:latest
-    container_name: automagik-worker
+  automagik-spark-worker:
+    image: namastexlabs/automagik-spark-worker:latest
+    container_name: automagik-spark-worker
     env_file:
       - .env
     env_file:
       - .env
-      AUTOMAGIK_ENV: production
+      AUTOMAGIK_SPARK_ENV: production
       PYTHONUNBUFFERED: 1
     depends_on:
-      automagik-db:
+      automagik-spark-db:
         condition: service_healthy
-      automagik-api:
+      automagik-spark-api:
         condition: service_healthy
     networks:
-      - automagik-network
+      - automagik-spark-network
 
   # Optional LangFlow service
   langflow:
@@ -86,15 +86,15 @@ services:
     volumes:
       - langflow-data:/data
     networks:
-      - automagik-network
+      - automagik-spark-network
     profiles:
       - langflow
 
 volumes:
-  automagik-db-data:
+  automagik-spark-db-data:
   redis-data:
   langflow-data:
 
 networks:
-  automagik-network:
-    name: automagik-network
+  automagik-spark-network:
+    name: automagik-spark-network

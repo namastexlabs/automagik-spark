@@ -8,12 +8,12 @@ from functools import lru_cache
 class Settings:
     def __init__(self):
         # Worker settings
-        self.worker_log = os.getenv("AUTOMAGIK_WORKER_LOG", "/var/log/automagik/worker.log")
-        self.log_level = os.getenv("AUTOMAGIK_LOG_LEVEL", "INFO")
+        self.worker_log = os.getenv("AUTOMAGIK_SPARK_WORKER_LOG", "/var/log/automagik/worker.log")
+        self.log_level = os.getenv("AUTOMAGIK_SPARK_LOG_LEVEL", "INFO")
         
         # API settings
-        self.api_key = os.getenv("AUTOMAGIK_API_KEY")
-        self.remote_url = os.getenv("AUTOMAGIK_REMOTE_URL", "http://localhost:8000").rstrip("/")
+        self.api_key = os.getenv("AUTOMAGIK_SPARK_API_KEY")
+        self.remote_url = os.getenv("AUTOMAGIK_SPARK_REMOTE_URL", "http://localhost:8000").rstrip("/")
         
         # LangFlow settings
         self.langflow_api_url = os.getenv("LANGFLOW_API_URL", "http://localhost:7860/").rstrip("/")
