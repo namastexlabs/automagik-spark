@@ -248,7 +248,9 @@ help: ## Show this help message
 	@echo -e "$(FONT_CYAN)📦 Publishing & Release:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)build          $(FONT_RESET) Build the project"
 	@echo -e "  $(FONT_PURPLE)publish-test   $(FONT_RESET) Publish to Test PyPI"
-	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Publish to PyPI"
+	@echo -e "  $(FONT_PURPLE)publish-pypi   $(FONT_RESET) Publish to PyPI"
+	@echo -e "  $(FONT_PURPLE)publish-docker $(FONT_RESET) Build and publish Docker images"
+	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Full publish: PyPI + Docker images"
 	@echo -e "  $(FONT_PURPLE)release        $(FONT_RESET) Full release process (quality + test + build)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)🚀 Quick Commands:$(FONT_RESET)"
@@ -694,17 +696,40 @@ publish-test: ## Publish to Test PyPI
 	@$(UV) publish --repository testpypi
 	$(call print_success,Published to Test PyPI)
 
-.PHONY: publish
-publish: ## Publish to PyPI
+.PHONY: publish-pypi
+publish-pypi: ## Publish to PyPI
 	$(call check_prerequisites)
 	$(call print_status,Publishing to PyPI)
 	@$(UV) publish
 	$(call print_success,Published to PyPI)
 
+.PHONY: publish-docker
+publish-docker: ## Build and publish Docker images
+	$(call check_prerequisites)
+	$(call print_status,Building and publishing Docker images)
+	@$(call print_info,Building automagik-spark-api image...)
+	@docker build -f docker/Dockerfile.api -t namastexlabs/automagik-spark-api:latest -t namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)") .
+	@$(call print_info,Building automagik-spark-worker image...)
+	@docker build -f docker/Dockerfile.worker -t namastexlabs/automagik-spark-worker:latest -t namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)") .
+	@$(call print_info,Pushing automagik-spark-api images...)
+	@docker push namastexlabs/automagik-spark-api:latest
+	@docker push namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)")
+	@$(call print_info,Pushing automagik-spark-worker images...)
+	@docker push namastexlabs/automagik-spark-worker:latest
+	@docker push namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)")
+	$(call print_success,Docker images published successfully)
+
+.PHONY: publish
+publish: build publish-pypi publish-docker ## Full publish: PyPI + Docker images
+	$(call print_success_with_logo,Successfully published automagik-spark!)
+	@$(call print_info,PyPI: pip install automagik-spark)
+	@$(call print_info,Docker: docker pull namastexlabs/automagik-spark-api:latest)
+	@$(call print_info,Docker: docker pull namastexlabs/automagik-spark-worker:latest)
+
 .PHONY: release
 release: quality test build ## Full release process (quality + test + build)
 	$(call print_success_with_logo,Release build ready)
-	$(call print_info,Run 'make publish-test' or 'make publish' to deploy)
+	$(call print_info,Run 'make publish-test', 'make publish-pypi', 'make publish-docker', or 'make publish' to deploy)
 
 # ===========================================
 # 🧹 Cleanup & Maintenance
