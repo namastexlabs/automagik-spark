@@ -374,23 +374,23 @@ dev: ## Start development mode (local Python)
 		exit 1; \
 	fi
 	@$(call print_status,Starting API server with auto-reload...)
-	@$(UV) run uvicorn automagik.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
+	@$(UV) run uvicorn automagik_spark.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
 
 api: ## Start API server with auto-reload
 	@$(call check_prerequisites)
 	@$(call ensure_env_file)
 	@$(call print_status,Starting AutoMagik Spark API server...)
-	@$(UV) run uvicorn automagik.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
+	@$(UV) run uvicorn automagik_spark.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
 
 worker: ## Start Celery worker
 	@$(call check_prerequisites)
 	@$(call print_status,Starting Celery worker...)
-	@$(UV) run celery -A automagik.core.celery.celery_app worker --loglevel=$(LOG_LEVEL)
+	@$(UV) run celery -A automagik_spark.core.celery.celery_app worker --loglevel=$(LOG_LEVEL)
 
 scheduler: ## Start Celery scheduler
 	@$(call check_prerequisites)
 	@$(call print_status,Starting Celery scheduler...)
-	@$(UV) run celery -A automagik.core.celery.celery_app beat --loglevel=$(LOG_LEVEL)
+	@$(UV) run celery -A automagik_spark.core.celery.celery_app beat --loglevel=$(LOG_LEVEL)
 
 docker: ## Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
