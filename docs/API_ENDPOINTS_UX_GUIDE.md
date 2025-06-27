@@ -1,7 +1,7 @@
-# AutoMagik Spark API - UX Developer Guide
+# Spark API - UX Developer Guide
 
 ## Overview
-AutoMagik Spark provides a comprehensive REST API for managing workflow sources, syncing workflows, and executing automation tasks. This guide documents all endpoints with practical examples for building a user interface.
+Spark provides a comprehensive REST API for managing workflow sources, syncing workflows, and executing automation tasks. This guide documents all endpoints with practical examples for building a user interface.
 
 ## Authentication
 All API endpoints (except health check) require authentication via API key:
@@ -49,8 +49,8 @@ curl -H "X-API-Key: dev-key-12345" http://localhost:8883/
 ```json
 {
   "status": "online",
-  "service": "AutoMagik API",
-  "message": "Welcome to AutoMagik API, it's up and running!",
+  "service": "Spark API",
+  "message": "Welcome to Spark API, it's up and running!",
   "version": "0.2.2",
   "server_time": "2025-06-25 19:27:16",
   "docs_url": "http://localhost:8883/api/v1/docs"
@@ -329,7 +329,7 @@ curl -H "X-API-Key: dev-key-12345" http://localhost:8883/api/v1/tasks
 ### 1. Dashboard Layout
 ```
 ┌─────────────────────────────────────────┐
-│ AutoMagik Spark Dashboard               │
+│ Spark Dashboard                         │
 ├─────────────────────────────────────────┤
 │ [Sources: 2] [Workflows: 3] [Tasks: 45] │
 ├─────────────────────────────────────────┤
@@ -398,4 +398,4 @@ curl -H "X-API-Key: dev-key-12345" http://localhost:8883/api/v1/tasks
 3. **Debouncing**: For search and filter operations
 4. **Batch Operations**: Group multiple sync operations
 
-This comprehensive guide provides all necessary information for building a complete AutoMagik Spark UI that leverages the full potential of the API while providing an excellent user experience.
+This comprehensive guide provides all necessary information for building a complete Spark UI that leverages the full potential of the API while providing an excellent user experience.

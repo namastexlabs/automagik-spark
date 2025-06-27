@@ -185,8 +185,8 @@ async def auto_sync_simple_agent(session, source):
         logger.debug(f"Auto-sync simple agent failed: {e}")
 
 app = FastAPI(
-    title="AutoMagik API",
-    description="AutoMagik - Automated workflow management with LangFlow integration",
+    title="Spark API",
+    description="Spark - Automated workflow management with LangFlow integration",
     version=__version__,
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
@@ -268,8 +268,8 @@ async def root(api_key: str = Depends(verify_api_key)):
     base_url = settings.remote_url
     return {
         "status": "online",
-        "service": "AutoMagik API",
-        "message": "Welcome to AutoMagik API, it's up and running!",
+        "service": "Spark API",
+        "message": "Welcome to Spark API, it's up and running!"
         "version": __version__,
         "server_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
         "docs_url": f"{base_url}/api/v1/docs",

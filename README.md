@@ -1,12 +1,12 @@
 <p align="center">
-  <img src=".github/images/automagik_logo.png" alt="AutoMagik Spark Logo" width="600"/>
+  <img src=".github/images/automagik_logo.png" alt="Spark Logo" width="600"/>
 </p>
 
-# AutoMagik Spark
+# Spark
 
 > **Because magic shouldn't be complicated. **
 
-AutoMagik Spark is an automagion engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
+Spark is an automagion engine that seamlessly integrates with multiple [LangFlow](https://github.com/langflow-ai/langflow) instances. Deploy AI-driven flows, schedule one-time or recurring tasks, and monitor everything with minimal fuss—no coding required.
 
 ## 🔗 Ecosystem
 
@@ -15,7 +15,7 @@ AutoMagik Spark is an automagion engine that seamlessly integrates with multiple
 
 ## 🚀 Installation
 
-AutoMagik Spark provides two setup options:
+Spark provides two setup options:
 
 ### Prerequisites
 
@@ -50,7 +50,7 @@ Both setup scripts will:
 ### After Installation
 
 You'll have access to:
-- **AutoMagik Spark API**: Running at [http://localhost:8883](http://localhost:8883)
+- **Spark API**: Running at [http://localhost:8883](http://localhost:8883)
 - **PostgreSQL Database**: Available at `localhost:15432`
 - **Worker Service**: Running and ready to process tasks
 - **CLI Tool**: Installed (if chosen during setup)
@@ -86,7 +86,7 @@ flowchart LR
       LF1[LangFlow Instance 1]
       LF2[LangFlow Instance 2]
     end
-    subgraph AutoMagik Spark
+    subgraph Spark
       CLI[CLI]
       API[API Server]
       CW[Celery Worker]
@@ -124,11 +124,11 @@ For complete API documentation, visit:
 
 ## 🗺️ Roadmap
 
-AutoMagik Spark's future development focuses on:
+Spark's future development focuses on:
 - TBA
 
 ---
 
 <p align="center">
-  <b>AutoMagik Spark: Bringing AI Automation to Life</b>
+  <b>Spark: Bringing AI Automation to Life</b>
 </p>

@@ -20,8 +20,8 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 def create_test_client():
     """Create a new test client with fresh CORS configuration."""
     app = FastAPI(
-        title="AutoMagik API",
-        description="AutoMagik - Automated workflow management with LangFlow integration",
+        title="Spark API",
+        description="Spark - Automated workflow management with LangFlow integration",
         version=__version__,
         docs_url="/api/v1/docs",
         redoc_url="/api/v1/redoc",
@@ -53,7 +53,7 @@ def create_test_client():
         """Root endpoint returning API status."""
         return {
             "status": "online",
-            "service": "AutoMagik API",
+            "service": "Spark API",
             "version": __version__,
             "api_key": api_key,
         }
@@ -93,7 +93,7 @@ async def test_root_endpoint(client: TestClient, clean_env):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "online"
-    assert data["service"] == "AutoMagik API"
+    assert data["service"] == "Spark API"
     assert "version" in data
     assert isinstance(data["version"], str)
 
