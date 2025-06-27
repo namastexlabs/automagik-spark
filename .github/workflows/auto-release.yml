@@ -244,42 +244,32 @@ jobs:
               
               if (!releaseNotes) {
                 console.log('⚠️ No release notes found, generating fallback');
-                releaseNotes = `# 🚀 automagik-spark ${{ steps.tag-info.outputs.version }}
-                
-## 📦 Release Information
-
-This release includes ${{ steps.changes.outputs.commits }} commits with ${{ steps.changes.outputs.files_changed }} files changed.
-
-## 📊 Change Summary
-
-- **Files Changed**: ${{ steps.changes.outputs.files_changed }}
-- **Lines Added**: +${{ steps.changes.outputs.lines_added }}
-- **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
-- **New Files**: ${{ steps.changes.outputs.new_files }}
-- **Modified Files**: ${{ steps.changes.outputs.modified_files }}
-- **Deleted Files**: ${{ steps.changes.outputs.deleted_files }}
-
-## 🔄 Change Types
-
-- **Python Changes**: ${{ steps.changes.outputs.has_python }}
-- **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}
-- **Test Updates**: ${{ steps.changes.outputs.has_tests }}
-- **Configuration Changes**: ${{ steps.changes.outputs.has_config }}
-- **Docker Changes**: ${{ steps.changes.outputs.has_docker }}
-- **Build Changes**: ${{ steps.changes.outputs.has_build }}
-
-## 📦 Installation
-
-\`\`\`bash
-pip install automagik-spark==${{ steps.tag-info.outputs.version }}
-\`\`\`
-
-## 🐳 Docker
-
-\`\`\`bash
-docker pull namastexlabs/automagik-spark-api:${{ steps.tag-info.outputs.tag_name }}
-docker pull namastexlabs/automagik-spark-worker:${{ steps.tag-info.outputs.tag_name }}
-\`\`\``;
+                releaseNotes = '# 🚀 automagik-spark ${{ steps.tag-info.outputs.version }}\n\n' +
+                  '## 📦 Release Information\n\n' +
+                  'This release includes ${{ steps.changes.outputs.commits }} commits with ${{ steps.changes.outputs.files_changed }} files changed.\n\n' +
+                  '## 📊 Change Summary\n\n' +
+                  '- **Files Changed**: ${{ steps.changes.outputs.files_changed }}\n' +
+                  '- **Lines Added**: +${{ steps.changes.outputs.lines_added }}\n' +
+                  '- **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}\n' +
+                  '- **New Files**: ${{ steps.changes.outputs.new_files }}\n' +
+                  '- **Modified Files**: ${{ steps.changes.outputs.modified_files }}\n' +
+                  '- **Deleted Files**: ${{ steps.changes.outputs.deleted_files }}\n\n' +
+                  '## 🔄 Change Types\n\n' +
+                  '- **Python Changes**: ${{ steps.changes.outputs.has_python }}\n' +
+                  '- **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}\n' +
+                  '- **Test Updates**: ${{ steps.changes.outputs.has_tests }}\n' +
+                  '- **Configuration Changes**: ${{ steps.changes.outputs.has_config }}\n' +
+                  '- **Docker Changes**: ${{ steps.changes.outputs.has_docker }}\n' +
+                  '- **Build Changes**: ${{ steps.changes.outputs.has_build }}\n\n' +
+                  '## 📦 Installation\n\n' +
+                  '```bash\n' +
+                  'pip install automagik-spark==${{ steps.tag-info.outputs.version }}\n' +
+                  '```\n\n' +
+                  '## 🐳 Docker\n\n' +
+                  '```bash\n' +
+                  'docker pull namastexlabs/automagik-spark-api:${{ steps.tag-info.outputs.tag_name }}\n' +
+                  'docker pull namastexlabs/automagik-spark-worker:${{ steps.tag-info.outputs.tag_name }}\n' +
+                  '```';
               }
               
               // Clean up and validate
