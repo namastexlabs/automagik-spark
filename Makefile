@@ -247,10 +247,12 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(FONT_CYAN)📦 Publishing & Release:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)build          $(FONT_RESET) Build the project"
+	@echo -e "  $(FONT_PURPLE)check-dist     $(FONT_RESET) Check package quality"
+	@echo -e "  $(FONT_PURPLE)check-release  $(FONT_RESET) Check if ready for release"
 	@echo -e "  $(FONT_PURPLE)publish-test   $(FONT_RESET) Publish to Test PyPI"
-	@echo -e "  $(FONT_PURPLE)publish-pypi   $(FONT_RESET) Publish to PyPI"
+	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Publish to PyPI + GitHub release"
 	@echo -e "  $(FONT_PURPLE)publish-docker $(FONT_RESET) Build and publish Docker images"
-	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Full publish: PyPI + Docker images"
+	@echo -e "  $(FONT_PURPLE)publish-all    $(FONT_RESET) Full publish: PyPI + Docker images"
 	@echo -e "  $(FONT_PURPLE)release        $(FONT_RESET) Full release process (quality + test + build)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)🏷️ Version & Git Automation:$(FONT_RESET)"
@@ -267,7 +269,7 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)release-minor  $(FONT_RESET) Full minor release (bump + commit + tag + test + build)"
 	@echo -e "  $(FONT_GREEN)release-major  $(FONT_RESET) Full major release (bump + commit + tag + test + build)"
 	@echo -e "  $(FONT_YELLOW)release-dev    $(FONT_RESET) Dev pre-release (bump + commit + tag + build)"
-	@echo -e "  $(FONT_PURPLE)deploy-release $(FONT_RESET) Deploy release (push tags + publish + auto GitHub release)"
+	@echo -e "  $(FONT_PURPLE)deploy-release $(FONT_RESET) Deploy release (push tags + publish-all + auto GitHub release)"
 	@echo -e "  $(FONT_YELLOW)deploy-dev     $(FONT_RESET) Deploy dev release (push tags + Test PyPI + auto GitHub release)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)🚀 Quick Commands:$(FONT_RESET)"
@@ -699,34 +701,97 @@ logs-tail: ## Show recent service logs
 # ===========================================
 # 📦 Publishing & Release
 # ===========================================
-.PHONY: build
-build: ## Build the project
+.PHONY: build check-dist check-release
+build: clean ## 📦 Build package
 	$(call check_prerequisites)
-	$(call print_status,Building project)
+	$(call print_status,Building package...)
 	@$(UV) build
-	$(call print_success,Build completed)
+	$(call print_success,Package built!)
+
+check-dist: ## 🔍 Check package quality
+	$(call print_status,Checking package quality...)
+	@$(UV) run twine check dist/*
+
+check-release: ## 🔍 Check if ready for release (clean working directory)
+	$(call print_status,Checking release readiness...)
+	@# Check for uncommitted changes
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Check if on main branch
+	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CURRENT_BRANCH" != "main" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Not on main branch (current: $$CURRENT_BRANCH)$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)It's recommended to publish from the main branch.$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	@# Check if main branch is up to date with origin
+	@git fetch origin >/dev/null 2>&1 || true
+	@LOCAL=$$(git rev-parse HEAD); \
+	REMOTE=$$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null || echo ""); \
+	if [ -n "$$REMOTE" ] && [ "$$LOCAL" != "$$REMOTE" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Local branch is not up to date with origin$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Consider running: git pull origin main$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	$(call print_success,Ready for release!)
 
 .PHONY: publish-test
-publish-test: ## Publish to Test PyPI
-	$(call check_prerequisites)
-	$(call print_status,Publishing to Test PyPI)
-	@if [ -n "$$PYPI_TOKEN" ]; then \
-		$(UV) publish --repository testpypi --token "$$PYPI_TOKEN"; \
-	else \
-		$(UV) publish --repository testpypi; \
+publish-test: build check-dist ## 🧪 Upload to TestPyPI
+	$(call print_status,Publishing to TestPyPI...)
+	@if [ -z "$$TESTPYPI_TOKEN" ]; then \
+		$(call print_error,TESTPYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your TestPyPI token at: https://test.pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export TESTPYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
 	fi
-	$(call print_success,Published to Test PyPI)
+	@$(UV) run twine upload --repository testpypi dist/* -u __token__ -p "$$TESTPYPI_TOKEN"
+	$(call print_success,Published to TestPyPI!)
 
-.PHONY: publish-pypi
-publish-pypi: ## Publish to PyPI
-	$(call check_prerequisites)
-	$(call print_status,Publishing to PyPI)
-	@if [ -n "$$PYPI_TOKEN" ]; then \
-		$(UV) publish --token "$$PYPI_TOKEN"; \
-	else \
-		$(UV) publish; \
+.PHONY: publish-pypi publish
+publish-pypi: publish ## Legacy alias for publish
+
+publish: check-release build check-dist ## $(ROCKET) Upload to PyPI and create GitHub release
+	$(call print_status,Publishing to PyPI and GitHub...)
+	@if [ -z "$$PYPI_TOKEN" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) PYPI_TOKEN environment variable not set$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)💡 Get your PyPI token at: https://pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export PYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
 	fi
-	$(call print_success,Published to PyPI)
+	@# Get version from version.py
+	@VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
+	$(UV) run twine upload dist/* -u __token__ -p "$$PYPI_TOKEN"; \
+	if ! git tag | grep -q "^v$$VERSION$$"; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating git tag v$$VERSION$(FONT_RESET)"; \
+		git tag -a "v$$VERSION" -m "Release v$$VERSION" \
+			-m "" \
+			-m "Co-authored-by: Automagik Genie 🧞 <genie@namastex.ai>"; \
+	fi; \
+	echo -e "$(FONT_CYAN)$(INFO) Pushing tag to GitHub$(FONT_RESET)"; \
+	git push origin "v$$VERSION"; \
+	if command -v gh >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating GitHub release$(FONT_RESET)"; \
+		gh release create "v$$VERSION" \
+			--title "automagik-spark v$$VERSION" \
+			--notes "Release v$$VERSION - See commit history for details" \
+			--latest; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) gh CLI not found - skipping GitHub release$(FONT_RESET)"; \
+	fi; \
+	$(call print_success,Published to PyPI and GitHub!)
 
 .PHONY: publish-docker
 publish-docker: ## Build and publish Docker images
@@ -744,8 +809,8 @@ publish-docker: ## Build and publish Docker images
 	@docker push namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)")
 	$(call print_success,Docker images published successfully)
 
-.PHONY: publish
-publish: build publish-pypi publish-docker ## Full publish: PyPI + Docker images
+.PHONY: publish-all
+publish-all: publish publish-docker ## Full publish: PyPI + Docker images
 	$(call print_success_with_logo,Successfully published automagik-spark!)
 	@$(call print_info,PyPI: pip install automagik-spark)
 	@$(call print_info,Docker: docker pull namastexlabs/automagik-spark-api:latest)
@@ -754,7 +819,7 @@ publish: build publish-pypi publish-docker ## Full publish: PyPI + Docker images
 .PHONY: release
 release: quality test build ## Full release process (quality + test + build)
 	$(call print_success_with_logo,Release build ready)
-	$(call print_info,Run 'make publish-test', 'make publish-pypi', 'make publish-docker', or 'make publish' to deploy)
+	$(call print_info,Run 'make publish-test', 'make publish', 'make publish-docker', or 'make publish-all' to deploy)
 
 # ===========================================
 # 🧹 Cleanup & Maintenance
@@ -921,7 +986,8 @@ release-patch: bump-patch commit-version tag-current quality test build ## 🚀 
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
-	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • make publish (deploy to PyPI + GitHub release)"; \
+	echo -e "  • make publish-all (deploy to PyPI + Docker)"; \
 	echo -e "  • Or run: make deploy-release (push + publish)"
 
 release-minor: bump-minor commit-version tag-current quality test build ## 🚀 Full minor release
@@ -930,7 +996,8 @@ release-minor: bump-minor commit-version tag-current quality test build ## 🚀 
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
-	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • make publish (deploy to PyPI + GitHub release)"; \
+	echo -e "  • make publish-all (deploy to PyPI + Docker)"; \
 	echo -e "  • Or run: make deploy-release (push + publish)"
 
 release-major: bump-major commit-version tag-current quality test build ## 🚀 Full major release
@@ -939,7 +1006,8 @@ release-major: bump-major commit-version tag-current quality test build ## 🚀 
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
-	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • make publish (deploy to PyPI + GitHub release)"; \
+	echo -e "  • make publish-all (deploy to PyPI + Docker)"; \
 	echo -e "  • Or run: make deploy-release (push + publish)"
 
 release-dev: bump-dev commit-version tag-current build ## 🧪 Dev pre-release
