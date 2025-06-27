@@ -642,7 +642,7 @@ install-service: ## Install systemd service
 		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
 		printf "Environment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\n" "$(VENV_PATH)" "$(HOME)" >> $$TMP_FILE; \
 		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "ExecStart=%s/bin/uvicorn automagik_spark.api.app:app --host $${HOST:-0.0.0.0} --port $${PORT:-8883}\n" "$(VENV_PATH)" >> $$TMP_FILE; \
+		printf "ExecStart=%s/bin/uvicorn automagik_spark.api.app:app --host $${HOST:-0.0.0.0} --port $${AUTOMAGIK_SPARK_PORT:-8883}\n" "$(VENV_PATH)" >> $$TMP_FILE; \
 		printf "Restart=always\n" >> $$TMP_FILE; \
 		printf "RestartSec=10\n" >> $$TMP_FILE; \
 		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
