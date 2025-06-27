@@ -37,6 +37,8 @@ PYTHON := python3
 UV := uv
 SERVICE_NAME := automagik-spark
 SERVICE_FILE := /etc/systemd/system/$(SERVICE_NAME).service
+WORKER_SERVICE_NAME := automagik-spark-worker
+WORKER_SERVICE_FILE := /etc/systemd/system/$(WORKER_SERVICE_NAME).service
 SYSTEMCTL := systemctl
 DOCKER_COMPOSE_DEV := docker/docker-compose.dev.yml
 DOCKER_COMPOSE_PROD := docker/docker-compose.prod.yml
@@ -622,13 +624,14 @@ restart-service: ## Update systemd service (removes and recreates)
 	@sudo rm -f $(SERVICE_FILE)
 	@$(MAKE) install-service
 
-install-service: ## Install systemd service
-	@$(call print_status,Installing AutoMagik Spark systemd service...)
+install-service: ## Install systemd services (API and Worker)
+	@$(call print_status,Installing AutoMagik Spark systemd services...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		echo -e "$(FONT_YELLOW)$(WARNING) Virtual environment not found - creating it now...$(FONT_RESET)"; \
 		$(MAKE) install; \
 	fi
 	@$(call ensure_env_file)
+	@# Install API service
 	@if [ ! -f "$(SERVICE_FILE)" ]; then \
 		TMP_FILE=$$(mktemp); \
 		printf "[Unit]\n" > $$TMP_FILE; \
@@ -654,37 +657,104 @@ install-service: ## Install systemd service
 		rm $$TMP_FILE; \
 		sudo systemctl daemon-reload; \
 		sudo systemctl enable $(SERVICE_NAME); \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service installed and enabled$(FONT_RESET)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) API service installed and enabled$(FONT_RESET)"; \
 	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service already installed$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)$(WARNING) API service already installed$(FONT_RESET)"; \
 	fi
-	@$(call print_success_with_logo,AutoMagik Spark systemd service ready!)
-	@$(call print_info,💡 Start with: sudo systemctl start $(SERVICE_NAME))
+	@# Install Worker service
+	@if [ ! -f "$(WORKER_SERVICE_FILE)" ]; then \
+		TMP_FILE=$$(mktemp); \
+		printf "[Unit]\n" > $$TMP_FILE; \
+		printf "Description=AutoMagik Spark Worker Service\n" >> $$TMP_FILE; \
+		printf "After=network.target postgresql.service redis.service automagik-spark.service\n" >> $$TMP_FILE; \
+		printf "Wants=network.target\n" >> $$TMP_FILE; \
+		printf "\n" >> $$TMP_FILE; \
+		printf "[Service]\n" >> $$TMP_FILE; \
+		printf "Type=simple\n" >> $$TMP_FILE; \
+		printf "User=%s\n" "$(shell whoami)" >> $$TMP_FILE; \
+		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "Environment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\n" "$(VENV_PATH)" "$(HOME)" >> $$TMP_FILE; \
+		printf "Environment=AM_WORKER_LOG=%s/logs/worker.log\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
+		printf "ExecStart=%s/bin/python -m automagik_spark.cli.cli worker start --daemon\n" "$(VENV_PATH)" >> $$TMP_FILE; \
+		printf "Restart=always\n" >> $$TMP_FILE; \
+		printf "RestartSec=10\n" >> $$TMP_FILE; \
+		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
+		printf "StandardError=journal\n" >> $$TMP_FILE; \
+		printf "\n" >> $$TMP_FILE; \
+		printf "[Install]\n" >> $$TMP_FILE; \
+		printf "WantedBy=multi-user.target\n" >> $$TMP_FILE; \
+		sudo cp $$TMP_FILE $(WORKER_SERVICE_FILE); \
+		rm $$TMP_FILE; \
+		sudo systemctl daemon-reload; \
+		sudo systemctl enable $(WORKER_SERVICE_NAME); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Worker service installed and enabled$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Worker service already installed$(FONT_RESET)"; \
+	fi
+	@$(call print_success_with_logo,AutoMagik Spark systemd services ready!)
+	@$(call print_info,💡 Start API with: sudo systemctl start $(SERVICE_NAME))
+	@$(call print_info,💡 Start Worker with: sudo systemctl start $(WORKER_SERVICE_NAME))
 
 .PHONY: start-service
-start-service: ## Start the systemd service
-	$(call print_status,Starting $(SERVICE_NAME) service)
+start-service: ## Start the systemd services (API and Worker)
+	$(call print_status,Starting AutoMagik Spark services)
 	@sudo systemctl start $(SERVICE_NAME)
+	@sudo systemctl start $(WORKER_SERVICE_NAME)
 	@sleep 2
 	$(call check_service_status)
+	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
+	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
+	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
+	fi
 
 .PHONY: stop-service
-stop-service: ## Stop the systemd service
-	$(call print_status,Stopping $(SERVICE_NAME) service)
+stop-service: ## Stop the systemd services (API and Worker)
+	$(call print_status,Stopping AutoMagik Spark services)
 	@sudo systemctl stop $(SERVICE_NAME)
-	$(call print_success,Service stopped)
+	@sudo systemctl stop $(WORKER_SERVICE_NAME)
+	$(call print_success,Services stopped)
 
 .PHONY: restart-service-simple
-restart-service-simple: ## Restart the systemd service
-	$(call print_status,Restarting $(SERVICE_NAME) service)
+restart-service-simple: ## Restart the systemd services (API and Worker)
+	$(call print_status,Restarting AutoMagik Spark services)
 	@sudo systemctl restart $(SERVICE_NAME)
+	@sudo systemctl restart $(WORKER_SERVICE_NAME)
 	@sleep 2
 	$(call check_service_status)
+	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
+	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
+	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
+	fi
 
 .PHONY: service-status
-service-status: ## Check service status
-	$(call print_status,Checking $(SERVICE_NAME) service status)
+service-status: ## Check service status (API and Worker)
+	$(call print_status,Checking AutoMagik Spark services status)
+	@echo -e "$(FONT_CYAN)API Service Status:$(FONT_RESET)"
 	$(call check_service_status)
+	@echo ""
+	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
+	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
+	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
+	fi
 
 .PHONY: logs
 logs: ## Show service logs (follow)
@@ -838,17 +908,28 @@ clean: ## Clean build artifacts and cache
 	$(call print_success,Cleanup completed)
 
 .PHONY: uninstall-service
-uninstall-service: ## Uninstall systemd service
-	$(call print_status,Uninstalling systemd service)
+uninstall-service: ## Uninstall systemd services (API and Worker)
+	$(call print_status,Uninstalling systemd services)
+	@# Uninstall API service
 	@if [ -f "$(SERVICE_FILE)" ]; then \
 		sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true; \
 		sudo systemctl disable $(SERVICE_NAME) 2>/dev/null || true; \
 		sudo rm -f $(SERVICE_FILE); \
-		sudo systemctl daemon-reload; \
-		$(call print_success,Service uninstalled); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) API service uninstalled$(FONT_RESET)"; \
 	else \
-		$(call print_warning,Service not found); \
+		echo -e "$(FONT_YELLOW)$(WARNING) API service not found$(FONT_RESET)"; \
 	fi
+	@# Uninstall Worker service
+	@if [ -f "$(WORKER_SERVICE_FILE)" ]; then \
+		sudo systemctl stop $(WORKER_SERVICE_NAME) 2>/dev/null || true; \
+		sudo systemctl disable $(WORKER_SERVICE_NAME) 2>/dev/null || true; \
+		sudo rm -f $(WORKER_SERVICE_FILE); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Worker service uninstalled$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Worker service not found$(FONT_RESET)"; \
+	fi
+	@sudo systemctl daemon-reload
+	$(call print_success,Services uninstalled)
 
 # ===========================================
 # 🚀 Quick Commands

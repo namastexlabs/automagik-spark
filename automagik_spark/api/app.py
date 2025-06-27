@@ -269,7 +269,7 @@ async def root(api_key: str = Depends(verify_api_key)):
     return {
         "status": "online",
         "service": "Spark API",
-        "message": "Welcome to Spark API, it's up and running!"
+        "message": "Welcome to Spark API, it's up and running!",
         "version": __version__,
         "server_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
         "docs_url": f"{base_url}/api/v1/docs",
