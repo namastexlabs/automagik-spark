@@ -1,0 +1,401 @@
+---
+name: Auto Release Generation
+
+'on':
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  auto-release:
+    name: Generate AI-Powered Release Notes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: read
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract Tag Information
+        id: tag-info
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+          
+          # Get previous tag for comparison
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^$TAG_NAME$" | head -n1)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+            echo "previous_ref=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+            echo "previous_tag=initial" >> $GITHUB_OUTPUT
+          else
+            echo "previous_ref=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+            echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "🏷️ Tag: $TAG_NAME"
+          echo "📦 Version: ${TAG_NAME#v}"
+          echo "🔙 Previous: $PREVIOUS_TAG"
+
+      - name: 📊 Analyze Release Changes
+        id: changes
+        run: |
+          echo "🔍 Analyzing changes since ${{ steps.tag-info.outputs.previous_tag }}..."
+          
+          # Get comprehensive change statistics
+          if [ "${{ steps.tag-info.outputs.previous_tag }}" = "initial" ]; then
+            FILES_CHANGED=$(git ls-files | wc -l)
+            LINES_ADDED=$(git log --numstat --format="" | awk '{sum+=$1} END {print sum}' || echo 0)
+            LINES_DELETED=$(git log --numstat --format="" | awk '{sum+=$2} END {print sum}' || echo 0)
+            COMMITS=$(git rev-list --count HEAD)
+          else
+            FILES_CHANGED=$(git diff --name-only ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | wc -l)
+            LINES_ADDED=$(git diff --shortstat ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+            LINES_DELETED=$(git diff --shortstat ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
+            COMMITS=$(git log --oneline ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | wc -l)
+          fi
+          
+          # Get file type breakdown
+          if [ "${{ steps.tag-info.outputs.previous_tag }}" = "initial" ]; then
+            NEW_FILES=$(git ls-files | wc -l)
+            MODIFIED_FILES=0
+            DELETED_FILES=0
+          else
+            NEW_FILES=$(git diff --name-status ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | grep "^A" | wc -l)
+            MODIFIED_FILES=$(git diff --name-status ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | grep "^M" | wc -l)
+            DELETED_FILES=$(git diff --name-status ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }} | grep "^D" | wc -l)
+          fi
+          
+          # Check for specific types of changes
+          if [ "${{ steps.tag-info.outputs.previous_tag }}" = "initial" ]; then
+            CHANGED_FILES=$(git ls-files)
+          else
+            CHANGED_FILES=$(git diff --name-only ${{ steps.tag-info.outputs.previous_ref }}..${{ steps.tag-info.outputs.tag_name }})
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "\.py$"; then
+            HAS_PYTHON="true"
+          else
+            HAS_PYTHON="false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q -E "\.(md|rst|txt)$"; then
+            HAS_DOCS="true"
+          else
+            HAS_DOCS="false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "test"; then
+            HAS_TESTS="true"
+          else
+            HAS_TESTS="false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q -E "\.(yml|yaml|json|toml|ini)$"; then
+            HAS_CONFIG="true"
+          else
+            HAS_CONFIG="false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q -E "(Dockerfile|docker-compose)"; then
+            HAS_DOCKER="true"
+          else
+            HAS_DOCKER="false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q -E "(Makefile|setup\.py|pyproject\.toml)"; then
+            HAS_BUILD="true"
+          else
+            HAS_BUILD="false"
+          fi
+          
+          # Determine release type based on version
+          if echo "${{ steps.tag-info.outputs.version }}" | grep -q "pre\|alpha\|beta\|rc"; then
+            RELEASE_TYPE="prerelease"
+          else
+            RELEASE_TYPE="release"
+          fi
+          
+          # Output all statistics
+          echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "lines_added=$LINES_ADDED" >> $GITHUB_OUTPUT
+          echo "lines_deleted=$LINES_DELETED" >> $GITHUB_OUTPUT
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          echo "new_files=$NEW_FILES" >> $GITHUB_OUTPUT
+          echo "modified_files=$MODIFIED_FILES" >> $GITHUB_OUTPUT
+          echo "deleted_files=$DELETED_FILES" >> $GITHUB_OUTPUT
+          echo "has_python=$HAS_PYTHON" >> $GITHUB_OUTPUT
+          echo "has_docs=$HAS_DOCS" >> $GITHUB_OUTPUT
+          echo "has_tests=$HAS_TESTS" >> $GITHUB_OUTPUT
+          echo "has_config=$HAS_CONFIG" >> $GITHUB_OUTPUT
+          echo "has_docker=$HAS_DOCKER" >> $GITHUB_OUTPUT
+          echo "has_build=$HAS_BUILD" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          
+          echo "📈 Analysis complete:"
+          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, $MODIFIED_FILES modified, $DELETED_FILES deleted)"
+          echo "  Lines: +$LINES_ADDED / -$LINES_DELETED"
+          echo "  Commits: $COMMITS"
+          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, Tests=$HAS_TESTS, Config=$HAS_CONFIG"
+          echo "  Build: Docker=$HAS_DOCKER, Build=$HAS_BUILD"
+          echo "  Release Type: $RELEASE_TYPE"
+
+      - name: 🧠 Generate Release Notes with Claude Code
+        id: claude-analysis
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            You are generating comprehensive release notes for automagik-spark ${{ steps.tag-info.outputs.tag_name }}.
+            
+            **Release Context:**
+            - Repository: ${{ github.repository }}
+            - New Version: ${{ steps.tag-info.outputs.version }}
+            - Previous Version: ${{ steps.tag-info.outputs.previous_tag }}
+            - Release Type: ${{ steps.changes.outputs.release_type }}
+            - Files Changed: ${{ steps.changes.outputs.files_changed }}
+            - Lines Added: ${{ steps.changes.outputs.lines_added }}
+            - Lines Deleted: ${{ steps.changes.outputs.lines_deleted }}
+            - Commits: ${{ steps.changes.outputs.commits }}
+            - New Files: ${{ steps.changes.outputs.new_files }}
+            - Modified Files: ${{ steps.changes.outputs.modified_files }}
+            - Deleted Files: ${{ steps.changes.outputs.deleted_files }}
+            - Has Python: ${{ steps.changes.outputs.has_python }}
+            - Has Documentation: ${{ steps.changes.outputs.has_docs }}
+            - Has Tests: ${{ steps.changes.outputs.has_tests }}
+            - Has Configuration: ${{ steps.changes.outputs.has_config }}
+            - Has Docker: ${{ steps.changes.outputs.has_docker }}
+            - Has Build Changes: ${{ steps.changes.outputs.has_build }}
+            
+            **CRITICAL INSTRUCTIONS:**
+            1. Return ONLY markdown text for the release notes
+            2. NO commands, actions, or tool calls - provide content immediately
+            3. Start directly with markdown content
+            4. Be comprehensive and professional
+            5. Include version highlights, changes, and upgrade notes
+            6. DO NOT use bash, git, or other tools
+            
+            **Required Structure:**
+            - ## 🚀 What's New in v${{ steps.tag-info.outputs.version }}
+            - ## ✨ Features & Improvements  
+            - ## 🐛 Bug Fixes
+            - ## 🔧 Technical Changes
+            - ## 📦 Installation & Upgrade
+            - ## 🙏 Contributors (if applicable)
+            
+            Analyze the actual changes between ${{ steps.tag-info.outputs.previous_tag }} and ${{ steps.tag-info.outputs.tag_name }} 
+            to generate professional release notes that accurately reflect what was added, changed, or fixed in this release.
+            Focus on user-facing changes and developer experience improvements.
+          allowed_tools: "Read,Glob,Grep"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "30"
+          timeout_minutes: "10"
+
+      - name: 📋 Extract Release Notes
+        id: extract-notes
+        if: steps.claude-analysis.outputs.conclusion == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              console.log('🔍 Extracting Claude Code release notes...');
+              
+              const executionFile = '${{ steps.claude-analysis.outputs.execution_file }}';
+              console.log(`📄 Reading execution file: ${executionFile}`);
+              
+              if (!fs.existsSync(executionFile)) {
+                throw new Error(`Execution file not found: ${executionFile}`);
+              }
+              
+              const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
+              console.log(`📊 Execution log loaded with keys: ${Object.keys(executionLog).join(', ')}`);
+              
+              // Extract release notes from various possible locations
+              let releaseNotes = '';
+              
+              // Method 1: Check for direct result field
+              if (executionLog.result && typeof executionLog.result === 'string') {
+                releaseNotes = executionLog.result;
+                console.log(`✅ Found result field with ${releaseNotes.length} characters`);
+              }
+              // Method 2: Check messages array
+              else if (executionLog.messages && Array.isArray(executionLog.messages)) {
+                for (let i = executionLog.messages.length - 1; i >= 0; i--) {
+                  const message = executionLog.messages[i];
+                  if (message.role === 'assistant' && message.content) {
+                    releaseNotes = message.content;
+                    console.log(`✅ Found assistant message with ${releaseNotes.length} characters`);
+                    break;
+                  }
+                }
+              }
+              // Method 3: Check for content field
+              else if (executionLog.content && typeof executionLog.content === 'string') {
+                releaseNotes = executionLog.content;
+                console.log(`✅ Found content field with ${releaseNotes.length} characters`);
+              }
+              
+              if (!releaseNotes) {
+                console.log('⚠️ No release notes found, generating fallback');
+                releaseNotes = `# 🚀 automagik-spark ${{ steps.tag-info.outputs.version }}
+                
+## 📦 Release Information
+
+This release includes ${{ steps.changes.outputs.commits }} commits with ${{ steps.changes.outputs.files_changed }} files changed.
+
+## 📊 Change Summary
+
+- **Files Changed**: ${{ steps.changes.outputs.files_changed }}
+- **Lines Added**: +${{ steps.changes.outputs.lines_added }}
+- **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
+- **New Files**: ${{ steps.changes.outputs.new_files }}
+- **Modified Files**: ${{ steps.changes.outputs.modified_files }}
+- **Deleted Files**: ${{ steps.changes.outputs.deleted_files }}
+
+## 🔄 Change Types
+
+- **Python Changes**: ${{ steps.changes.outputs.has_python }}
+- **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}
+- **Test Updates**: ${{ steps.changes.outputs.has_tests }}
+- **Configuration Changes**: ${{ steps.changes.outputs.has_config }}
+- **Docker Changes**: ${{ steps.changes.outputs.has_docker }}
+- **Build Changes**: ${{ steps.changes.outputs.has_build }}
+
+## 📦 Installation
+
+\`\`\`bash
+pip install automagik-spark==${{ steps.tag-info.outputs.version }}
+\`\`\`
+
+## 🐳 Docker
+
+\`\`\`bash
+docker pull namastexlabs/automagik-spark-api:${{ steps.tag-info.outputs.tag_name }}
+docker pull namastexlabs/automagik-spark-worker:${{ steps.tag-info.outputs.tag_name }}
+\`\`\``;
+              }
+              
+              // Clean up and validate
+              releaseNotes = releaseNotes.trim();
+              
+              if (releaseNotes.length < 100) {
+                throw new Error(`Release notes too short: ${releaseNotes.length} characters`);
+              }
+              
+              console.log(`✅ Valid release notes found (${releaseNotes.length} characters)`);
+              
+              // Store for next step
+              fs.writeFileSync('release-notes.md', releaseNotes);
+              core.setOutput('success', 'true');
+              core.setOutput('length', releaseNotes.length);
+              
+            } catch (error) {
+              console.error('❌ Failed to extract release notes:', error);
+              core.setOutput('success', 'false');
+              throw error;
+            }
+
+      - name: 🎉 Create GitHub Release
+        id: create-release
+        if: steps.extract-notes.outputs.success == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              console.log('🎉 Creating GitHub release...');
+              
+              const releaseNotes = fs.readFileSync('release-notes.md', 'utf8');
+              const isPrerelease = '${{ steps.changes.outputs.release_type }}' === 'prerelease';
+              
+              // Add automation footer
+              const finalNotes = releaseNotes +
+                '\n\n---\n' +
+                `*🤖 Generated by [Claude Code Analysis](${context.payload.repository.html_url}/actions/runs/${context.runId}) on ${new Date().toISOString()}*\n\n` +
+                '**Co-authored-by:** Automagik Genie 🧞 <genie@namastex.ai>';
+              
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: '${{ steps.tag-info.outputs.tag_name }}',
+                name: 'automagik-spark ${{ steps.tag-info.outputs.version }}',
+                body: finalNotes,
+                draft: false,
+                prerelease: isPrerelease,
+                generate_release_notes: false
+              });
+              
+              console.log(`✅ Release created: ${release.data.html_url}`);
+              core.setOutput('release_url', release.data.html_url);
+              core.setOutput('release_id', release.data.id);
+              
+            } catch (error) {
+              if (error.message.includes('already_exists')) {
+                console.log('⚠️ Release already exists, updating instead...');
+                
+                // Get existing release
+                const existingRelease = await github.rest.repos.getReleaseByTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag: '${{ steps.tag-info.outputs.tag_name }}'
+                });
+                
+                const releaseNotes = fs.readFileSync('release-notes.md', 'utf8');
+                const finalNotes = releaseNotes +
+                  '\n\n---\n' +
+                  `*🤖 Updated by [Claude Code Analysis](${context.payload.repository.html_url}/actions/runs/${context.runId}) on ${new Date().toISOString()}*\n\n` +
+                  '**Co-authored-by:** Automagik Genie 🧞 <genie@namastex.ai>';
+                
+                // Update existing release
+                const updatedRelease = await github.rest.repos.updateRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: existingRelease.data.id,
+                  body: finalNotes
+                });
+                
+                console.log(`✅ Release updated: ${updatedRelease.data.html_url}`);
+                core.setOutput('release_url', updatedRelease.data.html_url);
+                core.setOutput('release_id', updatedRelease.data.id);
+              } else {
+                console.error('❌ Failed to create release:', error);
+                throw error;
+              }
+            }
+
+      - name: 📊 Workflow Summary
+        if: always()
+        run: |
+          echo "## 🚀 Auto Release Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release**: ${{ steps.tag-info.outputs.tag_name }} (v${{ steps.tag-info.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Type**: ${{ steps.changes.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Change Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Files Changed**: ${{ steps.changes.outputs.files_changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Lines Added**: ${{ steps.changes.outputs.lines_added }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Lines Deleted**: ${{ steps.changes.outputs.lines_deleted }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commits**: ${{ steps.changes.outputs.commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Generation Result" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.create-release.conclusion }}" = "success" ]; then
+            echo "✅ **Success**: Release notes generated and GitHub release created" >> $GITHUB_STEP_SUMMARY
+            echo "- **Release URL**: ${{ steps.create-release.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Notes Length**: ${{ steps.extract-notes.outputs.length }} characters" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Failed**: Unable to generate or create release" >> $GITHUB_STEP_SUMMARY
+            echo "**Claude Analysis**: ${{ steps.claude-analysis.outputs.conclusion }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Note Extraction**: ${{ steps.extract-notes.outputs.success }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Tag](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag-info.outputs.tag_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
