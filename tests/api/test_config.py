@@ -15,9 +15,9 @@ from automagik_spark.api.config import (
 def clean_env():
     """Fixture to clean environment variables before tests."""
     env_vars = [
-        "AUTOMAGIK_API_CORS",
-        "AUTOMAGIK_API_HOST",
-        "AUTOMAGIK_API_PORT",
+        "AM_API_CORS",
+        "AM_API_HOST",
+        "AM_API_PORT",
         "SPARK_API_KEY",
         "LANGFLOW_API_URL",
         "LANGFLOW_API_KEY"
@@ -46,7 +46,7 @@ def test_get_cors_origins_default(clean_env):
 def test_get_cors_origins_custom(clean_env):
     """Test get_cors_origins returns custom values from env var."""
     test_origins = ["http://example.com", "http://test.com"]
-    os.environ["AUTOMAGIK_API_CORS"] = ",".join(test_origins)
+    os.environ["AM_API_CORS"] = ",".join(test_origins)
     
     origins = get_cors_origins()
     assert isinstance(origins, list)
@@ -56,7 +56,7 @@ def test_get_cors_origins_custom(clean_env):
 
 def test_get_cors_origins_empty(clean_env):
     """Test get_cors_origins with empty string."""
-    os.environ["AUTOMAGIK_API_CORS"] = ""
+    os.environ["AM_API_CORS"] = ""
     origins = get_cors_origins()
     assert isinstance(origins, list)
     assert len(origins) == 0
@@ -69,27 +69,27 @@ def test_get_api_host_default(clean_env):
 def test_get_api_host_custom(clean_env):
     """Test getting a custom API host."""
     test_host = "127.0.0.1"
-    os.environ["AUTOMAGIK_API_HOST"] = test_host
+    os.environ["AM_API_HOST"] = test_host
     host = get_api_host()
     assert host == test_host
 
 def test_get_api_port_default(clean_env):
     """Test getting the default API port."""
     port = get_api_port()
-    assert port == 8888
+    assert port == 8883
     assert isinstance(port, int)
 
 def test_get_api_port_custom(clean_env):
     """Test getting a custom API port."""
     test_port = "9999"
-    os.environ["AUTOMAGIK_API_PORT"] = test_port
+    os.environ["AM_API_PORT"] = test_port
     port = get_api_port()
     assert port == int(test_port)
     assert isinstance(port, int)
 
 def test_get_api_port_invalid(clean_env):
     """Test getting an invalid API port."""
-    os.environ["AUTOMAGIK_API_PORT"] = "invalid"
+    os.environ["AM_API_PORT"] = "invalid"
     with pytest.raises(ValueError):
         get_api_port()
 
