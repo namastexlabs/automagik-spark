@@ -280,32 +280,32 @@ if [ -f .env ]; then
     if prompt_yes_no "An existing .env file was found.\nWould you like to create a new one? (This will overwrite the existing file)"; then
         cp .env.dev .env
         # Ensure DATABASE_URL is set correctly for local development
-        sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik:automagik@localhost:15432/automagik|' .env
+        sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik_spark:automagik@localhost:15432/automagik_spark|' .env
         # Ensure worker log path is set correctly
-        sed -i 's|^AUTOMAGIK_WORKER_LOG=.*|AUTOMAGIK_WORKER_LOG=logs/worker.log|' .env
+        sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=logs/worker.log|' .env
         print_status "Environment file created successfully!"
     else
         print_status "Using existing .env file."
         # Ensure DATABASE_URL is set correctly
-        if ! grep -q "^DATABASE_URL=postgresql\+asyncpg://automagik:automagik@localhost:15432/automagik" .env; then
-            sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik:automagik@localhost:15432/automagik|' .env
+        if ! grep -q "^DATABASE_URL=postgresql\+asyncpg://automagik_spark:automagik@localhost:15432/automagik_spark" .env; then
+            sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik_spark:automagik@localhost:15432/automagik_spark|' .env
             print_status "Updated DATABASE_URL in .env"
         fi
         # Ensure worker log path is set correctly
-        if ! grep -q "^AUTOMAGIK_WORKER_LOG=logs/worker.log" .env; then
-            sed -i 's|^AUTOMAGIK_WORKER_LOG=.*|AUTOMAGIK_WORKER_LOG=logs/worker.log|' .env
-            print_status "Updated AUTOMAGIK_WORKER_LOG in .env"
+        if ! grep -q "^AM_WORKER_LOG=logs/worker.log" .env; then
+            sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=logs/worker.log|' .env
+            print_status "Updated AM_WORKER_LOG in .env"
         fi
     fi
 else
     cp .env.dev .env
     # Ensure DATABASE_URL is set correctly
-    sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik:automagik@localhost:15432/automagik|' .env
+    sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik_spark:automagik@localhost:15432/automagik_spark|' .env
     # Ensure Redis URLs are set correctly
     sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
     sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
     # Ensure worker log path is set correctly
-    sed -i 's|^AUTOMAGIK_WORKER_LOG=.*|AUTOMAGIK_WORKER_LOG=~/.automagik/log/automagik/worker.log|' .env
+    sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=~/.automagik_spark/log/automagik_spark/worker.log|' .env
     # Ensure Redis URL is set correctly
     sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
     sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
@@ -318,8 +318,8 @@ source .env
 set +a
 
 print_status "Creating logs directory..."
-mkdir -p "$(eval echo "$(dirname "$AUTOMAGIK_WORKER_LOG")")"
-touch "$(eval echo "$AUTOMAGIK_WORKER_LOG")"
+mkdir -p "$(eval echo "$(dirname "$AM_WORKER_LOG")")"
+touch "$(eval echo "$AM_WORKER_LOG")"
 
 print_status "Creating virtual environment..."
 uv venv

@@ -115,7 +115,7 @@ create_env_file() {
     print_status "Creating .env file from example..."
     cp .env.example .env
     print_status "Environment file created successfully!"
-    print_warning "Please make sure to update AUTOMAGIK_API_KEY with a secure key"
+    print_warning "Please make sure to update SPARK_API_KEY with a secure key"
 }
 
 # Create .env file if it doesn't exist
@@ -127,8 +127,8 @@ source .env
 set +a
 
 print_status "Creating logs directory..."
-mkdir -p "$(eval echo "$(dirname "$AUTOMAGIK_WORKER_LOG")")"
-touch "$(eval echo "$AUTOMAGIK_WORKER_LOG")"
+mkdir -p "$(eval echo "$(dirname "$AM_WORKER_LOG")")"
+touch "$(eval echo "$AM_WORKER_LOG")"
 
 # Update Redis URLs for local development
 sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env

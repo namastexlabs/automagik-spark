@@ -7,7 +7,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="automagik-spark",
-    version=__import__("automagik.version").__version__,
+    version=__import__("automagik_spark.version").__version__,
     author="NamasteX Labs",
     author_email="dev@namastexlabs.com",
     description="AI-driven workflow automation with LangFlow integration",
@@ -18,7 +18,7 @@ setup(
         "Bug Tracker": "https://github.com/namastexlabs/automagik-spark/issues",
         "Documentation": "https://github.com/namastexlabs/automagik-spark/tree/main/docs",
     },
-    packages=find_packages(include=['automagik*']),
+    packages=find_packages(include=['automagik_spark*']),
     include_package_data=True,
     install_requires=[
         'click>=8.0.0',
@@ -46,7 +46,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'automagik-spark=automagik.cli.cli:main',
+            'automagik-spark=automagik_spark.cli.cli:main',
         ],
     },
     classifiers=[

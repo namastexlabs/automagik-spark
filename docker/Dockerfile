@@ -28,7 +28,7 @@ RUN mkdir -p /root/.automagik-spark/logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV AUTOMAGIK_SPARK_ENV=production
+ENV AM_ENV=production
 
 # Expose port for API
 EXPOSE 8883

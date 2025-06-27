@@ -39,13 +39,12 @@ services:
 
   # Automagik API service
   automagik-spark-api:
-    image: namastexlabs/automagik-spark-api:latest
+    image: namastexlabs/automagik_spark-spark-api:latest
     container_name: automagik-spark-api
     env_file:
       - .env
-    env_file:
-      - .env
-      AUTOMAGIK_SPARK_ENV: production
+    environment:
+      AM_ENV: production
       PYTHONUNBUFFERED: 1
     ports:
       - "8883:8883"
@@ -62,13 +61,12 @@ services:
 
   # Automagik Worker service
   automagik-spark-worker:
-    image: namastexlabs/automagik-spark-worker:latest
+    image: namastexlabs/automagik_spark-spark-worker:latest
     container_name: automagik-spark-worker
     env_file:
       - .env
-    env_file:
-      - .env
-      AUTOMAGIK_SPARK_ENV: production
+    environment:
+      AM_ENV: production
       PYTHONUNBUFFERED: 1
     depends_on:
       automagik-spark-db:
