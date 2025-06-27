@@ -17,11 +17,12 @@ def source_group():
     pass
 
 @source_group.command()
+@click.option("--name", "-n", required=True, help="Human-readable name for the source")
 @click.option("--type", "-t", required=True, help="Source type (e.g., langflow)")
 @click.option("--url", "-u", required=True, help="Source URL")
 @click.option("--api-key", "-k", required=True, help="API key for authentication")
 @click.option("--status", "-s", default="active", help="Source status (active/inactive)")
-def add(type: str, url: str, api_key: str, status: str):
+def add(name: str, type: str, url: str, api_key: str, status: str):
     """Add a new workflow source."""
     async def _add():
         async with get_session() as session:
@@ -32,6 +33,7 @@ def add(type: str, url: str, api_key: str, status: str):
             existing = result.scalar_one_or_none()
             if existing:
                 click.echo(f"Source with URL {url} already exists. Updating instead...")
+                existing.name = name
                 existing.source_type = type
                 existing.encrypted_api_key = WorkflowSource.encrypt_api_key(api_key)
                 existing.status = status
@@ -39,6 +41,7 @@ def add(type: str, url: str, api_key: str, status: str):
             else:
                 # Create new source
                 source = WorkflowSource(
+                    name=name,
                     source_type=type,
                     url=url,
                     encrypted_api_key=WorkflowSource.encrypt_api_key(api_key),
