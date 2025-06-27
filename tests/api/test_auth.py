@@ -4,8 +4,8 @@ import os
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from automagik.api.app import app
-from automagik.api.dependencies import verify_api_key
+from automagik_spark.api.app import app
+from automagik_spark.api.dependencies import verify_api_key
 
 TEST_API_KEY = "test-key"
 
@@ -16,17 +16,17 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 def clean_env():
     """Clean up environment variables before and after each test."""
     # Store original value
-    original_key = os.environ.get("AUTOMAGIK_API_KEY")
-    if "AUTOMAGIK_API_KEY" in os.environ:
-        del os.environ["AUTOMAGIK_API_KEY"]
+    original_key = os.environ.get("SPARK_API_KEY")
+    if "SPARK_API_KEY" in os.environ:
+        del os.environ["SPARK_API_KEY"]
     
     yield
     
     # Restore original value
     if original_key is not None:
-        os.environ["AUTOMAGIK_API_KEY"] = original_key
-    elif "AUTOMAGIK_API_KEY" in os.environ:
-        del os.environ["AUTOMAGIK_API_KEY"]
+        os.environ["SPARK_API_KEY"] = original_key
+    elif "SPARK_API_KEY" in os.environ:
+        del os.environ["SPARK_API_KEY"]
 
 @pytest.fixture
 def client():
@@ -41,7 +41,7 @@ async def test_api_no_key_configured(client, clean_env):
 
 async def test_api_key_required(client, clean_env):
     """Test API key is required when configured."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     response = client.get("/")
     assert response.status_code == 401
     error = response.json()
@@ -50,7 +50,7 @@ async def test_api_key_required(client, clean_env):
 
 async def test_api_key_valid(client, clean_env):
     """Test API key authentication works."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": TEST_API_KEY}
     response = client.get("/", headers=headers)
     assert response.status_code == 200
@@ -58,7 +58,7 @@ async def test_api_key_valid(client, clean_env):
 
 async def test_api_key_invalid(client, clean_env):
     """Test invalid API key is rejected."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": "wrong-key"}
     response = client.get("/", headers=headers)
     assert response.status_code == 401
@@ -78,7 +78,7 @@ async def test_verify_api_key_no_key_configured(clean_env):
 
 async def test_verify_api_key_with_key_configured(clean_env):
     """Test verify_api_key with configured key."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     
     # Valid key should be accepted
     result = await verify_api_key(TEST_API_KEY)
@@ -98,7 +98,7 @@ async def test_verify_api_key_with_key_configured(clean_env):
 
 async def test_api_key_case_sensitive(client, clean_env):
     """Test API key validation is case-sensitive."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": TEST_API_KEY.upper()}
     response = client.get("/", headers=headers)
     assert response.status_code == 401
@@ -108,7 +108,7 @@ async def test_api_key_case_sensitive(client, clean_env):
 
 async def test_api_key_whitespace(client, clean_env):
     """Test API key validation with whitespace."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": f" {TEST_API_KEY} "}
     response = client.get("/", headers=headers)
     assert response.status_code == 401

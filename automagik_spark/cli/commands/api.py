@@ -3,7 +3,7 @@
 
 import click
 import uvicorn
-from automagik.api.config import get_api_host, get_api_port
+from automagik_spark.api.config import get_api_host, get_api_port
 
 api_group = click.Group(name="api", help="API server commands")
 
@@ -15,7 +15,7 @@ api_group = click.Group(name="api", help="API server commands")
 def start_api(host: str, port: int, reload: bool):
     """Start the API server."""
     uvicorn.run(
-        "automagik.api.app:app",
+        "automagik_spark.api.app:app",
         host=host,
         port=port,
         reload=reload,

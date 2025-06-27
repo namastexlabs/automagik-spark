@@ -24,13 +24,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 import asyncio
 
-from automagik.core.database import get_sync_session, get_session
-from automagik.core.database.models import Task, Workflow
-from automagik.core.workflows.manager import WorkflowManager
-from automagik.core.workflows.sync import WorkflowSync
-from automagik.core.workflows.remote import LangFlowManager
-from automagik.cli.utils.async_helper import handle_async_command
-from automagik.cli.utils.log import get_logger
+from automagik_spark.core.database import get_sync_session, get_session
+from automagik_spark.core.database.models import Task, Workflow
+from automagik_spark.core.workflows.manager import WorkflowManager
+from automagik_spark.core.workflows.sync import WorkflowSync
+from automagik_spark.core.workflows.remote import LangFlowManager
+from automagik_spark.cli.utils.async_helper import handle_async_command
+from automagik_spark.cli.utils.log import get_logger
 
 # Set up logging
 logger = get_logger(__name__)

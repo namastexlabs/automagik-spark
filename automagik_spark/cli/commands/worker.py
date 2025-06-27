@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Configure paths
-WORKER_LOG = os.getenv("AUTOMAGIK_SPARK_WORKER_LOG", "/var/log/automagik/worker.log")
+WORKER_LOG = os.getenv("AM_WORKER_LOG", "/var/log/automagik/worker.log")
 WORKER_PID_FILE = os.path.join(os.path.dirname(WORKER_LOG), 'worker.pid')
 BEAT_PID_FILE = os.path.join(os.path.dirname(WORKER_LOG), 'beat.pid')
 
@@ -49,7 +49,7 @@ os.makedirs(os.path.dirname(WORKER_LOG), exist_ok=True)
 
 def configure_logging():
     """Configure logging based on environment variables."""
-    log_path = os.getenv('AUTOMAGIK_SPARK_WORKER_LOG')
+    log_path = os.getenv('AM_WORKER_LOG')
     if not log_path:
         # Check if we're in development mode (local directory exists)
         if os.path.isdir('logs'):
@@ -82,7 +82,7 @@ def configure_logging():
     logging.root.addHandler(console_handler)
     
     # Set log level from environment or default to INFO
-    log_level = os.getenv('AUTOMAGIK_SPARK_LOG_LEVEL', 'INFO')
+    log_level = os.getenv('AM_LOG_LEVEL', 'INFO')
     logging.root.setLevel(getattr(logging, log_level))
     
     return log_path
@@ -372,7 +372,7 @@ def start(threads: int = 2, daemon: bool = False):
 def logs(tail: bool, lines: int, follow: bool):
     """Show worker logs."""
     # Get the log file path
-    log_path = os.getenv('AUTOMAGIK_SPARK_WORKER_LOG')
+    log_path = os.getenv('AM_WORKER_LOG')
     if not log_path:
         if os.path.isdir('logs'):
             log_path = os.path.expanduser('logs/worker.log')

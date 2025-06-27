@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from automagik.core.database.models import Base
+from automagik_spark.core.database.models import Base
 
 
 @pytest.mark.asyncio

@@ -5,9 +5,9 @@ import pytest
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from automagik.core.workflows import WorkflowManager
-from automagik.core.scheduler import SchedulerManager
-from automagik.core.database.models import Workflow, Schedule
+from automagik_spark.core.workflows import WorkflowManager
+from automagik_spark.core.scheduler import SchedulerManager
+from automagik_spark.core.database.models import Workflow, Schedule
 
 @pytest.fixture
 def flow_manager(session):

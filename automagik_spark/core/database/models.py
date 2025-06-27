@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID, func
 from sqlalchemy.orm import relationship, synonym
 
-from automagik.core.database.base import Base
+from automagik_spark.core.database.base import Base
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +123,11 @@ class WorkflowSource(Base):
     @staticmethod
     def _get_encryption_key():
         """Get encryption key from environment or generate a default one."""
-        key = os.environ.get('AUTOMAGIK_SPARK_ENCRYPTION_KEY')
+        key = os.environ.get('SPARK_ENCRYPTION_KEY')
         
         if not key:
             # Log a warning that we're using a testing key
-            logger.warning("No AUTOMAGIK_SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
+            logger.warning("No SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
             # Use a fixed testing key that's URL-safe base64 encoded
             return b'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
             

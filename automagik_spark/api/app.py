@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 import httpx
 
-from automagik.version import __version__
+from automagik_spark.version import __version__
 from .config import get_cors_origins, get_api_key
 from ..core.config import get_settings
 from .dependencies import verify_api_key

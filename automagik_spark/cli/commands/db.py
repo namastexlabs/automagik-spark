@@ -109,8 +109,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from automagik.core.database import Base
-from automagik.core.database.session import DATABASE_URL
+from automagik_spark.core.database import Base
+from automagik_spark.core.database.session import DATABASE_URL
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

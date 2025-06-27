@@ -6,14 +6,14 @@ from uuid import uuid4
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from automagik.core.database.models import (
+from automagik_spark.core.database.models import (
     Workflow,
     WorkflowComponent,
     Schedule,
     Task,
     TaskLog
 )
-from automagik.core.workflows.workflow import LocalWorkflowManager
+from automagik_spark.core.workflows.workflow import LocalWorkflowManager
 
 @pytest.fixture
 async def workflow_manager(session: AsyncSession) -> LocalWorkflowManager:

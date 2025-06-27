@@ -9,9 +9,9 @@ from sqlalchemy import select
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
-from automagik.core.workflows.manager import WorkflowManager
-from automagik.core.workflows.remote import LangFlowManager
-from automagik.core.database.models import Workflow, WorkflowSource
+from automagik_spark.core.workflows.manager import WorkflowManager
+from automagik_spark.core.workflows.remote import LangFlowManager
+from automagik_spark.core.database.models import Workflow, WorkflowSource
 
 
 @pytest.fixture

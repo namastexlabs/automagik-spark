@@ -7,9 +7,9 @@ from uuid import uuid4
 import httpx
 import json
 
-from automagik.core.database.models import Workflow
-from automagik.core.workflows.remote import LangFlowManager
-from automagik.core.workflows.manager import WorkflowManager
+from automagik_spark.core.database.models import Workflow
+from automagik_spark.core.workflows.remote import LangFlowManager
+from automagik_spark.core.workflows.manager import WorkflowManager
 from conftest import AsyncClientMock  
 
 @pytest.fixture

@@ -7,8 +7,8 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from automagik.core.database.models import Workflow, Task, Schedule, WorkflowComponent
-from automagik.core.workflows.workflow import LocalWorkflowManager
+from automagik_spark.core.database.models import Workflow, Task, Schedule, WorkflowComponent
+from automagik_spark.core.workflows.workflow import LocalWorkflowManager
 
 @pytest.fixture(autouse=True)
 async def cleanup_workflows(session: AsyncSession):

@@ -16,7 +16,7 @@ async def verify_api_key(
 ) -> str:
     """
     Verify the API key from the X-API-Key header.
-    If AUTOMAGIK_API_KEY is not set, all requests are allowed.
+    If SPARK_API_KEY is not set, all requests are allowed.
     """
     # Use header for authentication
     api_key = api_key_header

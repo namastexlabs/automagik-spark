@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from contextlib import asynccontextmanager
 import httpx
-from automagik.core.workflows import WorkflowManager  # Fix import path
+from automagik_spark.core.workflows import WorkflowManager  # Fix import path
 
 # Use in-memory SQLite for testing with a shared connection
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -21,21 +21,21 @@ TEST_API_KEY = "namastex888"
 
 # Set up test environment variables
 os.environ["AUTOMAGIK_ENV"] = "testing"
-os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+os.environ["SPARK_API_KEY"] = TEST_API_KEY
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
 
 # Now load the models after setting up the environment
-from automagik.core.database.models import Base
-from automagik.api.app import app
-from automagik.api.dependencies import get_session, get_async_session
-from automagik.core.database.session import async_session as production_session
+from automagik_spark.core.database.models import Base
+from automagik_spark.api.app import app
+from automagik_spark.api.dependencies import get_session, get_async_session
+from automagik_spark.core.database.session import async_session as production_session
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Set up test environment."""
     yield
     os.environ.pop("AUTOMAGIK_ENV", None)
-    os.environ.pop("AUTOMAGIK_API_KEY", None)
+    os.environ.pop("SPARK_API_KEY", None)
     os.environ.pop("DATABASE_URL", None)
 
 # Configure pytest-asyncio to use session scope for event loop

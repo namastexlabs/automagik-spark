@@ -57,7 +57,7 @@ dependencies = [
 "Repository" = "https://github.com/namastexlabs/automagik-spark"
 
 [project.scripts]
-automagik-spark = "automagik.cli.cli:main"
+automagik-spark = "automagik_spark.cli.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -69,7 +69,7 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--asyncio-mode=auto --cov=automagik --cov-report=term-missing"
+addopts = "--asyncio-mode=auto --cov=automagik_spark --cov-report=term-missing"
 markers = [
     "asyncio: mark a test as an asyncio coroutine",
 ]

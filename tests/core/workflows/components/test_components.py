@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
-from automagik.core.workflows.manager import WorkflowManager
+from automagik_spark.core.workflows.manager import WorkflowManager
 
 @pytest.fixture
 def flow_manager(session):

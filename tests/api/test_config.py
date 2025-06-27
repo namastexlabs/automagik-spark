@@ -3,7 +3,7 @@
 import os
 import pytest
 from unittest.mock import patch
-from automagik.api.config import (
+from automagik_spark.api.config import (
     get_cors_origins,
     get_api_host,
     get_api_port,
@@ -19,7 +19,7 @@ def clean_env():
         "AUTOMAGIK_API_CORS",
         "AUTOMAGIK_API_HOST",
         "AUTOMAGIK_API_PORT",
-        "AUTOMAGIK_API_KEY",
+        "SPARK_API_KEY",
         "LANGFLOW_API_URL",
         "LANGFLOW_API_KEY"
     ]
@@ -102,7 +102,7 @@ def test_get_api_key_default(clean_env):
 def test_get_api_key_custom(clean_env):
     """Test get_api_key returns value from env var."""
     test_key = "test-api-key"
-    os.environ["AUTOMAGIK_API_KEY"] = test_key
+    os.environ["SPARK_API_KEY"] = test_key
     api_key = get_api_key()
     assert api_key == test_key
 

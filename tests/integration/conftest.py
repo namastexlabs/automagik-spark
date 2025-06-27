@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 import asyncio
 
-from automagik.core.database.models import Base
+from automagik_spark.core.database.models import Base
 
 # Note: We're using pytest-asyncio's built-in event_loop fixture with loop_scope configured in pytest.ini
 # All tests should use @pytest.mark.asyncio(loop_scope="function") for consistent event loop behavior

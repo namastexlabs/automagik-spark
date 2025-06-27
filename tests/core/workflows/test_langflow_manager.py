@@ -7,7 +7,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import HTTPError, Request, Response
 
-from automagik.core.workflows.remote import LangFlowManager
+from automagik_spark.core.workflows.remote import LangFlowManager
 
 @pytest.fixture
 async def langflow_manager(session):

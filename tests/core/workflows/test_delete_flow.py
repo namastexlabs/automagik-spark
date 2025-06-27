@@ -6,8 +6,8 @@ from datetime import datetime
 import pytz
 from sqlalchemy import select
 
-from automagik.core.database.models import Task, Workflow, Schedule, WorkflowComponent, TaskLog
-from automagik.core.workflows.manager import WorkflowManager
+from automagik_spark.core.database.models import Task, Workflow, Schedule, WorkflowComponent, TaskLog
+from automagik_spark.core.workflows.manager import WorkflowManager
 
 
 @pytest.fixture

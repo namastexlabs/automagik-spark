@@ -9,7 +9,7 @@ from sqlalchemy import select
 import httpx
 from cryptography.fernet import Fernet
 
-from automagik.core.workflows import WorkflowManager
-from automagik.core.database.models import Workflow, WorkflowSource
+from automagik_spark.core.workflows import WorkflowManager
+from automagik_spark.core.database.models import Workflow, WorkflowSource
 
 

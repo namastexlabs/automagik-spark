@@ -10,8 +10,8 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from automagik.core.workflows.sync import WorkflowSync
-from automagik.core.database.models import Task, Workflow, TaskLog
+from automagik_spark.core.workflows.sync import WorkflowSync
+from automagik_spark.core.database.models import Task, Workflow, TaskLog
 
 @pytest.fixture
 async def workflow_sync(session: AsyncSession) -> WorkflowSync:

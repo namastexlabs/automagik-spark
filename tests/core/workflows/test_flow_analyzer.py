@@ -2,7 +2,7 @@
 """Test flow analyzer functionality."""
 
 import pytest
-from automagik.core.workflows.analyzer import FlowAnalyzer
+from automagik_spark.core.workflows.analyzer import FlowAnalyzer
 
 def test_analyze_component_with_tweakable_params():
     """Test analyzing a component with tweakable parameters."""

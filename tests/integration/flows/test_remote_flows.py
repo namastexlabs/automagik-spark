@@ -7,8 +7,8 @@ import httpx
 from uuid import uuid4
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from automagik.core.workflows.remote import LangFlowManager
-from automagik.core.config import LANGFLOW_API_URL, LANGFLOW_API_KEY
+from automagik_spark.core.workflows.remote import LangFlowManager
+from automagik_spark.core.config import LANGFLOW_API_URL, LANGFLOW_API_KEY
 
 pytestmark = pytest.mark.integration
 

@@ -8,11 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.testclient import TestClient
 
-from automagik.version import __version__
-from automagik.api.app import app
-from automagik.api.config import get_cors_origins, get_api_key
-from automagik.api.dependencies import verify_api_key
-from automagik.api.routers import tasks, workflows, schedules
+from automagik_spark.version import __version__
+from automagik_spark.api.app import app
+from automagik_spark.api.config import get_cors_origins, get_api_key
+from automagik_spark.api.dependencies import verify_api_key
+from automagik_spark.api.routers import tasks, workflows, schedules
 from tests.conftest import TEST_API_KEY
 
 # Mark all tests to use session-scoped event loop
@@ -74,7 +74,7 @@ def client():
 @pytest.fixture
 def clean_env():
     """Clean up environment variables before and after each test."""
-    env_vars = ["AUTOMAGIK_API_KEY", "AUTOMAGIK_API_CORS"]
+    env_vars = ["SPARK_API_KEY", "AUTOMAGIK_API_CORS"]
     original_values = {}
     for var in env_vars:
         if var in os.environ:
@@ -88,7 +88,7 @@ def clean_env():
 
 async def test_root_endpoint(client: TestClient, clean_env):
     """Test the root endpoint returns correct status."""
-    os.environ["AUTOMAGIK_API_KEY"] = TEST_API_KEY
+    os.environ["SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": TEST_API_KEY}
     response = client.get("/", headers=headers)
     assert response.status_code == 200

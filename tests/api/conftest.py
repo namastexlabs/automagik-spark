@@ -2,7 +2,7 @@
 """Test configuration for API tests."""
 import pytest
 from fastapi.testclient import TestClient
-from automagik.api.app import app
+from automagik_spark.api.app import app
 
 @pytest.fixture
 def client():
