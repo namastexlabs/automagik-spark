@@ -9,7 +9,7 @@ load_dotenv()
 
 def get_cors_origins() -> List[str]:
     """Get CORS origins from environment variable."""
-    cors_origins = os.getenv("SPARK_API_CORS", "http://localhost:3000,http://localhost:8883")
+    cors_origins = os.getenv("SPARK_API_CORS", "http://localhost:3000,http://localhost:18883")
     return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 def get_api_host() -> str:
@@ -18,7 +18,7 @@ def get_api_host() -> str:
 
 def get_api_port() -> int:
     """Get Spark API port from environment variable."""
-    port_str = os.getenv("SPARK_API_PORT", "8883")
+    port_str = os.getenv("SPARK_API_PORT", "18883")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -48,7 +48,7 @@ def get_database_url() -> str:
 
 def get_agents_api_port() -> int:
     """Get AutoMagik Agents API port from environment variable."""
-    port_str = os.getenv("AM_API_PORT", "8881")
+    port_str = os.getenv("AM_API_PORT", "18881")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:

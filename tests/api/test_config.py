@@ -43,7 +43,7 @@ def test_get_cors_origins_default(clean_env):
     assert isinstance(origins, list)
     assert len(origins) == 2
     assert "http://localhost:3000" in origins
-    assert "http://localhost:8883" in origins
+    assert "http://localhost:18883" in origins
 
 def test_get_cors_origins_custom(clean_env):
     """Test get_cors_origins returns custom values from env var."""
@@ -78,7 +78,7 @@ def test_get_api_host_custom(clean_env):
 def test_get_api_port_default(clean_env):
     """Test getting the default API port."""
     port = get_api_port()
-    assert port == 8883
+    assert port == 18883
     assert isinstance(port, int)
 
 def test_get_api_port_custom(clean_env):
