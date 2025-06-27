@@ -4,12 +4,12 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from uuid import UUID, uuid4
 
 from croniter import croniter
 from dateutil.parser import parse as parse_datetime
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 

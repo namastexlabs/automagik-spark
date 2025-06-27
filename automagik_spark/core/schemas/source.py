@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, HttpUrl, constr, ConfigDict
+from pydantic import BaseModel, HttpUrl, ConfigDict
 
 class SourceType(str, Enum):
     """Enum for workflow source types."""

@@ -5,7 +5,6 @@ Provides endpoints for managing workflows.
 """
 
 from typing import List, Dict, Any, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession

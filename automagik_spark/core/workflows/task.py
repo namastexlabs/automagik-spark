@@ -7,10 +7,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
-from sqlalchemy import event, select, delete
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Task, Workflow, TaskLog
+from ..database.models import Task, TaskLog
 
 logger = logging.getLogger(__name__)
 

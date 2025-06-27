@@ -4,7 +4,7 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock
 
 from automagik_spark.core.workflows.manager import WorkflowManager
 

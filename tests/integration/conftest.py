@@ -1,11 +1,9 @@
 
 """Configuration for integration tests."""
 
-import os
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-import asyncio
 
 from automagik_spark.core.database.models import Base
 

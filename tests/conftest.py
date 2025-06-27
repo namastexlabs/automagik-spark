@@ -2,15 +2,12 @@
 """Test configuration and fixtures."""
 
 import os
-import asyncio
 import pytest
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
-from contextlib import asynccontextmanager
-import httpx
 from automagik_spark.core.workflows import WorkflowManager  # Fix import path
 
 # Use in-memory SQLite for testing with a shared connection
@@ -27,8 +24,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
 # Now load the models after setting up the environment
 from automagik_spark.core.database.models import Base
 from automagik_spark.api.app import app
-from automagik_spark.api.dependencies import get_session, get_async_session
-from automagik_spark.core.database.session import async_session as production_session
+from automagik_spark.api.dependencies import get_async_session
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():

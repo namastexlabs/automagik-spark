@@ -12,9 +12,8 @@ Provides CLI commands for managing workflow schedules:
 import asyncio
 import click
 import json
-from typing import Optional
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from uuid import UUID
 from croniter import croniter
 from sqlalchemy import select, func, case
@@ -26,7 +25,6 @@ from ...core.database.models import Workflow, Schedule, Task
 from ..utils.table_styles import (
     create_rich_table,
     format_timestamp,
-    get_status_style,
     print_table
 )
 
@@ -118,7 +116,7 @@ def create():
                 interval = click.prompt("\nEnter interval")
                 
                 # Validate interval format
-                if not interval[-1].lower() in ['m', 'h', 'd']:
+                if interval[-1].lower() not in ['m', 'h', 'd']:
                     click.echo("Invalid interval unit")
                     return
                     

@@ -9,29 +9,19 @@ import click
 import json
 import logging
 import os
-import psutil
 import signal
-import socket
 import sys
-import re
 import subprocess
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Optional
-from uuid import UUID, uuid4
+from datetime import datetime, timezone
+from uuid import uuid4
 
-from sqlalchemy import select, func, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from ...core.database.models import Worker, Schedule, Task, Workflow
+from ...core.database.models import Schedule, Task
 from ...core.database.session import get_session
-from ...core.workflows.manager import WorkflowManager
-from ...core.workflows.task import TaskManager
-from ...core.scheduler.scheduler import WorkflowScheduler as SchedulerManager
-from ...core.workflows.remote import LangFlowManager
 from ...core.celery_config import app as celery_app
-from ...core.tasks.workflow_tasks import execute_workflow, schedule_workflow
-from tabulate import tabulate
+from ...core.tasks.workflow_tasks import execute_workflow
 from rich.console import Console
 from rich.table import Table
 

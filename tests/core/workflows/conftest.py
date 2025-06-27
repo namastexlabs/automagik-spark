@@ -1,7 +1,7 @@
 
 """Test fixtures for flow tests."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 
 class AsyncClientMock(AsyncMock):

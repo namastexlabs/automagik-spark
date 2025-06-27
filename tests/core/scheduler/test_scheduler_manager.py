@@ -8,7 +8,7 @@ from croniter import croniter
 
 from automagik_spark.core.workflows import WorkflowManager
 from automagik_spark.core.scheduler import SchedulerManager
-from automagik_spark.core.database.models import Workflow, Schedule
+from automagik_spark.core.database.models import Workflow
 
 
 @pytest.fixture

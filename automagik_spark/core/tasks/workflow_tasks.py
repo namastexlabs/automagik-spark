@@ -8,8 +8,7 @@ from uuid import UUID, uuid4
 
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
-from sqlalchemy import select, and_
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select
 
 from ...core.database.session import get_sync_session
 from ...core.database.models import Task, Workflow, Schedule

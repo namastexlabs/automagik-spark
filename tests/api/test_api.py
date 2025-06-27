@@ -3,14 +3,13 @@
 import os
 import datetime
 import pytest
-from fastapi import FastAPI, Depends, Security
+from fastapi import FastAPI, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.testclient import TestClient
 
 from automagik_spark.version import __version__
-from automagik_spark.api.app import app
-from automagik_spark.api.config import get_cors_origins, get_api_key
+from automagik_spark.api.config import get_cors_origins
 from automagik_spark.api.dependencies import verify_api_key
 from automagik_spark.api.routers import tasks, workflows, schedules
 from tests.conftest import TEST_API_KEY

@@ -14,21 +14,17 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich import print
 from rich.panel import Panel
-from uuid import UUID
-from typing import Optional, Any, Callable, List, Dict
+from typing import Optional, Any, Callable
 from sqlalchemy import select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 import asyncio
 
-from automagik_spark.core.database import get_sync_session, get_session
+from automagik_spark.core.database import get_session
 from automagik_spark.core.database.models import Task, Workflow
 from automagik_spark.core.workflows.manager import WorkflowManager
-from automagik_spark.core.workflows.sync import WorkflowSync
-from automagik_spark.core.workflows.remote import LangFlowManager
 from automagik_spark.cli.utils.async_helper import handle_async_command
 from automagik_spark.cli.utils.log import get_logger
 
@@ -164,15 +160,15 @@ async def _view_task(task_id: str) -> int:
             if task.next_retry_at:
                 click.echo(f"Next retry: {task.next_retry_at.strftime('%Y-%m-%d %H:%M:%S')}")
             
-            click.echo(f"\nInput:")
+            click.echo("\nInput:")
             click.echo(json.dumps(task.input_data, indent=2) if task.input_data else "None")
             
             if task.output_data:
-                click.echo(f"\nOutput:")
+                click.echo("\nOutput:")
                 click.echo(json.dumps(task.output_data, indent=2))
             
             if task.error:
-                click.echo(f"\nError:")
+                click.echo("\nError:")
                 click.echo(task.error)
             
             return 0

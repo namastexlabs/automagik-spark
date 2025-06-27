@@ -2,7 +2,7 @@
 Workflow management commands.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional
 import asyncio
 import click
 from sqlalchemy import select
@@ -18,7 +18,6 @@ from ..utils.table_styles import (
     print_table
 )
 
-from rich.console import Console
 from uuid import UUID
 
 workflow_group = click.Group(name="workflows", help="Workflow management commands")

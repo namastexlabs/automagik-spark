@@ -3,7 +3,6 @@
 
 import pytest
 from uuid import uuid4
-from datetime import datetime, timezone
 
 from automagik_spark.core.workflows import WorkflowManager
 from automagik_spark.core.scheduler import SchedulerManager

@@ -11,10 +11,9 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID, uuid4
 
 import httpx
-from sqlalchemy import select, delete, and_, cast, String, or_, func
+from sqlalchemy import select, delete, cast, String, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func  # Add this line
 
 from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog, WorkflowSource
 from ..schemas.source import SourceType
@@ -173,7 +172,7 @@ class WorkflowManager:
                     elif isinstance(self.source_manager, AutoMagikAgentManager):
                         flow = await self.source_manager.get_agent(flow_id)
                     else:
-                        logger.warning(f"Unsupported source type")
+                        logger.warning("Unsupported source type")
                         return None
 
                     if flow:

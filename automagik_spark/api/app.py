@@ -3,13 +3,13 @@
 import datetime
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Security
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 import httpx
 
 from automagik_spark.version import __version__
-from .config import get_cors_origins, get_api_key
+from .config import get_cors_origins
 from ..core.config import get_settings
 from .dependencies import verify_api_key
 from .routers import tasks, workflows, schedules, sources

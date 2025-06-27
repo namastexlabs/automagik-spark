@@ -6,18 +6,16 @@ Provides the main interface for managing schedules and running scheduled workflo
 
 import logging
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
+from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from croniter import croniter
-import re
 from dateutil import parser
-import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from ..database.models import Schedule, Task, Workflow
+from ..database.models import Schedule, Workflow
 from ..workflows.manager import WorkflowManager
 from .scheduler import WorkflowScheduler
 from .task_runner import TaskRunner

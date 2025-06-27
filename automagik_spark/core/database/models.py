@@ -3,13 +3,13 @@ Database models for the application.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from uuid import uuid4
 import os
 import base64
 from cryptography.fernet import Fernet
 import logging
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID, func
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UUID
 from sqlalchemy.orm import relationship, synonym
 
 from automagik_spark.core.database.base import Base

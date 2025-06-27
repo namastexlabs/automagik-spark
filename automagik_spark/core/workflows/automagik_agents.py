@@ -3,7 +3,6 @@
 from typing import Dict, Any, Optional, List
 import httpx
 from fastapi import HTTPException
-from pydantic import BaseModel
 import logging
 from uuid import UUID
 

@@ -10,12 +10,11 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 import uuid
-import httpx
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..database.models import Task, TaskLog, Workflow
+from ..database.models import Task, TaskLog
 from ..workflows.manager import WorkflowManager
 
 logger = logging.getLogger(__name__)

@@ -6,13 +6,11 @@ Provides functionality for creating and managing database sessions.
 
 import os
 import logging
-import asyncio
 from contextlib import asynccontextmanager, contextmanager
-from typing import AsyncGenerator, Generator
+from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import NullPool
 
 from ...api.config import get_database_url
 

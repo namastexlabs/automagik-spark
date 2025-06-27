@@ -2,7 +2,6 @@
 """Tests for the API configuration module."""
 import os
 import pytest
-from unittest.mock import patch
 from automagik_spark.api.config import (
     get_cors_origins,
     get_api_host,

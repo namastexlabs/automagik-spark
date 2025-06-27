@@ -1,7 +1,6 @@
 """API dependencies."""
-from typing import Optional
-from fastapi import Security, HTTPException, status, Depends, Query
-from fastapi.security import APIKeyHeader, APIKeyQuery
+from fastapi import Security, HTTPException, status, Depends
+from fastapi.security import APIKeyHeader
 from .config import get_api_key
 from ..core.database.session import get_async_session
 

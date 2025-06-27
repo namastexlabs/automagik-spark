@@ -3,7 +3,6 @@
 
 import asyncio
 import click
-import functools
 import logging
 from typing import Any, Callable, Coroutine
 
