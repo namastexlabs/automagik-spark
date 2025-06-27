@@ -148,6 +148,7 @@ jobs:
 
       - name: 🧠 Generate Release Notes with Claude Code
         id: claude-analysis
+        if: env.ANTHROPIC_API_KEY != ''
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
@@ -292,9 +293,56 @@ jobs:
               throw error;
             }
 
+      - name: 📝 Generate Fallback Release Notes
+        id: fallback-notes
+        if: env.ANTHROPIC_API_KEY == '' || steps.claude-analysis.outputs.conclusion != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            console.log('🔄 Generating fallback release notes...');
+            
+            const releaseNotes = '# 🚀 automagik-spark ${{ steps.tag-info.outputs.version }}\n\n' +
+              '## 📦 Release Information\n\n' +
+              'This release includes ${{ steps.changes.outputs.commits }} commits with ${{ steps.changes.outputs.files_changed }} files changed.\n\n' +
+              '## 📊 Change Summary\n\n' +
+              '- **Files Changed**: ${{ steps.changes.outputs.files_changed }}\n' +
+              '- **Lines Added**: +${{ steps.changes.outputs.lines_added }}\n' +
+              '- **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}\n' +
+              '- **New Files**: ${{ steps.changes.outputs.new_files }}\n' +
+              '- **Modified Files**: ${{ steps.changes.outputs.modified_files }}\n' +
+              '- **Deleted Files**: ${{ steps.changes.outputs.deleted_files }}\n\n' +
+              '## 🔄 Change Types\n\n' +
+              '- **Python Changes**: ${{ steps.changes.outputs.has_python }}\n' +
+              '- **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}\n' +
+              '- **Test Updates**: ${{ steps.changes.outputs.has_tests }}\n' +
+              '- **Configuration Changes**: ${{ steps.changes.outputs.has_config }}\n' +
+              '- **Docker Changes**: ${{ steps.changes.outputs.has_docker }}\n' +
+              '- **Build Changes**: ${{ steps.changes.outputs.has_build }}\n\n' +
+              '## 📦 Installation\n\n' +
+              '```bash\n' +
+              'pip install automagik-spark==${{ steps.tag-info.outputs.version }}\n' +
+              '```\n\n' +
+              '## 🐳 Docker\n\n' +
+              '```bash\n' +
+              'docker pull namastexlabs/automagik-spark-api:${{ steps.tag-info.outputs.tag_name }}\n' +
+              'docker pull namastexlabs/automagik-spark-worker:${{ steps.tag-info.outputs.tag_name }}\n' +
+              '```\n\n' +
+              '## ⚠️ Note\n\n' +
+              'This release was generated automatically without AI assistance. ' +
+              'For detailed change information, please review the commit history and file diffs.';
+            
+            // Store for next step
+            fs.writeFileSync('release-notes.md', releaseNotes);
+            core.setOutput('success', 'true');
+            core.setOutput('length', releaseNotes.length);
+            
+            console.log(`✅ Fallback release notes generated (${releaseNotes.length} characters)`);
+
       - name: 🎉 Create GitHub Release
         id: create-release
-        if: steps.extract-notes.outputs.success == 'true'
+        if: steps.extract-notes.outputs.success == 'true' || steps.fallback-notes.outputs.success == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -379,11 +427,18 @@ jobs:
           if [ "${{ steps.create-release.conclusion }}" = "success" ]; then
             echo "✅ **Success**: Release notes generated and GitHub release created" >> $GITHUB_STEP_SUMMARY
             echo "- **Release URL**: ${{ steps.create-release.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Notes Length**: ${{ steps.extract-notes.outputs.length }} characters" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.extract-notes.outputs.success }}" = "true" ]; then
+              echo "- **Generation Method**: Claude Code AI Analysis" >> $GITHUB_STEP_SUMMARY
+              echo "- **Notes Length**: ${{ steps.extract-notes.outputs.length }} characters" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ steps.fallback-notes.outputs.success }}" = "true" ]; then
+              echo "- **Generation Method**: Fallback Template (no AI)" >> $GITHUB_STEP_SUMMARY
+              echo "- **Notes Length**: ${{ steps.fallback-notes.outputs.length }} characters" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "❌ **Failed**: Unable to generate or create release" >> $GITHUB_STEP_SUMMARY
             echo "**Claude Analysis**: ${{ steps.claude-analysis.outputs.conclusion }}" >> $GITHUB_STEP_SUMMARY
             echo "**Note Extraction**: ${{ steps.extract-notes.outputs.success }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Fallback Notes**: ${{ steps.fallback-notes.outputs.success }}" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
