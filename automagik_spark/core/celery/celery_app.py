@@ -30,10 +30,10 @@ def get_celery_config():
         'task_default_queue': 'celery',
         'task_default_exchange': 'celery',
         'task_default_routing_key': 'celery',
-        'beat_scheduler': 'automagik.core.celery.scheduler:DatabaseScheduler',
+        'beat_scheduler': 'automagik_spark.core.celery.scheduler:DatabaseScheduler',
         'imports': (
-            'automagik.core.celery.tasks',
-            'automagik.core.tasks.workflow_tasks',
+            'automagik_spark.core.celery.tasks',
+            'automagik_spark.core.tasks.workflow_tasks',
         ),
         'worker_prefetch_multiplier': 1,
         'task_track_started': True,
@@ -50,7 +50,7 @@ def get_celery_config():
 
 def create_celery_app():
     """Create and configure Celery application."""
-    app = Celery('automagik')
+    app = Celery('automagik_spark')
     app.conf.update(get_celery_config())
     return app
 

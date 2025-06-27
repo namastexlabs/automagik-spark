@@ -93,7 +93,7 @@ class DatabaseScheduler(Scheduler):
                             entry = ScheduleEntry(
                                 name=schedule_name,
                                 schedule=celery_schedule(timedelta(seconds=seconds)),
-                                task='automagik.core.tasks.workflow_tasks.execute_workflow',
+                                task='automagik_spark.core.tasks.workflow_tasks.execute_workflow',
                                 args=(schedule_id,),
                                 kwargs={},
                                 options=task_options,
@@ -118,7 +118,7 @@ class DatabaseScheduler(Scheduler):
                                     month_of_year=month_of_year,
                                     day_of_week=day_of_week
                                 ),
-                                task='automagik.core.tasks.workflow_tasks.execute_workflow',
+                                task='automagik_spark.core.tasks.workflow_tasks.execute_workflow',
                                 args=(schedule_id,),
                                 kwargs={},
                                 options=task_options,
@@ -150,7 +150,7 @@ class DatabaseScheduler(Scheduler):
                                 entry = ScheduleEntry(
                                     name=schedule_name,
                                     schedule=celery_schedule(timedelta(seconds=delay), relative=True),
-                                    task='automagik.core.tasks.workflow_tasks.execute_workflow',
+                                    task='automagik_spark.core.tasks.workflow_tasks.execute_workflow',
                                     args=(schedule_id,),
                                     kwargs={},
                                     options=task_options,

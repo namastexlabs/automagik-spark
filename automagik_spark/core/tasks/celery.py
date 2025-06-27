@@ -7,7 +7,7 @@ from kombu import Queue, Exchange
 from ..config import get_settings
 
 # Create celery app
-app = Celery('automagik')
+app = Celery('automagik_spark')
 
 # Configure celery
 app.conf.update(
@@ -20,7 +20,7 @@ app.conf.update(
     ),
     task_default_queue='default',
     task_routes={
-        'automagik.core.tasks.workflow_tasks.execute_workflow': {'queue': 'default'},
+        'automagik_spark.core.tasks.workflow_tasks.execute_workflow': {'queue': 'default'},
     },
     worker_concurrency=int(os.getenv('CELERY_WORKER_CONCURRENCY', 2)),
     task_acks_late=True,
@@ -30,10 +30,10 @@ app.conf.update(
     task_retry_backoff_max=600,  # 10 minutes max backoff
     beat_schedule={},  # Will be populated dynamically
     beat_max_loop_interval=60,  # Check for new schedules every minute
-    beat_scheduler='automagik.core.celery_config.DatabaseScheduler',
+    beat_scheduler='automagik_spark.core.celery.scheduler:DatabaseScheduler',
     beat_schedule_filename=os.path.join(os.path.dirname(get_settings().worker_log), 'celerybeat-schedule'),
     imports=(
-        'automagik.core.tasks.workflow_tasks',
+        'automagik_spark.core.tasks.workflow_tasks',
     ),
     worker_prefetch_multiplier=1,  # Disable prefetching
     worker_max_tasks_per_child=100,  # Restart worker after 100 tasks
@@ -51,6 +51,6 @@ app.conf.update(
 )
 
 # Load tasks module
-app.autodiscover_tasks(['automagik.core.tasks'])
+app.autodiscover_tasks(['automagik_spark.core.tasks'])
 
 

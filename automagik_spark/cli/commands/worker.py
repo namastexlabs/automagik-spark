@@ -243,7 +243,7 @@ def start(threads: int = 2, daemon: bool = False):
         # Common worker command
         worker_cmd = [
             'celery',
-            '-A', 'automagik.core.celery_config',
+            '-A', 'automagik_spark.core.celery.celery_app',
             'worker',
             '--loglevel=INFO',
             '-P', 'prefork',
@@ -257,7 +257,7 @@ def start(threads: int = 2, daemon: bool = False):
         # Common beat command
         beat_cmd = [
             'celery',
-            '-A', 'automagik.core.celery_config',
+            '-A', 'automagik_spark.core.celery.celery_app',
             'beat',
             '--loglevel=INFO',
             '--schedule', os.path.join(log_dir, 'celerybeat-schedule'),
