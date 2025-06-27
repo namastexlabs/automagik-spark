@@ -147,7 +147,7 @@ async def test_cors_configuration_default(client: TestClient, clean_env):
 async def test_cors_configuration_custom(client: TestClient, clean_env):
     """Test custom CORS configuration."""
     test_origin = "http://example.com"
-    os.environ["AM_API_CORS"] = test_origin
+    os.environ["SPARK_API_CORS"] = test_origin
     
     # Create a new client with fresh CORS configuration
     client = create_test_client()

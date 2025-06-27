@@ -9,16 +9,16 @@ load_dotenv()
 
 def get_cors_origins() -> List[str]:
     """Get CORS origins from environment variable."""
-    cors_origins = os.getenv("AM_API_CORS", "http://localhost:3000,http://localhost:8000")
+    cors_origins = os.getenv("SPARK_API_CORS", "http://localhost:3000,http://localhost:8883")
     return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 def get_api_host() -> str:
-    """Get the API host from environment variable or default."""
-    return os.environ.get("AM_API_HOST", "0.0.0.0")
+    """Get the Spark API host from environment variable or default."""
+    return os.environ.get("SPARK_API_HOST", "0.0.0.0")
 
 def get_api_port() -> int:
-    """Get API port from environment variable."""
-    port_str = os.getenv("AM_API_PORT", "8883")
+    """Get Spark API port from environment variable."""
+    port_str = os.getenv("SPARK_API_PORT", "8883")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -45,5 +45,20 @@ def get_database_url() -> str:
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is not set")
     return database_url
+
+def get_agents_api_port() -> int:
+    """Get AutoMagik Agents API port from environment variable."""
+    port_str = os.getenv("AM_API_PORT", "8881")
+    try:
+        port = int(port_str)
+        if port < 1 or port > 65535:
+            raise ValueError(f"Port {port} is out of valid range (1-65535)")
+        return port
+    except ValueError:
+        raise ValueError(f"Invalid port number: {port_str}")
+
+def get_agents_api_host() -> str:
+    """Get AutoMagik Agents API host from environment variable or default."""
+    return os.environ.get("AM_API_HOST", "localhost")
 
 

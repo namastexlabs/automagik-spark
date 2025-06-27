@@ -85,13 +85,16 @@ async def auto_discover_langflow():
     logger.info("No LangFlow instances found on ports 17860 or 7860")
 
 async def auto_discover_automagik_agents():
-    """Auto-discover AutoMagik Agents on port 18881 during startup."""
+    """Auto-discover AutoMagik Agents during startup."""
+    from .config import get_agents_api_host, get_agents_api_port
     try:
-        url = "http://localhost:18881"
+        host = get_agents_api_host()
+        port = get_agents_api_port()
+        url = f"http://{host}:{port}"
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{url}/health")
             if response.status_code == 200:
-                logger.info("AutoMagik Agents detected on port 18881")
+                logger.info(f"AutoMagik Agents detected on {host}:{port}")
                 
                 # Check if source already exists
                 from ..core.database.session import get_async_session
@@ -117,7 +120,7 @@ async def auto_discover_automagik_agents():
                         from ..core.schemas.source import SourceType
                         
                         # Generate a descriptive name
-                        name = "AutoMagik Agents (localhost:18881)"
+                        name = f"AutoMagik Agents ({host}:{port})"
                         
                         new_source = WorkflowSource(
                             source_type=SourceType.AUTOMAGIK_AGENTS,
@@ -138,7 +141,7 @@ async def auto_discover_automagik_agents():
                         # Try to sync the "simple" agent if it doesn't exist yet
                         await auto_sync_simple_agent(session, existing_source.scalar_one_or_none())
             else:
-                logger.info("AutoMagik Agents not available on port 18881")
+                logger.info(f"AutoMagik Agents not available on {host}:{port}")
     except Exception as e:
         logger.info(f"AutoMagik Agents auto-discovery failed: {e}")
 
