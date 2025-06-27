@@ -253,6 +253,23 @@ help: ## Show this help message
 	@echo -e "  $(FONT_PURPLE)publish        $(FONT_RESET) Full publish: PyPI + Docker images"
 	@echo -e "  $(FONT_PURPLE)release        $(FONT_RESET) Full release process (quality + test + build)"
 	@echo ""
+	@echo -e "$(FONT_CYAN)🏷️ Version & Git Automation:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)bump-patch     $(FONT_RESET) Bump patch version (0.1.0 → 0.1.1)"
+	@echo -e "  $(FONT_GREEN)bump-minor     $(FONT_RESET) Bump minor version (0.1.0 → 0.2.0)"
+	@echo -e "  $(FONT_GREEN)bump-major     $(FONT_RESET) Bump major version (0.1.0 → 1.0.0)"
+	@echo -e "  $(FONT_YELLOW)bump-dev       $(FONT_RESET) Create dev pre-release (0.1.0 → 0.1.0pre1)"
+	@echo -e "  $(FONT_CYAN)tag-current    $(FONT_RESET) Create git tag for current version"
+	@echo -e "  $(FONT_CYAN)commit-version $(FONT_RESET) Commit version changes"
+	@echo -e "  $(FONT_CYAN)push-tags      $(FONT_RESET) Push tags to remote"
+	@echo ""
+	@echo -e "$(FONT_CYAN)🚀 Automated Release Workflows:$(FONT_RESET)"
+	@echo -e "  $(FONT_GREEN)release-patch  $(FONT_RESET) Full patch release (bump + commit + tag + test + build)"
+	@echo -e "  $(FONT_GREEN)release-minor  $(FONT_RESET) Full minor release (bump + commit + tag + test + build)"
+	@echo -e "  $(FONT_GREEN)release-major  $(FONT_RESET) Full major release (bump + commit + tag + test + build)"
+	@echo -e "  $(FONT_YELLOW)release-dev    $(FONT_RESET) Dev pre-release (bump + commit + tag + build)"
+	@echo -e "  $(FONT_PURPLE)deploy-release $(FONT_RESET) Deploy release (push tags + make publish)"
+	@echo -e "  $(FONT_YELLOW)deploy-dev     $(FONT_RESET) Deploy dev release (push tags + Test PyPI)"
+	@echo ""
 	@echo -e "$(FONT_CYAN)🚀 Quick Commands:$(FONT_RESET)"
 	@echo -e "  $(FONT_CYAN)up             $(FONT_RESET) Quick start: install + dev services"
 	@echo -e "  $(FONT_CYAN)check          $(FONT_RESET) Quick check: quality + tests"
@@ -716,15 +733,15 @@ publish-docker: ## Build and publish Docker images
 	$(call check_prerequisites)
 	$(call print_status,Building and publishing Docker images)
 	@$(call print_info,Building automagik-spark-api image...)
-	@docker build -f docker/Dockerfile.api -t namastexlabs/automagik-spark-api:latest -t namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)") .
+	@docker build -f docker/Dockerfile.api -t namastexlabs/automagik-spark-api:latest -t namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)") .
 	@$(call print_info,Building automagik-spark-worker image...)
-	@docker build -f docker/Dockerfile.worker -t namastexlabs/automagik-spark-worker:latest -t namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)") .
+	@docker build -f docker/Dockerfile.worker -t namastexlabs/automagik-spark-worker:latest -t namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)") .
 	@$(call print_info,Pushing automagik-spark-api images...)
 	@docker push namastexlabs/automagik-spark-api:latest
-	@docker push namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)")
+	@docker push namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)")
 	@$(call print_info,Pushing automagik-spark-worker images...)
 	@docker push namastexlabs/automagik-spark-worker:latest
-	@docker push namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik.version import __version__; print(__version__)")
+	@docker push namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)")
 	$(call print_success,Docker images published successfully)
 
 .PHONY: publish
@@ -797,9 +814,9 @@ info: ## Show project information
 	@echo ""
 
 # ===========================================
-# 📈 Version Management
+# 📈 Version Management & Git Automation
 # ===========================================
-.PHONY: bump-patch bump-minor bump-major bump-dev finalize-version
+.PHONY: bump-patch bump-minor bump-major bump-dev finalize-version tag-current release-patch release-minor release-major release-dev
 
 bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	$(call print_status,Bumping patch version...)
@@ -849,3 +866,88 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$FINAL_VERSION\"/" automagik_spark/version.py; \
 	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
+
+# ===========================================
+# 🏷️ Git Tagging & Release Automation
+# ===========================================
+
+tag-current: ## 🏷️ Create git tag for current version
+	$(call print_status,Creating git tag for current version...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	if git tag -l | grep -q "^v$$CURRENT_VERSION$$"; then \
+		$(call print_warning,Tag v$$CURRENT_VERSION already exists); \
+	else \
+		git tag -a "v$$CURRENT_VERSION" -m "feat: release v$$CURRENT_VERSION"; \
+		echo -e "$(FONT_GREEN)✅ Created tag: v$$CURRENT_VERSION$(FONT_RESET)"; \
+	fi
+
+commit-version: ## 📝 Commit version change with co-author
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	if git diff --quiet automagik_spark/version.py; then \
+		$(call print_info,No version changes to commit); \
+	else \
+		git add automagik_spark/version.py; \
+		git commit -m "chore: bump version to v$$CURRENT_VERSION" \
+			-m "" \
+			-m "Co-authored-by: Automagik Genie 🧞 <genie@namastex.ai>"; \
+		echo -e "$(FONT_GREEN)✅ Committed version change: v$$CURRENT_VERSION$(FONT_RESET)"; \
+	fi
+
+push-tags: ## 🚀 Push tags to remote
+	$(call print_status,Pushing tags to remote...)
+	@git push origin --tags
+	$(call print_success,Tags pushed to remote!)
+
+# ===========================================
+# 🚀 Automated Release Workflows
+# ===========================================
+
+release-patch: bump-patch commit-version tag-current quality test build ## 🚀 Full patch release
+	$(call print_success_with_logo,Patch release ready!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
+	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
+	echo -e "  • make push-tags (push to remote)"; \
+	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • Or run: make deploy-release (push + publish)"
+
+release-minor: bump-minor commit-version tag-current quality test build ## 🚀 Full minor release
+	$(call print_success_with_logo,Minor release ready!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
+	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
+	echo -e "  • make push-tags (push to remote)"; \
+	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • Or run: make deploy-release (push + publish)"
+
+release-major: bump-major commit-version tag-current quality test build ## 🚀 Full major release
+	$(call print_success_with_logo,Major release ready!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
+	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
+	echo -e "  • make push-tags (push to remote)"; \
+	echo -e "  • make publish (deploy to PyPI + Docker)"; \
+	echo -e "  • Or run: make deploy-release (push + publish)"
+
+release-dev: bump-dev commit-version tag-current build ## 🧪 Dev pre-release
+	$(call print_success_with_logo,Dev pre-release ready!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)📦 Dev release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
+	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
+	echo -e "  • make push-tags (push to remote)"; \
+	echo -e "  • make publish-test (deploy to Test PyPI)"; \
+	echo -e "  • Or run: make deploy-dev"
+
+deploy-release: push-tags publish ## 🚀 Deploy release (push tags + publish to production)
+	$(call print_success_with_logo,Release deployed successfully!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_GREEN)🎉 automagik-spark v$$CURRENT_VERSION is now live!$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)📦 PyPI: pip install automagik-spark==$$CURRENT_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)🐳 Docker: docker pull namastexlabs/automagik-spark-api:v$$CURRENT_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)🐳 Docker: docker pull namastexlabs/automagik-spark-worker:v$$CURRENT_VERSION$(FONT_RESET)"
+
+deploy-dev: push-tags publish-test ## 🧪 Deploy dev release (push tags + test PyPI)
+	$(call print_success_with_logo,Dev release deployed!)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	echo -e "$(FONT_GREEN)🧪 automagik-spark v$$CURRENT_VERSION deployed to Test PyPI$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)📦 Test: pip install -i https://test.pypi.org/simple/ automagik-spark==$$CURRENT_VERSION$(FONT_RESET)"
