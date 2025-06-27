@@ -78,7 +78,7 @@ endef
 
 define print_success_with_logo
 	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
-	@$(call show_automagik_logo)
+	$(call show_automagik_logo)
 endef
 
 define show_automagik_logo
@@ -120,7 +120,7 @@ define ensure_env_file
 			touch .env; \
 			$(call print_info,.env file created); \
 		fi; \
-		@echo -e "$(FONT_YELLOW)💡 Edit .env and configure your settings$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)💡 Edit .env and configure your settings$(FONT_RESET)"; \
 	fi
 endef
 
@@ -606,7 +606,7 @@ restart-service: ## Update systemd service (removes and recreates)
 install-service: ## Install systemd service
 	@$(call print_status,Installing AutoMagik Spark systemd service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
-		$(call print_warning,Virtual environment not found - creating it now...); \
+		echo -e "$(FONT_YELLOW)$(WARNING) Virtual environment not found - creating it now...$(FONT_RESET)"; \
 		$(MAKE) install; \
 	fi
 	@$(call ensure_env_file)
@@ -623,7 +623,7 @@ install-service: ## Install systemd service
 		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
 		printf "Environment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\n" "$(VENV_PATH)" "$(HOME)" >> $$TMP_FILE; \
 		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "ExecStart=%s/bin/uvicorn automagik.api.app:app --host $${HOST:-0.0.0.0} --port $${PORT:-8883}\n" "$(VENV_PATH)" >> $$TMP_FILE; \
+		printf "ExecStart=%s/bin/uvicorn automagik_spark.api.app:app --host $${HOST:-0.0.0.0} --port $${PORT:-8883}\n" "$(VENV_PATH)" >> $$TMP_FILE; \
 		printf "Restart=always\n" >> $$TMP_FILE; \
 		printf "RestartSec=10\n" >> $$TMP_FILE; \
 		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
@@ -635,12 +635,12 @@ install-service: ## Install systemd service
 		rm $$TMP_FILE; \
 		sudo systemctl daemon-reload; \
 		sudo systemctl enable $(SERVICE_NAME); \
-		$(call print_success,Service installed and enabled); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Service installed and enabled$(FONT_RESET)"; \
 	else \
-		$(call print_warning,Service already installed); \
+		echo -e "$(FONT_YELLOW)$(WARNING) Service already installed$(FONT_RESET)"; \
 	fi
 	@$(call print_success_with_logo,AutoMagik Spark systemd service ready!)
-	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start $(SERVICE_NAME)$(FONT_RESET)"
+	@$(call print_info,💡 Start with: sudo systemctl start $(SERVICE_NAME))
 
 .PHONY: start-service
 start-service: ## Start the systemd service
