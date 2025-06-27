@@ -795,3 +795,57 @@ info: ## Show project information
 	@echo ""
 	$(call check_service_status)
 	@echo ""
+
+# ===========================================
+# 📈 Version Management
+# ===========================================
+.PHONY: bump-patch bump-minor bump-major bump-dev finalize-version
+
+bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
+	$(call print_status,Bumping patch version...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
+	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
+	$(call print_status,Bumping minor version...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
+	$(call print_status,Bumping major version...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
+	$(call print_status,Creating dev pre-release version...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	if echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		BASE_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+		PRE_NUM=$$(echo "$$CURRENT_VERSION" | sed 's/.*pre\([0-9]*\)/\1/'); \
+		NEW_PRE_NUM=$$((PRE_NUM + 1)); \
+		NEW_VERSION="$${BASE_VERSION}pre$${NEW_PRE_NUM}"; \
+	else \
+		NEW_VERSION="$${CURRENT_VERSION}pre1"; \
+	fi; \
+	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish-test$(FONT_RESET)"
+
+finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
+	$(call print_status,Finalizing version for release...)
+	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		$(call print_error,Not a pre-release version!); \
+		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
+		exit 1; \
+	fi; \
+	FINAL_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$FINAL_VERSION\"/" automagik_spark/version.py; \
+	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
