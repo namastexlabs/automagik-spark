@@ -4,9 +4,10 @@ name = "automagik-spark"
 dynamic = ["version"]
 description = "AutoMagik Spark - Automagion Engine with LangFlow integration"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
-    {name = "NamasteX Labs", email = "support@namastexlabs.com"}
+    {name = "Felipe Rosa", email = "felipe@namastex.ai"},
+    {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
 ]
 license = "MIT"
 keywords = ["automation", "workflow", "langflow", "ai", "llm"]
