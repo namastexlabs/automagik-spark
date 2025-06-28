@@ -36,10 +36,6 @@ VENV_PATH := $(PROJECT_ROOT)/.venv
 PYTHON := python3
 UV := uv
 SERVICE_NAME := automagik-spark
-SERVICE_FILE := /etc/systemd/system/$(SERVICE_NAME).service
-WORKER_SERVICE_NAME := automagik-spark-worker
-WORKER_SERVICE_FILE := /etc/systemd/system/$(WORKER_SERVICE_NAME).service
-SYSTEMCTL := systemctl
 DOCKER_COMPOSE_DEV := docker/docker-compose.dev.yml
 DOCKER_COMPOSE_PROD := docker/docker-compose.prod.yml
 
@@ -98,6 +94,13 @@ define show_automagik_logo
 	@echo -e "$(FONT_CYAN)🏢 Built by$(FONT_RESET) $(FONT_BOLD)Namastex Labs$(FONT_RESET) | $(FONT_YELLOW)📄 MIT Licensed$(FONT_RESET) | $(FONT_YELLOW)🌟 Open Source Forever$(FONT_RESET)"
 	@echo -e "$(FONT_PURPLE)✨ \"Because magic shouldn't be complicated\"$(FONT_RESET)"
 	@echo ""
+endef
+
+define check_pm2
+	@if ! command -v pm2 >/dev/null 2>&1; then \
+		$(call print_error,PM2 not found. Install with: npm install -g pm2); \
+		exit 1; \
+	fi
 endef
 
 define check_docker
@@ -184,17 +187,7 @@ define install_docker_if_needed
 endef
 
 
-define check_service_status
-	@if systemctl is-active --quiet $(SERVICE_NAME); then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(SERVICE_NAME) is running$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(SERVICE_NAME))$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
-	elif systemctl is-enabled --quiet $(SERVICE_NAME); then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service $(SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_RED)$(ERROR) Service $(SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
-	fi
-endef
+# Function removed - now using PM2 for service management
 
 # ===========================================
 # 📋 Help System
@@ -439,7 +432,7 @@ stop-all: ## Stop all services and containers
 	@$(call print_status,Stopping all AutoMagik Spark services...)
 	@pkill -f "celery.*automagik" 2>/dev/null || true
 	@pkill -f "uvicorn.*automagik" 2>/dev/null || true
-	@sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true
+	@pm2 stop automagik-spark 2>/dev/null || true
 	@if [ -f "$(DOCKER_COMPOSE_DEV)" ]; then \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) down 2>/dev/null || true; \
 	fi
@@ -631,163 +624,68 @@ docker-logs: ## Show Docker container logs (N=lines FOLLOW=1 for follow mode)
 # ===========================================
 # 🔧 Service Management
 # ===========================================
-.PHONY: restart-service install-service
-restart-service: ## Update systemd service (removes and recreates)
-	$(call print_status,Updating systemd service)
-	@sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true
-	@sudo rm -f $(SERVICE_FILE)
-	@$(MAKE) install-service
+.PHONY: restart-service install-service start-service stop-service uninstall-service service-status logs-follow
+uninstall-service: ## Uninstall PM2 service
+	$(call print_status,Uninstalling PM2 service)
+	@$(call check_pm2)
+	@pm2 delete automagik-spark 2>/dev/null || true
+	@pm2 save --force
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service uninstalled!$(FONT_RESET)"
 
-install-service: ## Install systemd services (API and Worker)
-	@$(call print_status,Installing AutoMagik Spark systemd services...)
+install-service: ## Install PM2 service
+	@$(call print_status,Installing AutoMagik Spark as PM2 service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		echo -e "$(FONT_YELLOW)$(WARNING) Virtual environment not found - creating it now...$(FONT_RESET)"; \
 		$(MAKE) install; \
 	fi
 	@$(call ensure_env_file)
-	@# Install API service
-	@if [ ! -f "$(SERVICE_FILE)" ]; then \
-		TMP_FILE=$$(mktemp); \
-		printf "[Unit]\n" > $$TMP_FILE; \
-		printf "Description=AutoMagik Spark Workflow Management Service\n" >> $$TMP_FILE; \
-		printf "After=network.target postgresql.service redis.service\n" >> $$TMP_FILE; \
-		printf "Wants=network.target\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Service]\n" >> $$TMP_FILE; \
-		printf "Type=simple\n" >> $$TMP_FILE; \
-		printf "User=%s\n" "$(shell whoami)" >> $$TMP_FILE; \
-		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "Environment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\n" "$(VENV_PATH)" "$(HOME)" >> $$TMP_FILE; \
-		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "ExecStart=%s/bin/uvicorn automagik_spark.api.app:app --host $${HOST:-0.0.0.0} --port $${AUTOMAGIK_SPARK_PORT:-8883}\n" "$(VENV_PATH)" >> $$TMP_FILE; \
-		printf "Restart=always\n" >> $$TMP_FILE; \
-		printf "RestartSec=10\n" >> $$TMP_FILE; \
-		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
-		printf "StandardError=journal\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Install]\n" >> $$TMP_FILE; \
-		printf "WantedBy=multi-user.target\n" >> $$TMP_FILE; \
-		sudo cp $$TMP_FILE $(SERVICE_FILE); \
-		rm $$TMP_FILE; \
-		sudo systemctl daemon-reload; \
-		sudo systemctl enable $(SERVICE_NAME); \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) API service installed and enabled$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) API service already installed$(FONT_RESET)"; \
-	fi
-	@# Install Worker service
-	@if [ ! -f "$(WORKER_SERVICE_FILE)" ]; then \
-		TMP_FILE=$$(mktemp); \
-		printf "[Unit]\n" > $$TMP_FILE; \
-		printf "Description=AutoMagik Spark Worker Service\n" >> $$TMP_FILE; \
-		printf "After=network.target postgresql.service redis.service automagik-spark.service\n" >> $$TMP_FILE; \
-		printf "Wants=network.target\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Service]\n" >> $$TMP_FILE; \
-		printf "Type=simple\n" >> $$TMP_FILE; \
-		printf "User=%s\n" "$(shell whoami)" >> $$TMP_FILE; \
-		printf "WorkingDirectory=%s\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "Environment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\n" "$(VENV_PATH)" "$(HOME)" >> $$TMP_FILE; \
-		printf "Environment=AM_WORKER_LOG=%s/logs/worker.log\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "EnvironmentFile=%s/.env\n" "$(PROJECT_ROOT)" >> $$TMP_FILE; \
-		printf "ExecStart=%s/bin/python -m automagik_spark.cli.cli worker start --daemon\n" "$(VENV_PATH)" >> $$TMP_FILE; \
-		printf "Restart=always\n" >> $$TMP_FILE; \
-		printf "RestartSec=10\n" >> $$TMP_FILE; \
-		printf "StandardOutput=journal\n" >> $$TMP_FILE; \
-		printf "StandardError=journal\n" >> $$TMP_FILE; \
-		printf "\n" >> $$TMP_FILE; \
-		printf "[Install]\n" >> $$TMP_FILE; \
-		printf "WantedBy=multi-user.target\n" >> $$TMP_FILE; \
-		sudo cp $$TMP_FILE $(WORKER_SERVICE_FILE); \
-		rm $$TMP_FILE; \
-		sudo systemctl daemon-reload; \
-		sudo systemctl enable $(WORKER_SERVICE_NAME); \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Worker service installed and enabled$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Worker service already installed$(FONT_RESET)"; \
-	fi
-	@$(call print_success_with_logo,AutoMagik Spark systemd services ready!)
-	@$(call print_info,💡 Start API with: sudo systemctl start $(SERVICE_NAME))
-	@$(call print_info,💡 Start Worker with: sudo systemctl start $(WORKER_SERVICE_NAME))
+	@$(call check_pm2)
+	@$(call print_status,Starting service with PM2...)
+	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only automagik-spark
+	@pm2 save
+	@$(call print_success_with_logo,PM2 service installed!)
+	@$(call print_info,💡 Service is now managed by PM2)
 
 .PHONY: start-service
-start-service: ## Start the systemd services (API and Worker)
-	$(call print_status,Starting AutoMagik Spark services)
-	@sudo systemctl start $(SERVICE_NAME)
-	@sudo systemctl start $(WORKER_SERVICE_NAME)
-	@sleep 2
-	$(call check_service_status)
-	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
-	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
-	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
-	fi
+start-service: ## Start PM2 service
+	$(call print_status,Starting AutoMagik Spark service)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-spark 2>/dev/null || pm2 start ecosystem.config.js --only automagik-spark
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"
+	@pm2 logs automagik-spark --lines 20 --nostream
 
 .PHONY: stop-service
-stop-service: ## Stop the systemd services (API and Worker)
-	$(call print_status,Stopping AutoMagik Spark services)
-	@sudo systemctl stop $(SERVICE_NAME)
-	@sudo systemctl stop $(WORKER_SERVICE_NAME)
-	$(call print_success,Services stopped)
+stop-service: ## Stop PM2 service
+	$(call print_status,Stopping AutoMagik Spark service)
+	@$(call check_pm2)
+	@pm2 stop automagik-spark 2>/dev/null || true
+	$(call print_success,Service stopped)
 
 .PHONY: restart-service-simple
-restart-service-simple: ## Restart the systemd services (API and Worker)
-	$(call print_status,Restarting AutoMagik Spark services)
-	@sudo systemctl restart $(SERVICE_NAME)
-	@sudo systemctl restart $(WORKER_SERVICE_NAME)
-	@sleep 2
-	$(call check_service_status)
-	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
-	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
-	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
-	fi
+restart-service: ## Restart PM2 service
+	$(call print_status,Restarting AutoMagik Spark service)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-spark 2>/dev/null || pm2 start ecosystem.config.js --only automagik-spark
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
 
 .PHONY: service-status
-service-status: ## Check service status (API and Worker)
-	$(call print_status,Checking AutoMagik Spark services status)
-	@echo -e "$(FONT_CYAN)API Service Status:$(FONT_RESET)"
-	$(call check_service_status)
-	@echo ""
-	@echo -e "$(FONT_CYAN)Worker Service Status:$(FONT_RESET)"
-	@if systemctl is-active --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Service $(WORKER_SERVICE_NAME) is running$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Status: $$(systemctl is-active $(WORKER_SERVICE_NAME))$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)   Since:  $$(systemctl show $(WORKER_SERVICE_NAME) --property=ActiveEnterTimestamp --value | cut -d' ' -f2-3)$(FONT_RESET)"; \
-	elif systemctl is-enabled --quiet $(WORKER_SERVICE_NAME); then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Service $(WORKER_SERVICE_NAME) is enabled but not running$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_RED)$(ERROR) Service $(WORKER_SERVICE_NAME) is not installed or enabled$(FONT_RESET)"; \
-	fi
+service-status: ## Check PM2 service status
+	$(call print_status,Checking AutoMagik Spark service status)
+	@$(call check_pm2)
+	@pm2 show automagik-spark 2>/dev/null || echo "Service not found"
 
 .PHONY: logs
-logs: ## Show service logs (N=lines FOLLOW=1 for follow mode)
+logs: ## Show service logs (N=lines)
 	$(eval N := $(or $(N),30))
 	$(call print_status,Recent $(SERVICE_NAME) logs)
-	@if [ "$(FOLLOW)" = "1" ]; then \
-		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
-		journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager 2>/dev/null || \
-		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager; }; \
-	else \
-		journalctl -u $(SERVICE_NAME) -n $(N) --no-pager 2>/dev/null || \
-		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n $(N) --no-pager; }; \
-	fi
+	@pm2 logs automagik-spark --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 .PHONY: logs-tail
-logs-tail: ## Show recent service logs
-	$(call print_status,Recent $(SERVICE_NAME) logs)
-	@journalctl -u $(SERVICE_NAME) -n 50 --no-pager 2>/dev/null || \
-	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n 50 --no-pager; }
+logs-follow: ## Follow service logs in real-time
+	$(call print_status,Following $(SERVICE_NAME) logs)
+	@echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"
+	@pm2 logs automagik-spark 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 # ===========================================
 # 📦 Publishing & Release
