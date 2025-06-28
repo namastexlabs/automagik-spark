@@ -858,29 +858,6 @@ clean: ## Clean build artifacts and cache
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	$(call print_success,Cleanup completed)
 
-.PHONY: uninstall-service
-uninstall-service: ## Uninstall systemd services (API and Worker)
-	$(call print_status,Uninstalling systemd services)
-	@# Uninstall API service
-	@if [ -f "$(SERVICE_FILE)" ]; then \
-		sudo systemctl stop $(SERVICE_NAME) 2>/dev/null || true; \
-		sudo systemctl disable $(SERVICE_NAME) 2>/dev/null || true; \
-		sudo rm -f $(SERVICE_FILE); \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) API service uninstalled$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) API service not found$(FONT_RESET)"; \
-	fi
-	@# Uninstall Worker service
-	@if [ -f "$(WORKER_SERVICE_FILE)" ]; then \
-		sudo systemctl stop $(WORKER_SERVICE_NAME) 2>/dev/null || true; \
-		sudo systemctl disable $(WORKER_SERVICE_NAME) 2>/dev/null || true; \
-		sudo rm -f $(WORKER_SERVICE_FILE); \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Worker service uninstalled$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Worker service not found$(FONT_RESET)"; \
-	fi
-	@sudo systemctl daemon-reload
-	$(call print_success,Services uninstalled)
 
 # ===========================================
 # 🚀 Quick Commands
