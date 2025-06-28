@@ -101,7 +101,7 @@ module.exports = {
       name: 'automagik-spark-worker',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
-      args: '-m automagik_spark.worker.app',
+      args: '-m automagik_spark worker start',
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {

@@ -133,38 +133,38 @@ endef
 
 define check_prerequisites
 	@if ! command -v python3 >/dev/null 2>&1; then \
-		$(call print_error,Python 3 not found); \
+		echo -e "$(FONT_RED)$(ERROR) Python 3 not found$(FONT_RESET)"; \
 		exit 1; \
 	fi
 	@if ! command -v uv >/dev/null 2>&1; then \
 		if [ -f "$$HOME/.local/bin/uv" ]; then \
 			export PATH="$$HOME/.local/bin:$$PATH"; \
-			$(call print_status,Found uv in $$HOME/.local/bin); \
+			echo -e "$(FONT_PURPLE)$(AUTOMAGIK) Found uv in $$HOME/.local/bin$(FONT_RESET)"; \
 		else \
-			$(call print_status,Installing uv...); \
+			echo -e "$(FONT_PURPLE)$(AUTOMAGIK) Installing uv...$(FONT_RESET)"; \
 			curl -LsSf https://astral.sh/uv/install.sh | sh; \
 			export PATH="$$HOME/.local/bin:$$PATH"; \
-			$(call print_success,uv installed successfully); \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) uv installed successfully$(FONT_RESET)"; \
 		fi; \
 	fi
 endef
 
 define setup_python_env
-	@$(call print_status,Installing dependencies with uv...)
+	@echo -e "$(FONT_PURPLE)$(AUTOMAGIK) Installing dependencies with uv...$(FONT_RESET)"
 	@if command -v uv >/dev/null 2>&1; then \
 		if ! uv sync 2>/dev/null; then \
-			$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+			echo -e "$(FONT_YELLOW)$(WARNING) Installation failed - clearing UV cache and retrying...$(FONT_RESET)"; \
 			uv cache clean; \
 			uv sync; \
 		fi; \
 	elif [ -f "$$HOME/.local/bin/uv" ]; then \
 		if ! $$HOME/.local/bin/uv sync 2>/dev/null; then \
-			$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+			echo -e "$(FONT_YELLOW)$(WARNING) Installation failed - clearing UV cache and retrying...$(FONT_RESET)"; \
 			$$HOME/.local/bin/uv cache clean; \
 			$$HOME/.local/bin/uv sync; \
 		fi; \
 	else \
-		$(call print_error,uv not found - please install uv first); \
+		echo -e "$(FONT_RED)$(ERROR) uv not found - please install uv first$(FONT_RESET)"; \
 		exit 1; \
 	fi
 endef
