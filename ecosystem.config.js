@@ -100,14 +100,14 @@ module.exports = {
     {
       name: 'automagik-spark-worker',
       cwd: PROJECT_ROOT,
-      script: '.venv/bin/python',
-      args: '-m automagik_spark.worker.app',
+      script: '.venv/bin/celery',
+      args: '-A automagik_spark.core.celery.celery_app worker --loglevel=info',
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
+        AUTOMAGIK_SPARK_ENV: envVars.AUTOMAGIK_SPARK_ENV || 'production',
         NODE_ENV: 'production'
       },
       instances: 1,
