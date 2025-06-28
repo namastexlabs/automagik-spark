@@ -80,7 +80,7 @@ define print_success_with_logo
 endef
 
 define show_automagik_logo
-	[ -z "$$AUTOMAGIK_QUIET_LOGO" ] && { \
+	@[ -z "$$AUTOMAGIK_QUIET_LOGO" ] && { \
 		echo ""; \
 		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
 		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
@@ -202,7 +202,7 @@ help: ## Show this help message
 	@echo -e "$(FONT_PURPLE)$(AUTOMAGIK) AutoMagik Spark Development & Deployment Commands$(FONT_RESET)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)🚀 Installation & Setup:$(FONT_RESET)"
-	@echo -e "  $(FONT_PURPLE)install        $(FONT_RESET) Install development environment (uv sync + setup)"
+	@echo -e "  $(FONT_PURPLE)install        $(FONT_RESET) Install AutoMagik Spark environment (uv sync + setup)"
 	@echo -e "  $(FONT_PURPLE)install-deps   $(FONT_RESET) Install optional dependencies (PostgreSQL, Redis)"
 	@echo -e "  $(FONT_PURPLE)install-docker $(FONT_RESET) Install with Docker for development"
 	@echo -e "  $(FONT_PURPLE)install-prod   $(FONT_RESET) Install production Docker environment"
@@ -289,12 +289,12 @@ help: ## Show this help message
 # 🏗️ Installation & Setup Commands
 # ===========================================
 .PHONY: install setup-local setup-dev install-deps install-docker install-prod
-install: ## Install development environment
-	@$(call print_status,Installing AutoMagik Spark development environment...)
+install: ## Install AutoMagik Spark environment
+	@$(call print_status,Installing AutoMagik Spark environment...)
 	@$(call check_prerequisites)
 	@$(call setup_python_env)
 	@$(call ensure_env_file)
-	@$(call print_success_with_logo,Development environment ready!)
+	@$(call print_success_with_logo,AutoMagik Spark installed successfully!)
 
 setup-local: ## Run local production setup script
 	@$(call print_status,Running local production setup...)
