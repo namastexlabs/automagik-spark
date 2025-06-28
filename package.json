@@ -1,0 +1,9 @@
+{
+  "name": "automagik-spark",
+  "version": "0.3.6",
+  "description": "Automagik Spark - Workflow Engine",
+  "private": true,
+  "scripts": {
+    "start": "echo 'This is a Python service managed by PM2'"
+  }
+}

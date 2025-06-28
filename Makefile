@@ -760,7 +760,7 @@ publish: check-release build check-dist ## $(ROCKET) Upload to PyPI and create G
 		exit 1; \
 	fi
 	@# Get version from version.py
-	@VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
 	$(UV) run twine upload dist/* -u __token__ -p "$$PYPI_TOKEN"; \
 	if ! git tag | grep -q "^v$$VERSION$$"; then \
@@ -787,15 +787,15 @@ publish-docker: ## Build and publish Docker images
 	$(call check_prerequisites)
 	$(call print_status,Building and publishing Docker images)
 	@$(call print_info,Building automagik-spark-api image...)
-	@docker build -f docker/Dockerfile.api -t namastexlabs/automagik-spark-api:latest -t namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)") .
+	@docker build -f docker/Dockerfile.api -t namastexlabs/automagik-spark-api:latest -t namastexlabs/automagik-spark-api:v$(shell grep "^version" pyproject.toml | cut -d'"' -f2) .
 	@$(call print_info,Building automagik-spark-worker image...)
-	@docker build -f docker/Dockerfile.worker -t namastexlabs/automagik-spark-worker:latest -t namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)") .
+	@docker build -f docker/Dockerfile.worker -t namastexlabs/automagik-spark-worker:latest -t namastexlabs/automagik-spark-worker:v$(shell grep "^version" pyproject.toml | cut -d'"' -f2) .
 	@$(call print_info,Pushing automagik-spark-api images...)
 	@docker push namastexlabs/automagik-spark-api:latest
-	@docker push namastexlabs/automagik-spark-api:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)")
+	@docker push namastexlabs/automagik-spark-api:v$(shell grep "^version" pyproject.toml | cut -d'"' -f2)
 	@$(call print_info,Pushing automagik-spark-worker images...)
 	@docker push namastexlabs/automagik-spark-worker:latest
-	@docker push namastexlabs/automagik-spark-worker:v$(shell $(UV) run python -c "from automagik_spark.version import __version__; print(__version__)")
+	@docker push namastexlabs/automagik-spark-worker:v$(shell grep "^version" pyproject.toml | cut -d'"' -f2)
 	$(call print_success,Docker images published successfully)
 
 .PHONY: publish-all
@@ -885,28 +885,28 @@ info: ## Show project information
 
 bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	$(call print_status,Bumping patch version...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
-	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
 	$(call print_status,Bumping minor version...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
-	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
 	$(call print_status,Bumping major version...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
-	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
 	$(call print_status,Creating dev pre-release version...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	if echo "$$CURRENT_VERSION" | grep -q "pre"; then \
 		BASE_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
 		PRE_NUM=$$(echo "$$CURRENT_VERSION" | sed 's/.*pre\([0-9]*\)/\1/'); \
@@ -915,20 +915,20 @@ bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2
 	else \
 		NEW_VERSION="$${CURRENT_VERSION}pre1"; \
 	fi; \
-	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$NEW_VERSION\"/" automagik_spark/version.py; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish-test$(FONT_RESET)"
 
 finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	$(call print_status,Finalizing version for release...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
 		$(call print_error,Not a pre-release version!); \
 		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
 		exit 1; \
 	fi; \
 	FINAL_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
-	sed -i "s/__version__ = \"$$CURRENT_VERSION\"/__version__ = \"$$FINAL_VERSION\"/" automagik_spark/version.py; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
 
@@ -938,7 +938,7 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 
 tag-current: ## 🏷️ Create git tag for current version
 	$(call print_status,Creating git tag for current version...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	if git tag -l | grep -q "^v$$CURRENT_VERSION$$"; then \
 		$(call print_warning,Tag v$$CURRENT_VERSION already exists); \
 	else \
@@ -947,11 +947,11 @@ tag-current: ## 🏷️ Create git tag for current version
 	fi
 
 commit-version: ## 📝 Commit version change with co-author
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
-	if git diff --quiet automagik_spark/version.py; then \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if git diff --quiet pyproject.toml; then \
 		$(call print_info,No version changes to commit); \
 	else \
-		git add automagik_spark/version.py; \
+		git add pyproject.toml; \
 		git commit -m "chore: bump version to v$$CURRENT_VERSION" \
 			-m "" \
 			-m "Co-authored-by: Automagik Genie 🧞 <genie@namastex.ai>"; \
@@ -965,7 +965,7 @@ push-tags: ## 🚀 Push tags to remote
 
 create-github-release: ## 🎉 Create GitHub release for current version
 	$(call print_status,Creating GitHub release...)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	if gh release view "v$$CURRENT_VERSION" >/dev/null 2>&1; then \
 		$(call print_warning,Release v$$CURRENT_VERSION already exists); \
 	else \
@@ -982,7 +982,7 @@ create-github-release: ## 🎉 Create GitHub release for current version
 
 release-patch: bump-patch commit-version tag-current quality test build ## 🚀 Full patch release
 	$(call print_success_with_logo,Patch release ready!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
@@ -992,7 +992,7 @@ release-patch: bump-patch commit-version tag-current quality test build ## 🚀 
 
 release-minor: bump-minor commit-version tag-current quality test build ## 🚀 Full minor release
 	$(call print_success_with_logo,Minor release ready!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
@@ -1002,7 +1002,7 @@ release-minor: bump-minor commit-version tag-current quality test build ## 🚀 
 
 release-major: bump-major commit-version tag-current quality test build ## 🚀 Full major release
 	$(call print_success_with_logo,Major release ready!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
@@ -1012,7 +1012,7 @@ release-major: bump-major commit-version tag-current quality test build ## 🚀 
 
 release-dev: bump-dev commit-version tag-current build ## 🧪 Dev pre-release
 	$(call print_success_with_logo,Dev pre-release ready!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)📦 Dev release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
 	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
 	echo -e "  • make push-tags (push to remote)"; \
@@ -1021,7 +1021,7 @@ release-dev: bump-dev commit-version tag-current build ## 🧪 Dev pre-release
 
 deploy-release: push-tags publish ## 🚀 Deploy release (push tags + publish to production)
 	$(call print_success_with_logo,Release deployed successfully!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_GREEN)🎉 automagik-spark v$$CURRENT_VERSION is now live!$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)📦 PyPI: pip install automagik-spark==$$CURRENT_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)🐳 Docker: docker pull namastexlabs/automagik-spark-api:v$$CURRENT_VERSION$(FONT_RESET)"; \
@@ -1030,6 +1030,6 @@ deploy-release: push-tags publish ## 🚀 Deploy release (push tags + publish to
 
 deploy-dev: push-tags publish-test ## 🧪 Deploy dev release (push tags + test PyPI)
 	$(call print_success_with_logo,Dev release deployed!)
-	@CURRENT_VERSION=$$(grep "__version__" automagik_spark/version.py | cut -d'"' -f2); \
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_GREEN)🧪 automagik-spark v$$CURRENT_VERSION deployed to Test PyPI$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)📦 Test: pip install -i https://test.pypi.org/simple/ automagik-spark==$$CURRENT_VERSION$(FONT_RESET)"
