@@ -17,9 +17,9 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_API_KEY = "namastex888"
 
 # Set up test environment variables
-os.environ["AUTOMAGIK_ENV"] = "testing"
-os.environ["SPARK_API_KEY"] = TEST_API_KEY
-os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
+os.environ["AUTOMAGIK_SPARK_ENV"] = "testing"
+os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
+os.environ["AUTOMAGIK_SPARK_DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
 
 # Now load the models after setting up the environment
 from automagik_spark.core.database.models import Base
@@ -30,9 +30,9 @@ from automagik_spark.api.dependencies import get_async_session
 def setup_test_env():
     """Set up test environment."""
     yield
-    os.environ.pop("AUTOMAGIK_ENV", None)
-    os.environ.pop("SPARK_API_KEY", None)
-    os.environ.pop("DATABASE_URL", None)
+    os.environ.pop("AUTOMAGIK_SPARK_ENV", None)
+    os.environ.pop("AUTOMAGIK_SPARK_API_KEY", None)
+    os.environ.pop("AUTOMAGIK_SPARK_DATABASE_URL", None)
 
 # Configure pytest-asyncio to use session scope for event loop
 pytest.mark.asyncio.loop_scope = "session"

@@ -11,8 +11,8 @@ app = Celery('automagik_spark')
 
 # Configure celery
 app.conf.update(
-    broker_url=os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
-    result_backend=os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'),
+    broker_url=os.getenv('AUTOMAGIK_SPARK_CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+    result_backend=os.getenv('AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'),
     task_queues=(
         Queue('default', Exchange('default'), routing_key='default'),
         Queue('high_priority', Exchange('high_priority'), routing_key='high_priority'),

@@ -22,7 +22,7 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set")
 
 # Only enforce PostgreSQL check in non-testing environments
-if os.getenv('AUTOMAGIK_ENV') != 'testing':
+if os.getenv('AUTOMAGIK_SPARK_ENV') != 'testing':
     if not DATABASE_URL.startswith('postgresql+asyncpg://'):
         if DATABASE_URL.startswith('postgresql://'):
             DATABASE_URL = f"postgresql+asyncpg://{DATABASE_URL.split('://', 1)[1]}"

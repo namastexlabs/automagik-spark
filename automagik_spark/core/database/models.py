@@ -123,7 +123,7 @@ class WorkflowSource(Base):
     @staticmethod
     def _get_encryption_key():
         """Get encryption key from environment or generate a default one."""
-        key = os.environ.get('SPARK_ENCRYPTION_KEY')
+        key = os.environ.get('AUTOMAGIK_SPARK_ENCRYPTION_KEY')
         
         if not key:
             # Log a warning that we're using a testing key

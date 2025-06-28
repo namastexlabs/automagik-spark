@@ -9,16 +9,16 @@ load_dotenv()
 
 def get_cors_origins() -> List[str]:
     """Get CORS origins from environment variable."""
-    cors_origins = os.getenv("SPARK_API_CORS", "http://localhost:3000,http://localhost:18883")
+    cors_origins = os.getenv("AUTOMAGIK_SPARK_API_CORS", "http://localhost:3000,http://localhost:18883")
     return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 def get_api_host() -> str:
     """Get the Spark API host from environment variable or default."""
-    return os.environ.get("SPARK_API_HOST", "0.0.0.0")
+    return os.environ.get("AUTOMAGIK_SPARK_API_HOST", "0.0.0.0")
 
 def get_api_port() -> int:
     """Get Spark API port from environment variable."""
-    port_str = os.getenv("SPARK_API_PORT", "18883")
+    port_str = os.getenv("AUTOMAGIK_SPARK_API_PORT", "18883")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -29,7 +29,7 @@ def get_api_port() -> int:
 
 def get_api_key() -> str | None:
     """Get API key from environment variable."""
-    return os.getenv("SPARK_API_KEY")
+    return os.getenv("AUTOMAGIK_SPARK_API_KEY")
 
 def get_langflow_api_url() -> str:
     """Get LangFlow API URL."""
@@ -41,14 +41,14 @@ def get_langflow_api_key() -> str | None:
 
 def get_database_url() -> str:
     """Get database URL from environment variable."""
-    database_url = os.getenv("SPARK_DATABASE_URL") or os.getenv("DATABASE_URL")
+    database_url = os.getenv("AUTOMAGIK_SPARK_DATABASE_URL")
     if not database_url:
-        raise ValueError("SPARK_DATABASE_URL environment variable is not set")
+        raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
     return database_url
 
 def get_agents_api_port() -> int:
     """Get AutoMagik Agents API port from environment variable."""
-    port_str = os.getenv("AM_API_PORT", "18881")
+    port_str = os.getenv("AUTOMAGIK_AGENTS_API_PORT", "18881")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -59,6 +59,6 @@ def get_agents_api_port() -> int:
 
 def get_agents_api_host() -> str:
     """Get AutoMagik Agents API host from environment variable or default."""
-    return os.environ.get("AM_API_HOST", "localhost")
+    return os.environ.get("AUTOMAGIK_AGENTS_API_HOST", "localhost")
 
 

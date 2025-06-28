@@ -63,15 +63,15 @@ module.exports = {
       name: 'automagik-spark',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/uvicorn',
-      args: 'automagik_spark.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_SPARK_PORT || '8883'),
+      args: 'automagik_spark.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_SPARK_API_PORT || '8883'),
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        AUTOMAGIK_SPARK_PORT: envVars.AUTOMAGIK_SPARK_PORT || '8883',
+        AUTOMAGIK_SPARK_API_PORT: envVars.AUTOMAGIK_SPARK_API_PORT || '8883',
         HOST: envVars.HOST || '0.0.0.0',
-        AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
+        AUTOMAGIK_SPARK_ENV: envVars.AUTOMAGIK_SPARK_ENV || 'production',
         NODE_ENV: 'production'
       },
       instances: 1,
