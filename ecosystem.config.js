@@ -59,8 +59,11 @@ if (fs.existsSync(envPath)) {
 
 module.exports = {
   apps: [
+    // ================================
+    // Automagik-Spark API
+    // ================================
     {
-      name: 'automagik-spark',
+      name: 'automagik-spark-api',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/uvicorn',
       args: 'automagik_spark.api.app:app --host 0.0.0.0 --port ' + (envVars.AUTOMAGIK_SPARK_PORT || '8883'),
@@ -83,9 +86,42 @@ module.exports = {
       min_uptime: '10s',
       restart_delay: 1000,
       kill_timeout: 5000,
-      error_file: path.join(PROJECT_ROOT, 'logs/err.log'),
-      out_file: path.join(PROJECT_ROOT, 'logs/out.log'),
-      log_file: path.join(PROJECT_ROOT, 'logs/combined.log'),
+      error_file: path.join(PROJECT_ROOT, 'logs/api-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/api-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/api-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    
+    // ================================
+    // Automagik-Spark Worker
+    // ================================
+    {
+      name: 'automagik-spark-worker',
+      cwd: PROJECT_ROOT,
+      script: '.venv/bin/python',
+      args: '-m automagik_spark.worker.app',
+      interpreter: 'none',
+      version: extractVersionFromPyproject(PROJECT_ROOT),
+      env: {
+        ...envVars,
+        PYTHONPATH: PROJECT_ROOT,
+        AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
+        NODE_ENV: 'production'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 1000,
+      kill_timeout: 5000,
+      error_file: path.join(PROJECT_ROOT, 'logs/worker-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/worker-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/worker-combined.log'),
       merge_logs: true,
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
