@@ -632,45 +632,32 @@ uninstall-service: ## Uninstall PM2 service
 	@pm2 save --force
 	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service uninstalled!$(FONT_RESET)"
 
-install-service: ## Install PM2 service
-	@$(call print_status,Installing AutoMagik Spark as PM2 service...)
+install-service: ## Install local PM2 service
+	@$(call print_status,Installing AutoMagik Spark as local PM2 service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		echo -e "$(FONT_YELLOW)$(WARNING) Virtual environment not found - creating it now...$(FONT_RESET)"; \
 		$(MAKE) install; \
 	fi
 	@$(call ensure_env_file)
-	@$(call check_pm2)
-	@$(call print_status,Starting service with PM2...)
-	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only automagik-spark
-	@pm2 save
-	@$(call print_success_with_logo,PM2 service installed!)
-	@$(call print_info,💡 Service is now managed by PM2)
+	@$(MAKE) setup-pm2
+	@$(MAKE) start-local
+	@$(call print_success_with_logo,Local PM2 service installed!)
+	@$(call print_info,💡 Service is now managed by local PM2)
 
 .PHONY: start-service
-start-service: ## Start PM2 service
-	$(call print_status,Starting AutoMagik Spark service)
-	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-spark 2>/dev/null || pm2 start ecosystem.config.js --only automagik-spark
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"
-	@pm2 logs automagik-spark --lines 20 --nostream
+start-service: ## Start local PM2 service
+	@$(MAKE) start-local
 
 .PHONY: stop-service
-stop-service: ## Stop PM2 service
-	$(call print_status,Stopping AutoMagik Spark service)
-	@$(call check_pm2)
-	@pm2 stop automagik-spark 2>/dev/null || true
-	$(call print_success,Service stopped)
+stop-service: ## Stop local PM2 service
+	@$(MAKE) stop-local
 
-.PHONY: restart-service-simple
-restart-service: ## Restart PM2 service
-	$(call print_status,Restarting AutoMagik Spark service)
-	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart automagik-spark 2>/dev/null || pm2 start ecosystem.config.js --only automagik-spark
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
+.PHONY: restart-service
+restart-service: ## Restart local PM2 service
+	@$(MAKE) restart-local
 
 .PHONY: service-status
-service-status: ## Check PM2 service status
+service-status: ## Check local PM2 service status
 	$(call print_status,Checking AutoMagik Spark service status)
 	@$(call check_pm2)
 	@pm2 show automagik-spark 2>/dev/null || echo "Service not found"
@@ -686,6 +673,51 @@ logs-follow: ## Follow service logs in real-time
 	$(call print_status,Following $(SERVICE_NAME) logs)
 	@echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"
 	@pm2 logs automagik-spark 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+
+# ===========================================
+# 🔧 Local PM2 Management (Standalone Mode)
+# ===========================================
+.PHONY: setup-pm2 start-local stop-local restart-local
+setup-pm2: ## 📦 Setup local PM2 ecosystem
+	$(call print_status,Setting up local PM2 ecosystem...)
+	@$(call check_pm2)
+	@echo -e "$(FONT_CYAN)$(INFO) Installing PM2 log rotation...$(FONT_RESET)"
+	@if ! pm2 list | grep -q pm2-logrotate; then \
+		pm2 install pm2-logrotate; \
+	else \
+		echo -e "$(FONT_GREEN)✓ PM2 logrotate already installed$(FONT_RESET)"; \
+	fi
+	@pm2 set pm2-logrotate:max_size 100M
+	@pm2 set pm2-logrotate:retain 7
+	@echo -e "$(FONT_CYAN)$(INFO) Setting up PM2 startup...$(FONT_RESET)"
+	@if ! pm2 startup -s 2>/dev/null; then \
+		echo -e "$(FONT_YELLOW)Warning: PM2 startup may already be configured$(FONT_RESET)"; \
+	fi
+	@$(call print_success,Local PM2 ecosystem configured!)
+
+start-local: ## 🚀 Start service using local PM2 ecosystem
+	$(call print_status,Starting automagik-spark with local PM2...)
+	@$(call check_pm2)
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(call print_error,Virtual environment not found); \
+		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(call ensure_env_file)
+	@pm2 start ecosystem.config.js
+	@$(call print_success,Service started with local PM2!)
+
+stop-local: ## 🛑 Stop service using local PM2 ecosystem
+	$(call print_status,Stopping automagik-spark with local PM2...)
+	@$(call check_pm2)
+	@pm2 stop automagik-spark 2>/dev/null || true
+	@$(call print_success,Service stopped!)
+
+restart-local: ## 🔄 Restart service using local PM2 ecosystem
+	$(call print_status,Restarting automagik-spark with local PM2...)
+	@$(call check_pm2)
+	@pm2 restart automagik-spark 2>/dev/null || pm2 start ecosystem.config.js
+	@$(call print_success,Service restarted!)
 
 # ===========================================
 # 📦 Publishing & Release
