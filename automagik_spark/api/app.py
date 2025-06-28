@@ -265,11 +265,75 @@ app.openapi = custom_openapi
 
 @app.get("/health")
 async def health():
-    """Health check endpoint"""
+    """Health check endpoint with API and worker status"""
+    from ..core.celery.celery_app import app as celery_app
+    import redis
+    import os
+    
     current_time = datetime.datetime.now()
+    
+    # Check API status (if we're responding, API is healthy)
+    api_status = "healthy"
+    
+    # Check worker status by inspecting Celery workers
+    worker_status = "unknown"
+    worker_details = {"active_workers": 0, "available_tasks": []}
+    
+    try:
+        # Get active workers from Celery
+        inspect = celery_app.control.inspect()
+        active_workers = inspect.active_queues()
+        
+        if active_workers:
+            worker_status = "healthy"
+            worker_details["active_workers"] = len(active_workers)
+            # Get available tasks
+            registered_tasks = inspect.registered()
+            if registered_tasks:
+                # Flatten task lists from all workers
+                all_tasks = []
+                for worker_tasks in registered_tasks.values():
+                    all_tasks.extend(worker_tasks)
+                worker_details["available_tasks"] = list(set(all_tasks))
+        else:
+            worker_status = "unhealthy"
+    except Exception as e:
+        worker_status = "error"
+        worker_details["error"] = str(e)
+    
+    # Check Redis connectivity (Celery broker)
+    redis_status = "unknown"
+    try:
+        broker_url = os.getenv('AUTOMAGIK_SPARK_CELERY_BROKER_URL', 'redis://localhost:6379/0')
+        # Parse Redis URL
+        if broker_url.startswith('redis://'):
+            redis_client = redis.from_url(broker_url)
+            redis_client.ping()
+            redis_status = "healthy"
+    except Exception:
+        redis_status = "unhealthy"
+    
+    # Determine overall status
+    overall_status = "healthy"
+    if worker_status in ["unhealthy", "error"] or redis_status == "unhealthy":
+        overall_status = "degraded"
+    
     return {
-        "status": "healthy",
-        "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S")
+        "status": overall_status,
+        "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "services": {
+            "api": {
+                "status": api_status,
+                "version": __version__
+            },
+            "worker": {
+                "status": worker_status,
+                **worker_details
+            },
+            "redis": {
+                "status": redis_status
+            }
+        }
     }
 
 
