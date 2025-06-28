@@ -618,13 +618,14 @@ docker-down: ## Stop Docker services
 	$(call print_success,Docker services stopped)
 
 .PHONY: docker-logs
-docker-logs: ## Show Docker container logs (FOLLOW=1 for follow mode)
+docker-logs: ## Show Docker container logs (N=lines FOLLOW=1 for follow mode)
+	$(eval N := $(or $(N),30))
 	$(call print_status,Showing Docker logs)
 	@if [ "$(FOLLOW)" = "1" ]; then \
 		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
-		docker-compose -f docker/docker-compose.yml logs -f; \
+		docker-compose -f docker/docker-compose.yml logs -f --tail=$(N); \
 	else \
-		docker-compose -f docker/docker-compose.yml logs --tail=30; \
+		docker-compose -f docker/docker-compose.yml logs --tail=$(N); \
 	fi
 
 # ===========================================
