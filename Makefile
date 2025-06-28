@@ -618,9 +618,14 @@ docker-down: ## Stop Docker services
 	$(call print_success,Docker services stopped)
 
 .PHONY: docker-logs
-docker-logs: ## Show Docker container logs
+docker-logs: ## Show Docker container logs (FOLLOW=1 for follow mode)
 	$(call print_status,Showing Docker logs)
-	@docker-compose -f docker/docker-compose.yml logs -f
+	@if [ "$(FOLLOW)" = "1" ]; then \
+		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
+		docker-compose -f docker/docker-compose.yml logs -f; \
+	else \
+		docker-compose -f docker/docker-compose.yml logs --tail=30; \
+	fi
 
 # ===========================================
 # 🔧 Service Management
@@ -765,10 +770,17 @@ service-status: ## Check service status (API and Worker)
 	fi
 
 .PHONY: logs
-logs: ## Show service logs (follow)
-	$(call print_status,Following $(SERVICE_NAME) logs)
-	@journalctl -u $(SERVICE_NAME) -f --no-pager 2>/dev/null || \
-	{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --no-pager; }
+logs: ## Show service logs (N=lines FOLLOW=1 for follow mode)
+	$(eval N := $(or $(N),30))
+	$(call print_status,Recent $(SERVICE_NAME) logs)
+	@if [ "$(FOLLOW)" = "1" ]; then \
+		echo -e "$(FONT_YELLOW)Press Ctrl+C to stop following logs$(FONT_RESET)"; \
+		journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager 2>/dev/null || \
+		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -f --lines $(N) --no-pager; }; \
+	else \
+		journalctl -u $(SERVICE_NAME) -n $(N) --no-pager 2>/dev/null || \
+		{ echo "Note: Trying with sudo (password required)"; sudo journalctl -u $(SERVICE_NAME) -n $(N) --no-pager; }; \
+	fi
 
 .PHONY: logs-tail
 logs-tail: ## Show recent service logs
