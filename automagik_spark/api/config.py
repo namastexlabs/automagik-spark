@@ -9,7 +9,7 @@ load_dotenv()
 
 def get_cors_origins() -> List[str]:
     """Get CORS origins from environment variable."""
-    cors_origins = os.getenv("AUTOMAGIK_SPARK_API_CORS", "http://localhost:3000,http://localhost:18883")
+    cors_origins = os.getenv("AUTOMAGIK_SPARK_API_CORS", "http://localhost:3000,http://localhost:8883")
     return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 def get_api_host() -> str:
@@ -18,7 +18,7 @@ def get_api_host() -> str:
 
 def get_api_port() -> int:
     """Get Spark API port from environment variable."""
-    port_str = os.getenv("AUTOMAGIK_SPARK_API_PORT", "18883")
+    port_str = os.getenv("AUTOMAGIK_SPARK_API_PORT", "8883")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -33,7 +33,7 @@ def get_api_key() -> str | None:
 
 def get_langflow_api_url() -> str:
     """Get LangFlow API URL."""
-    return os.getenv("LANGFLOW_API_URL", "http://localhost:7860")
+    return os.getenv("LANGFLOW_API_URL", "http://localhost:17860")
 
 def get_langflow_api_key() -> str | None:
     """Get LangFlow API key."""
@@ -48,7 +48,7 @@ def get_database_url() -> str:
 
 def get_agents_api_port() -> int:
     """Get AutoMagik Agents API port from environment variable."""
-    port_str = os.getenv("AUTOMAGIK_AGENTS_API_PORT", "18881")
+    port_str = os.getenv("AUTOMAGIK_AGENTS_API_PORT", "8881")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
