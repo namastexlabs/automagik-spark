@@ -48,7 +48,7 @@ export
 
 # Default values (will be overridden by .env if present)
 HOST ?= 127.0.0.1
-PORT ?= 18883
+PORT ?= 8883
 LOG_LEVEL ?= info
 
 # ===========================================
