@@ -12,6 +12,7 @@ from .workflow import workflow_group
 from .schedule import schedule_group
 from .task import task_group
 from .source import source_group
+from .telemetry import telemetry_group
 
 __all__ = [
     "api_group",
@@ -21,6 +22,7 @@ __all__ = [
     "schedule_group",
     "task_group",
     "source_group",
+    "telemetry_group",
 ]
 
 

@@ -122,6 +122,52 @@ For complete API documentation, visit:
 3. Try out the CLI commands with `automagik-spark --help`
 4. Monitor task execution through logs and API endpoints
 
+## 📊 Telemetry
+
+Spark collects anonymous usage analytics to help improve the project. This data helps us understand which features are most useful and prioritize development efforts.
+
+### What We Collect
+- Command usage and performance metrics
+- API endpoint usage patterns
+- Workflow execution statistics
+- System information (OS, Python version)
+- Error rates and types
+
+### What We DON'T Collect
+- Personal information or credentials
+- Actual workflow data or content
+- File paths or environment variables
+- Database connection strings or API keys
+
+### How to Disable Telemetry
+
+**Environment Variable:**
+```bash
+export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true
+```
+
+**CLI Commands:**
+```bash
+# Disable permanently
+automagik-spark telemetry disable
+
+# Check status
+automagik-spark telemetry status
+
+# See what data is collected
+automagik-spark telemetry info
+
+# Use --no-telemetry flag for single session
+automagik-spark --no-telemetry <command>
+```
+
+**Opt-out File:**
+```bash
+touch ~/.automagik-no-telemetry
+```
+
+Telemetry is automatically disabled in CI/testing environments.
+
 ## 🗺️ Roadmap
 
 Spark's future development focuses on:
