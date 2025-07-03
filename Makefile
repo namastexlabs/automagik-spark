@@ -47,8 +47,8 @@ DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then ech
 export
 
 # Default values (will be overridden by .env if present)
-HOST ?= 127.0.0.1
-PORT ?= 8883
+AUTOMAGIK_SPARK_API_HOST ?= 127.0.0.1
+AUTOMAGIK_SPARK_API_PORT ?= 8883
 LOG_LEVEL ?= info
 
 # ===========================================
@@ -379,13 +379,13 @@ dev: ## Start development mode (local Python)
 		exit 1; \
 	fi
 	@$(call print_status,Starting API server with auto-reload...)
-	@$(UV) run uvicorn automagik_spark.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
+	@$(UV) run uvicorn automagik_spark.api.app:app --host $(AUTOMAGIK_SPARK_API_HOST) --port $(AUTOMAGIK_SPARK_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
 
 api: ## Start API server with auto-reload
 	@$(call check_prerequisites)
 	@$(call ensure_env_file)
 	@$(call print_status,Starting AutoMagik Spark API server...)
-	@$(UV) run uvicorn automagik_spark.api.app:app --host $(HOST) --port $(PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
+	@$(UV) run uvicorn automagik_spark.api.app:app --host $(AUTOMAGIK_SPARK_API_HOST) --port $(AUTOMAGIK_SPARK_API_PORT) --reload --log-level $(shell echo "$(LOG_LEVEL)" | tr '[:upper:]' '[:lower:]')
 
 worker: ## Start Celery worker
 	@$(call check_prerequisites)
