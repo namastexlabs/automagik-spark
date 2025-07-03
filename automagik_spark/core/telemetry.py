@@ -20,7 +20,7 @@ class TelemetryClient:
     """Lightweight telemetry client using OTLP format."""
     
     def __init__(self):
-        self.endpoint = "https://telemetry.namastex.ai:4318/v1/traces"
+        self.endpoint = "https://telemetry.namastex.ai/v1/traces"
         self.timeout = 5  # seconds
         self.user_id = self._get_or_create_user_id()
         self.session_id = str(uuid.uuid4())
