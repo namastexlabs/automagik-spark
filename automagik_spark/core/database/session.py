@@ -19,15 +19,15 @@ logger = logging.getLogger(__name__)
 # Get database URL from environment, ensure it uses asyncpg driver
 DATABASE_URL = get_database_url()
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set")
+    raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
 
 # Only enforce PostgreSQL check in non-testing environments
-if os.getenv('AUTOMAGIK_SPARK_ENV') != 'testing':
+if os.getenv('ENVIRONMENT') != 'testing':
     if not DATABASE_URL.startswith('postgresql+asyncpg://'):
         if DATABASE_URL.startswith('postgresql://'):
             DATABASE_URL = f"postgresql+asyncpg://{DATABASE_URL.split('://', 1)[1]}"
         else:
-            raise ValueError("DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'")
+            raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'")
 
 logger.info(f"Using database at {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else DATABASE_URL}")
 

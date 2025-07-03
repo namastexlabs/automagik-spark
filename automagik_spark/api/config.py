@@ -48,7 +48,7 @@ def get_database_url() -> str:
 
 def get_agents_api_port() -> int:
     """Get AutoMagik Agents API port from environment variable."""
-    port_str = os.getenv("AUTOMAGIK_AGENTS_API_PORT", "8881")
+    port_str = os.getenv("AUTOMAGIK_API_PORT", "8881")
     try:
         port = int(port_str)
         if port < 1 or port > 65535:
@@ -59,6 +59,6 @@ def get_agents_api_port() -> int:
 
 def get_agents_api_host() -> str:
     """Get AutoMagik Agents API host from environment variable or default."""
-    return os.environ.get("AUTOMAGIK_AGENTS_API_HOST", "localhost")
+    return os.environ.get("AUTOMAGIK_API_HOST", "localhost")
 
 

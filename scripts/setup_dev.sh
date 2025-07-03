@@ -282,7 +282,7 @@ if [ -f .env ]; then
         # Ensure DATABASE_URL is set correctly for local development
         sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://automagik_spark:automagik@localhost:15432/automagik_spark|' .env
         # Ensure worker log path is set correctly
-        sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=logs/worker.log|' .env
+        sed -i 's|^AUTOMAGIK_SPARK_WORKER_LOG=.*|AUTOMAGIK_SPARK_WORKER_LOG=logs/worker.log|' .env
         print_status "Environment file created successfully!"
     else
         print_status "Using existing .env file."
@@ -292,9 +292,9 @@ if [ -f .env ]; then
             print_status "Updated DATABASE_URL in .env"
         fi
         # Ensure worker log path is set correctly
-        if ! grep -q "^AM_WORKER_LOG=logs/worker.log" .env; then
-            sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=logs/worker.log|' .env
-            print_status "Updated AM_WORKER_LOG in .env"
+        if ! grep -q "^AUTOMAGIK_SPARK_WORKER_LOG=logs/worker.log" .env; then
+            sed -i 's|^AUTOMAGIK_SPARK_WORKER_LOG=.*|AUTOMAGIK_SPARK_WORKER_LOG=logs/worker.log|' .env
+            print_status "Updated AUTOMAGIK_SPARK_WORKER_LOG in .env"
         fi
     fi
 else
@@ -305,7 +305,7 @@ else
     sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
     sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
     # Ensure worker log path is set correctly
-    sed -i 's|^AM_WORKER_LOG=.*|AM_WORKER_LOG=~/.automagik_spark/log/automagik_spark/worker.log|' .env
+    sed -i 's|^AUTOMAGIK_SPARK_WORKER_LOG=.*|AUTOMAGIK_SPARK_WORKER_LOG=~/.automagik_spark/log/automagik_spark/worker.log|' .env
     # Ensure Redis URL is set correctly
     sed -i 's|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://localhost:16379/0|' .env
     sed -i 's|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://localhost:16379/0|' .env
@@ -318,8 +318,8 @@ source .env
 set +a
 
 print_status "Creating logs directory..."
-mkdir -p "$(eval echo "$(dirname "$AM_WORKER_LOG")")"
-touch "$(eval echo "$AM_WORKER_LOG")"
+mkdir -p "$(eval echo "$(dirname "$AUTOMAGIK_SPARK_WORKER_LOG")")"
+touch "$(eval echo "$AUTOMAGIK_SPARK_WORKER_LOG")"
 
 print_status "Creating virtual environment..."
 uv venv

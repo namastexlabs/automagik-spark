@@ -17,7 +17,7 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_API_KEY = "namastex888"
 
 # Set up test environment variables
-os.environ["AUTOMAGIK_SPARK_ENV"] = "testing"
+os.environ["ENVIRONMENT"] = "testing"
 os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 os.environ["AUTOMAGIK_SPARK_DATABASE_URL"] = TEST_DATABASE_URL  # Override database URL
 
@@ -30,7 +30,7 @@ from automagik_spark.api.dependencies import get_async_session
 def setup_test_env():
     """Set up test environment."""
     yield
-    os.environ.pop("AUTOMAGIK_SPARK_ENV", None)
+    os.environ.pop("ENVIRONMENT", None)
     os.environ.pop("AUTOMAGIK_SPARK_API_KEY", None)
     os.environ.pop("AUTOMAGIK_SPARK_DATABASE_URL", None)
 
