@@ -57,8 +57,8 @@ def _log_telemetry_status():
         logger.info("📊 Telemetry is DISABLED")
 
 async def auto_discover_langflow():
-    """Auto-discover LangFlow on ports 17860 and 7860 during startup."""
-    langflow_ports = [17860, 7860]
+    """Auto-discover LangFlow on ports 7860 and 7860 during startup."""
+    langflow_ports = [7860, 7860]
     
     for port in langflow_ports:
         try:
@@ -112,7 +112,7 @@ async def auto_discover_langflow():
         except Exception as e:
             logger.debug(f"LangFlow auto-discovery failed for port {port}: {e}")
     
-    logger.info("No LangFlow instances found on ports 17860 or 7860")
+    logger.info("No LangFlow instances found on ports 7860 or 7860")
 
 async def auto_discover_automagik_agents():
     """Auto-discover AutoMagik Agents during startup."""

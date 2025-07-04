@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     environment:
-      AM_ENV: production
+      ENVIRONMENT: production
       PYTHONUNBUFFERED: 1
     ports:
       - "8883:8883"
@@ -66,7 +66,7 @@ services:
     env_file:
       - .env
     environment:
-      AM_ENV: production
+      ENVIRONMENT: production
       PYTHONUNBUFFERED: 1
     depends_on:
       automagik-spark-db:
@@ -80,7 +80,7 @@ services:
   langflow:
     image: logspace/langflow:latest
     ports:
-      - "17860:7860"
+      - "7860:7860"
     volumes:
       - langflow-data:/data
     networks:
