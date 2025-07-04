@@ -33,7 +33,7 @@ def get_api_key() -> str | None:
 
 def get_langflow_api_url() -> str:
     """Get LangFlow API URL."""
-    return os.getenv("LANGFLOW_API_URL", "http://localhost:17860")
+    return os.getenv("LANGFLOW_API_URL", "http://localhost:7860")
 
 def get_langflow_api_key() -> str | None:
     """Get LangFlow API key."""

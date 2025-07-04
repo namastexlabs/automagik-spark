@@ -41,9 +41,9 @@ services:
       - langflow
     image: langflowai/langflow:latest
     pull_policy: always
-    command: langflow run --host 0.0.0.0 --port 17860
+    command: langflow run --host 0.0.0.0 --port 7860
     ports:
-      - "17860:17860"
+      - "7860:7860"
     environment:
       - LANGFLOW_WORKERS=2
     volumes:

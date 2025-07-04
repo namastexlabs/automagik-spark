@@ -80,7 +80,7 @@ services:
   langflow:
     image: logspace/langflow:latest
     ports:
-      - "17860:7860"
+      - "7860:7860"
     volumes:
       - langflow-data:/data
     networks:
