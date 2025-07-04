@@ -3,12 +3,12 @@ services:
   redis:
     image: redis:7.4.2-alpine
     ports:
-      - "16379:16379"
-    command: redis-server --port 16379 --appendonly yes
+      - "${AUTOMAGIK_SPARK_REDIS_PORT:-5412}:${AUTOMAGIK_SPARK_REDIS_PORT:-5412}"
+    command: redis-server --port ${AUTOMAGIK_SPARK_REDIS_PORT:-5412} --appendonly yes --requirepass "${AUTOMAGIK_SPARK_REDIS_PASSWORD:-spark_redis_pass}"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "16379", "ping"]
+      test: ["CMD", "redis-cli", "-p", "${AUTOMAGIK_SPARK_REDIS_PORT:-5412}", "-a", "${AUTOMAGIK_SPARK_REDIS_PASSWORD:-spark_redis_pass}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,16 +19,16 @@ services:
   automagik-db:
     image: postgres:16
     environment:
-      POSTGRES_USER: automagik
-      POSTGRES_PASSWORD: automagik
-      POSTGRES_DB: automagik
-    command: postgres -p 15432
+      POSTGRES_USER: ${AUTOMAGIK_SPARK_POSTGRES_USER:-spark_user}
+      POSTGRES_PASSWORD: ${AUTOMAGIK_SPARK_POSTGRES_PASSWORD:-spark_pass}
+      POSTGRES_DB: automagik_spark
+    command: postgres -p ${AUTOMAGIK_SPARK_POSTGRES_PORT:-5402}
     ports:
-      - "15432:15432"
+      - "${AUTOMAGIK_SPARK_POSTGRES_PORT:-5402}:${AUTOMAGIK_SPARK_POSTGRES_PORT:-5402}"
     volumes:
       - automagik-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automagik -p 15432"]
+      test: ["CMD-SHELL", "pg_isready -U ${AUTOMAGIK_SPARK_POSTGRES_USER:-spark_user} -p ${AUTOMAGIK_SPARK_POSTGRES_PORT:-5402}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -43,7 +43,7 @@ services:
     pull_policy: always
     command: langflow run --host 0.0.0.0 --port 7860
     ports:
-      - "7860:7860"
+      - "${LANGFLOW_PORT:-7860}:${LANGFLOW_PORT:-7860}"
     environment:
       - LANGFLOW_WORKERS=2
     volumes:
