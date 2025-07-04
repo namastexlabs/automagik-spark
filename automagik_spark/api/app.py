@@ -35,9 +35,26 @@ async def lifespan(app: FastAPI):
     # Startup - Auto-discover workflow sources
     await auto_discover_langflow()
     await auto_discover_automagik_agents()
+    
+    # Log telemetry status
+    _log_telemetry_status()
+    
     yield
     # Shutdown (if needed)
     pass
+
+def _log_telemetry_status():
+    """Log telemetry status on startup."""
+    from ..core.telemetry import is_telemetry_enabled
+    
+    if is_telemetry_enabled():
+        logger.info("📊 Telemetry is ENABLED - helps us improve Automagik Spark")
+        logger.info("   • We collect anonymous usage analytics (commands, API usage, performance)")
+        logger.info("   • No personal data, credentials, or workflow content is collected")
+        logger.info("   • Disable: export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true")
+        logger.info("   • More info: automagik-spark telemetry info")
+    else:
+        logger.info("📊 Telemetry is DISABLED")
 
 async def auto_discover_langflow():
     """Auto-discover LangFlow on ports 17860 and 7860 during startup."""

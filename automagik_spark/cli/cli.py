@@ -34,6 +34,24 @@ def main(debug, no_telemetry):
     if no_telemetry:
         import os
         os.environ["AUTOMAGIK_SPARK_DISABLE_TELEMETRY"] = "true"
+    
+    # Log telemetry status on CLI startup
+    _log_telemetry_status()
+
+def _log_telemetry_status():
+    """Log telemetry status on startup."""
+    from automagik_spark.core.telemetry import is_telemetry_enabled
+    
+    logger = logging.getLogger(__name__)
+    
+    if is_telemetry_enabled():
+        logger.info("📊 Telemetry is ENABLED - helps us improve Automagik Spark")
+        logger.info("   • We collect anonymous usage analytics (commands, API usage, performance)")
+        logger.info("   • No personal data, credentials, or workflow content is collected")
+        logger.info("   • Disable: export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true")
+        logger.info("   • More info: automagik-spark telemetry info")
+    else:
+        logger.info("📊 Telemetry is DISABLED")
 
 # Add command groups
 main.add_command(api_group)
