@@ -100,6 +100,7 @@ async def create_source(
         # Determine expected status based on source type
         expected_status = 'healthy' if source.source_type == SourceType.AUTOMAGIK_AGENTS else 'ok'
         db_source = WorkflowSource(
+            name=source.name,
             source_type=source.source_type,
             url=url_str,
             encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),

@@ -3,7 +3,11 @@
 import os
 from celery import Celery
 from kombu.messaging import Exchange, Queue
+from dotenv import load_dotenv
 from ..config import get_settings
+
+# Load environment variables from .env file
+load_dotenv()
 
 def get_celery_config():
     """Get Celery configuration."""
