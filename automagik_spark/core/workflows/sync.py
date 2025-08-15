@@ -16,8 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database.models import Workflow, Task, WorkflowSource
+from ..schemas.source import SourceType
 from .remote import LangFlowManager  # Import from .remote module
 from .automagik_agents import AutoMagikAgentManager  # Import AutoMagik manager
+from .automagik_hive import AutomagikHiveManager  # Import AutoMagik Hive manager
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +201,9 @@ class WorkflowSyncSync:
 
     def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
         """Get the workflow source for a given workflow ID."""
-        workflow = self.session.get(Workflow, workflow_id)
+        from sqlalchemy import select
+        result = self.session.execute(select(Workflow).where(Workflow.id == workflow_id))
+        workflow = result.scalar_one_or_none()
         if not workflow:
             return None
         
@@ -225,7 +229,7 @@ class WorkflowSyncSync:
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             logger.info(f"Decrypted API key: {'***' if api_key else 'None'}")
             
-            if source.source_type == "automagik":
+            if source.source_type == SourceType.AUTOMAGIK_AGENTS:
                 # Use AutoMagik manager for AutoMagik sources
                 logger.info(f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}")
                 try:
@@ -243,6 +247,27 @@ class WorkflowSyncSync:
                 except Exception as automagik_error:
                     logger.error(f"AutoMagik run_flow_sync failed with error: {automagik_error}")
                     logger.error(f"Error type: {type(automagik_error)}")
+                    import traceback
+                    logger.error(f"Full traceback: {traceback.format_exc()}")
+                    raise
+            elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+                # Use AutoMagik Hive manager for Hive sources
+                logger.info(f"Creating AutomagikHiveManager with api_url={source.url}, api_key={'***' if api_key else None}")
+                try:
+                    self._manager = AutomagikHiveManager(api_url=source.url, api_key=api_key)
+                    logger.info(f"AutomagikHiveManager created successfully")
+                except Exception as create_error:
+                    logger.error(f"Failed to create AutomagikHiveManager: {create_error}")
+                    import traceback
+                    logger.error(f"Create manager traceback: {traceback.format_exc()}")
+                    raise
+                logger.info(f"Calling run_flow_sync with flow_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
+                try:
+                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
+                    logger.info(f"AutoMagik Hive run_flow_sync completed successfully")
+                except Exception as hive_error:
+                    logger.error(f"AutoMagik Hive run_flow_sync failed with error: {hive_error}")
+                    logger.error(f"Error type: {type(hive_error)}")
                     import traceback
                     logger.error(f"Full traceback: {traceback.format_exc()}")
                     raise

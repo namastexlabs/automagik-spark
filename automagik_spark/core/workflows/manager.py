@@ -21,6 +21,7 @@ from .remote import LangFlowManager
 from .task import TaskManager
 from .source import WorkflowSource
 from .automagik_agents import AutoMagikAgentManager
+from .automagik_hive import AutomagikHiveManager
 
 import os
 import asyncio
@@ -82,6 +83,8 @@ class WorkflowManager:
             return LangFlowManager(api_url=source.url, api_key=api_key)
         elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
             return AutoMagikAgentManager(source.url, api_key, source_id=source.id)
+        elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+            return AutomagikHiveManager(source.url, api_key, source_id=source.id)
         else:
             raise ValueError(f"Unsupported source type: {source.source_type}")
 
@@ -120,6 +123,9 @@ class WorkflowManager:
                             flows = manager.list_flows_sync()
                     elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
                         manager = AutoMagikAgentManager(source.url, api_key, source_id=source.id)
+                        flows = manager.list_flows_sync()
+                    elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+                        manager = AutomagikHiveManager(source.url, api_key, source_id=source.id)
                         flows = manager.list_flows_sync()
                     else:
                         logger.warning(f"Unsupported source type: {source.source_type}")
@@ -171,6 +177,8 @@ class WorkflowManager:
                         flow = await self.source_manager.get_flow(flow_id)
                     elif isinstance(self.source_manager, AutoMagikAgentManager):
                         flow = await self.source_manager.get_agent(flow_id)
+                    elif isinstance(self.source_manager, AutomagikHiveManager):
+                        flow = await self.source_manager.get_flow(flow_id)
                     else:
                         logger.warning("Unsupported source type")
                         return None
@@ -734,6 +742,17 @@ class SyncWorkflowManager:
                 with self.source_manager:
                     result = self.source_manager.run_flow_sync(workflow.remote_flow_id, task.input_data)
                     # For automagik-agents, extract just the result field
+                    if isinstance(result, dict):
+                        result = result.get('result', result)
+            elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+                self.source_manager = AutomagikHiveManager(
+                    source.url,
+                    api_key,
+                    source_id=source.id
+                )
+                with self.source_manager:
+                    result = self.source_manager.run_flow_sync(workflow.remote_flow_id, task.input_data)
+                    # For automagik-hive, extract just the result field
                     if isinstance(result, dict):
                         result = result.get('result', result)
             else:

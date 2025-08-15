@@ -10,6 +10,7 @@ class SourceType(str, Enum):
     """Enum for workflow source types."""
     LANGFLOW = "langflow"
     AUTOMAGIK_AGENTS = "automagik-agents"
+    AUTOMAGIK_HIVE = "automagik-hive"
 
 class WorkflowSourceBase(BaseModel):
     """Base model for workflow sources."""

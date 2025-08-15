@@ -27,14 +27,22 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
             if api_key:
                 headers["x-api-key"] = api_key
 
-            # Check health first
-            health_response = await client.get(f"{url}/health", headers=headers)
+            # Check health first - different endpoints for different source types
+            if source_type == SourceType.AUTOMAGIK_HIVE:
+                health_response = await client.get(f"{url}/api/v1/health", headers=headers)
+            else:
+                health_response = await client.get(f"{url}/health", headers=headers)
             health_response.raise_for_status()
             health_data = health_response.json()
             
-            # For automagik-agents, status should be 'healthy'
-            # For langflow, status should be 'ok'
-            expected_status = 'healthy' if source_type == SourceType.AUTOMAGIK_AGENTS else 'ok'
+            # Different expected statuses for different source types
+            if source_type == SourceType.AUTOMAGIK_AGENTS:
+                expected_status = 'healthy'
+            elif source_type == SourceType.AUTOMAGIK_HIVE:
+                expected_status = 'success'
+            else:  # LANGFLOW
+                expected_status = 'ok'
+                
             if health_data.get('status') != expected_status:
                 raise HTTPException(
                     status_code=400,
@@ -55,6 +63,33 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                     'timestamp': health_data.get('timestamp'),
                     'environment': health_data.get('environment', 'unknown')
                 }
+            elif source_type == SourceType.AUTOMAGIK_HIVE:
+                # For AutoMagik Hive, get status info for additional details
+                try:
+                    status_response = await client.get(f"{url}/playground/status", headers=headers)
+                    status_response.raise_for_status()
+                    status_data = status_response.json()
+                    version_data = {
+                        'version': health_data.get('utc', 'unknown'),
+                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
+                        'description': 'AutoMagik Hive Multi-Agent System with agents, teams, and workflows',
+                        'status': health_data.get('status', 'unknown'),
+                        'timestamp': health_data.get('utc'),
+                        'environment': 'production',
+                        'agents_loaded': status_data.get('agents_loaded', 0),
+                        'teams_loaded': status_data.get('teams_loaded', 0),
+                        'workflows_loaded': status_data.get('workflows_loaded', 0)
+                    }
+                except:
+                    # Fallback if status endpoint fails
+                    version_data = {
+                        'version': health_data.get('utc', 'unknown'),
+                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
+                        'description': 'AutoMagik Hive Multi-Agent System',
+                        'status': health_data.get('status', 'unknown'),
+                        'timestamp': health_data.get('utc'),
+                        'environment': 'production'
+                    }
             else:
                 # For langflow, use /api/v1/version endpoint
                 version_response = await client.get(f"{url}/api/v1/version", headers=headers)
@@ -98,7 +133,12 @@ async def create_source(
         
         # Create source with status from health check
         # Determine expected status based on source type
-        expected_status = 'healthy' if source.source_type == SourceType.AUTOMAGIK_AGENTS else 'ok'
+        if source.source_type == SourceType.AUTOMAGIK_AGENTS:
+            expected_status = 'healthy'
+        elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+            expected_status = 'success'
+        else:  # LANGFLOW
+            expected_status = 'ok'
         db_source = WorkflowSource(
             name=source.name,
             source_type=source.source_type,
