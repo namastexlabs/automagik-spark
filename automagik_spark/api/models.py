@@ -199,7 +199,7 @@ class ScheduleBase(BaseModel):
     workflow_id: str = Field(..., description="ID of the workflow this schedule belongs to")
     schedule_type: str = Field(..., description="Type of schedule (cron, interval, or one-time)")
     schedule_expr: str = Field(..., description="Schedule expression (cron expression, interval like '1h', or datetime/now for one-time)")
-    input_value: str = Field(..., description="Input string to be passed to the workflow's input component")
+    input_value: Optional[str] = Field(None, description="Input string to be passed to the workflow's input component")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -215,7 +215,7 @@ class ScheduleResponse(BaseModel):
     workflow_id: str = Field(..., description="ID of the workflow this schedule belongs to")
     schedule_type: str = Field(..., description="Type of schedule (cron, interval, or one-time)")
     schedule_expr: str = Field(..., description="Schedule expression (cron expression, interval like '1h', or datetime/now for one-time)")
-    input_value: str = Field(..., description="Input string to be passed to the workflow's input component")
+    input_value: Optional[str] = Field(None, description="Input string to be passed to the workflow's input component")
     status: str = Field(..., description="Schedule status")
     next_run_at: Optional[datetime] = Field(None, description="Next run timestamp")
     created_at: datetime = Field(..., description="Schedule creation timestamp")
@@ -230,7 +230,7 @@ class ScheduleResponse(BaseModel):
                 "workflow_id": str(obj.workflow_id) if isinstance(obj.workflow_id, UUID) else obj.workflow_id,
                 "schedule_type": obj.schedule_type,
                 "schedule_expr": obj.schedule_expr,
-                "input_value": obj.input_data,
+                "input_value": obj.params.get("value") if obj.params else None,
                 "status": obj.status,
                 "next_run_at": obj.next_run_at,
                 "created_at": obj.created_at,

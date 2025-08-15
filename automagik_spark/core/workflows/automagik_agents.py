@@ -128,7 +128,7 @@ class AutoMagikAgentManager:
                 should_close_client = True
                 
             try:
-                response = await client.get("/api/v1/agent/list")
+                response = await client.get("/api/v1/agents")
                 response.raise_for_status()
                 agents = response.json()
                 
@@ -193,7 +193,7 @@ class AutoMagikAgentManager:
         """Alias for get_agent to maintain interface compatibility with LangFlowManager."""
         return await self.get_agent(flow_id)
 
-    async def run_flow(self, agent_id: str, input_data: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+    async def run_flow(self, agent_id: str, input_data, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Run an agent with input data.
         
         Args:
@@ -209,9 +209,13 @@ class AutoMagikAgentManager:
             if not session_id and self.source_id:
                 session_id = f"{self.source_id}_{agent_id}"
 
-            # Ensure input_data is not empty
-            if not input_data:
+            # Handle different input_data formats
+            if isinstance(input_data, dict) and 'value' in input_data:
+                input_data = input_data['value']
+            elif not input_data:
                 input_data = "Hello"  # Default greeting if no input provided
+            elif not isinstance(input_data, str):
+                input_data = str(input_data)
 
             # Create a new client if one isn't already initialized
             client = self._client
@@ -233,22 +237,23 @@ class AutoMagikAgentManager:
                     f"/api/v1/agent/{agent_id}/run",
                     json={
                         "message_content": input_data,
-                        "session_id": session_id,
-                        "user_id": 1,
-                        "message_limit": 10,
+                        "session_name": session_id,
+                        "user_id": "550e8400-e29b-41d4-a716-446655440000",
                         "session_origin": "automagik-spark"
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
                 
-                # The API returns the output directly
+                # The API returns structured data
                 return {
-                    'result': result if isinstance(result, str) else str(result),
-                    'session_id': session_id,
-                    'conversation_id': None,  # API doesn't provide this yet
-                    'tool_calls': [],  # API doesn't provide this yet
-                    'memory': {}  # API doesn't provide this yet
+                    'result': result.get('message', str(result)),
+                    'session_id': result.get('session_id', session_id),
+                    'conversation_id': None,
+                    'tool_calls': result.get('tool_calls', []),
+                    'memory': {},
+                    'usage': result.get('usage', {}),
+                    'success': result.get('success', True)
                 }
             finally:
                 # Close the client if we created it
@@ -270,13 +275,19 @@ class AutoMagikAgentManager:
             Dict[str, Any]: Agent execution result
         """
         try:
+            logger.info(f"AutoMagik run_flow_sync called with agent_id={agent_id}, input_data={repr(input_data)}, session_id={session_id}")
             # If no session_id provided, generate one based on source and agent
             if not session_id and self.source_id:
                 session_id = f"{self.source_id}_{agent_id}"
 
-            # Ensure input_data is not empty
-            if not input_data:
+            # Handle different input_data formats
+            if isinstance(input_data, dict) and 'value' in input_data:
+                input_data = input_data['value']
+            elif not input_data:
                 input_data = "Hello"  # Default greeting if no input provided
+            elif not isinstance(input_data, str):
+                input_data = str(input_data)
+            logger.info(f"Processed input_data: {repr(input_data)}")
 
             # Create a synchronous client
             with httpx.Client(
@@ -290,12 +301,11 @@ class AutoMagikAgentManager:
                 # Format the payload according to the API requirements
                 payload = {
                     "message_content": input_data,
-                    "message_type": "text",
                     "session_name": session_id,
                     "session_origin": "automagik-spark",
-                    "user_id": 1,
-                    "message_limit": 10
+                    "user_id": "550e8400-e29b-41d4-a716-446655440000"
                 }
+                logger.info(f"Sending payload: {payload}")
                 
                 response = client.post(
                     f"/api/v1/agent/{agent_id}/run",
@@ -304,13 +314,15 @@ class AutoMagikAgentManager:
                 response.raise_for_status()
                 result = response.json()
                 
-                # The API returns the output directly
+                # The API returns structured data
                 return {
-                    'result': result if isinstance(result, str) else str(result),
-                    'session_id': session_id,
-                    'conversation_id': None,  # API doesn't provide this yet
-                    'tool_calls': [],  # API doesn't provide this yet
-                    'memory': {}  # API doesn't provide this yet
+                    'result': result.get('message', str(result)),
+                    'session_id': result.get('session_id', session_id),
+                    'conversation_id': None,
+                    'tool_calls': result.get('tool_calls', []),
+                    'memory': {},
+                    'usage': result.get('usage', {}),
+                    'success': result.get('success', True)
                 }
         except Exception as e:
             logger.error(f"Failed to run agent {agent_id}: {str(e)}")
@@ -362,7 +374,7 @@ class AutoMagikAgentManager:
                 },
                 verify=False  # TODO: Make this configurable
             ) as client:
-                response = client.get("/api/v1/agent/list")
+                response = client.get("/api/v1/agents")
                 response.raise_for_status()
                 agents = response.json()
                 

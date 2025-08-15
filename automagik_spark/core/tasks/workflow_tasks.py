@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from ...core.database.session import get_sync_session
 from ...core.database.models import Task, Workflow, Schedule
-from ...core.workflows.sync import WorkflowSync
+from ...core.workflows.sync import WorkflowSyncSync
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,15 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                 logger.info(f"Marked one-time schedule {schedule_id} as completed before execution")
 
             # Create task with input data as string
-            input_data = schedule.input_data or ""
+            input_data = ""
+            if schedule.params and isinstance(schedule.params, dict):
+                input_data = schedule.params.get("value", "")
+            elif schedule.input_data:
+                input_data = schedule.input_data  # Fallback to old field
+            
+            # Ensure input_data is always a string
+            if not input_data:
+                input_data = "Hello World"  # Default value if nothing provided
 
             task = Task(
                 id=uuid4(),
@@ -72,7 +80,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                     return task
 
                 # Run workflow
-                with WorkflowSync(session) as sync:
+                with WorkflowSyncSync(session) as sync:
                     output = sync.execute_workflow(workflow, task.input_data)
                     if output:
                         # Extract and log only the result message
@@ -184,7 +192,7 @@ def process_pending_tasks():
                 task.updated_at = datetime.now(timezone.utc)
                 session.commit()
 
-                with WorkflowSync(session) as sync:
+                with WorkflowSyncSync(session) as sync:
                     output = sync.execute_workflow(workflow, task.input_data)
                     if output:
                         task.output_data = json.dumps(output)

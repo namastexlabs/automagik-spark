@@ -3,13 +3,10 @@
 // ===================================================================
 // This file enables automagik-spark to run independently
 // It extracts the same configuration from the central ecosystem
-
 const path = require('path');
 const fs = require('fs');
-
 // Get the current directory (automagik-spark)
 const PROJECT_ROOT = __dirname;
-
 /**
  * Extract version from pyproject.toml file using standardized approach
  * @param {string} projectPath - Path to the project directory
@@ -43,20 +40,23 @@ function extractVersionFromPyproject(projectPath) {
     return 'unknown';
   }
 }
-
 // Load environment variables from .env file if it exists
 const envPath = path.join(PROJECT_ROOT, '.env');
 let envVars = {};
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
   envContent.split('\n').forEach(line => {
-    const [key, value] = line.split('=');
-    if (key && value) {
-      envVars[key.trim()] = value.trim().replace(/^["']|["']$/g, '');
+    // Handle lines with multiple = signs properly
+    const eqIndex = line.indexOf('=');
+    if (eqIndex > 0) {
+      const key = line.substring(0, eqIndex).trim();
+      const value = line.substring(eqIndex + 1).trim().replace(/^["']|["']$/g, '');
+      if (key && value) {
+        envVars[key] = value;
+      }
     }
   });
 }
-
 module.exports = {
   apps: [
     // ================================
@@ -142,6 +142,48 @@ module.exports = {
       error_file: path.join(PROJECT_ROOT, 'logs/worker-err.log'),
       out_file: path.join(PROJECT_ROOT, 'logs/worker-out.log'),
       log_file: path.join(PROJECT_ROOT, 'logs/worker-combined.log'),
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    
+    // ================================
+    // Automagik-Spark Beat Scheduler
+    // ================================
+    {
+      name: 'automagik-spark-beat',
+      cwd: PROJECT_ROOT,
+      script: '.venv/bin/celery',
+      args: '-A automagik_spark.core.celery.celery_app beat --loglevel=' + (envVars.AUTOMAGIK_SPARK_LOG_LEVEL || 'info').toLowerCase() + ' --max-interval=1',
+      interpreter: 'none',
+      version: extractVersionFromPyproject(PROJECT_ROOT),
+      env: {
+        ...envVars,
+        PYTHONPATH: PROJECT_ROOT,
+        AUTOMAGIK_SPARK_ENV: envVars.AUTOMAGIK_SPARK_ENV || 'production',
+        AUTOMAGIK_SPARK_DATABASE_URL: envVars.AUTOMAGIK_SPARK_DATABASE_URL,
+        AUTOMAGIK_SPARK_POSTGRES_PORT: envVars.AUTOMAGIK_SPARK_POSTGRES_PORT || '15402',
+        AUTOMAGIK_SPARK_CELERY_BROKER_URL: envVars.AUTOMAGIK_SPARK_CELERY_BROKER_URL,
+        AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND: envVars.AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND,
+        AUTOMAGIK_SPARK_ENCRYPTION_KEY: envVars.AUTOMAGIK_SPARK_ENCRYPTION_KEY,
+        AUTOMAGIK_SPARK_WORKER_LOG: envVars.AUTOMAGIK_SPARK_WORKER_LOG,
+        AUTOMAGIK_TIMEZONE: envVars.AUTOMAGIK_TIMEZONE || 'UTC',
+        LANGFLOW_API_URL: envVars.LANGFLOW_API_URL,
+        LANGFLOW_API_KEY: envVars.LANGFLOW_API_KEY || '',
+        NODE_ENV: 'production'
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 1000,
+      kill_timeout: 5000,
+      error_file: path.join(PROJECT_ROOT, 'logs/beat-err.log'),
+      out_file: path.join(PROJECT_ROOT, 'logs/beat-out.log'),
+      log_file: path.join(PROJECT_ROOT, 'logs/beat-combined.log'),
       merge_logs: true,
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'

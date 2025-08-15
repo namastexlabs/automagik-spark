@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..database.models import Workflow, Task, WorkflowSource
 from .remote import LangFlowManager  # Import from .remote module
+from .automagik_agents import AutoMagikAgentManager  # Import AutoMagik manager
 
 logger = logging.getLogger(__name__)
 
@@ -208,20 +209,47 @@ class WorkflowSyncSync:
     def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
         """Execute a workflow with the given input data."""
         try:
+            logger.info(f"WorkflowSyncSync.execute_workflow called with workflow.id={workflow.id}, input_data={repr(input_data)}")
             # Get workflow source
             source = self._get_workflow_source(str(workflow.id))
             if not source:
                 raise ValueError(f"No source found for workflow {workflow.id}")
 
             logger.info(f"Using workflow source: {source.url}")
+            logger.info(f"Source type: {source.source_type}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
+            logger.info(f"Input data: {repr(input_data)}")  # Debug input data
 
-            # Initialize LangFlow manager with the correct source settings
+            # Initialize appropriate manager based on source type
+            logger.info(f"Source encrypted_api_key: {repr(source.encrypted_api_key)}")
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
-            self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+            logger.info(f"Decrypted API key: {'***' if api_key else 'None'}")
             
-            # Run the workflow
-            result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+            if source.source_type == "automagik":
+                # Use AutoMagik manager for AutoMagik sources
+                logger.info(f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}")
+                try:
+                    self._manager = AutoMagikAgentManager(api_url=source.url, api_key=api_key)
+                    logger.info(f"AutoMagikAgentManager created successfully")
+                except Exception as create_error:
+                    logger.error(f"Failed to create AutoMagikAgentManager: {create_error}")
+                    import traceback
+                    logger.error(f"Create manager traceback: {traceback.format_exc()}")
+                    raise
+                logger.info(f"Calling run_flow_sync with agent_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
+                try:
+                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
+                    logger.info(f"AutoMagik run_flow_sync completed successfully")
+                except Exception as automagik_error:
+                    logger.error(f"AutoMagik run_flow_sync failed with error: {automagik_error}")
+                    logger.error(f"Error type: {type(automagik_error)}")
+                    import traceback
+                    logger.error(f"Full traceback: {traceback.format_exc()}")
+                    raise
+            else:
+                # Default to LangFlow manager for other sources
+                self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+                result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
             if not result:
                 raise ValueError("No result from workflow execution")
 

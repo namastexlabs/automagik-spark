@@ -124,31 +124,47 @@ class WorkflowSource(Base):
     def _get_encryption_key():
         """Get encryption key from environment or generate a default one."""
         key = os.environ.get('AUTOMAGIK_SPARK_ENCRYPTION_KEY')
+        logger.info(f"Raw environment key: {repr(key)}")
         
         if not key:
             # Log a warning that we're using a testing key
-            logger.warning("No SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
-            # Use a fixed testing key that's URL-safe base64 encoded
-            return b'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
+            logger.warning("No AUTOMAGIK_SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
+            # Use a fixed testing key that's URL-safe base64 encoded (as string, not bytes)
+            test_key = 'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
+            logger.info(f"Returning test key: {repr(test_key)}")
+            return test_key
+        
+        # Strip quotes if present (environment might have quotes)
+        key = key.strip('"\'')
+        logger.info(f"Environment key after stripping quotes: {repr(key)}")
             
         # Key is provided in environment
         try:
             # First try to decode as URL-safe base64
             decoded = base64.urlsafe_b64decode(key.encode())
             if len(decoded) == 32:
-                return key.encode()
-        except Exception:
-            pass
+                logger.info(f"Successfully using environment key - base64 decoded length: {len(decoded)}")
+                return key  # Return as string, not bytes
+        except Exception as e:
+            logger.warning(f"Failed to decode as base64: {e}")
             
         try:
             # If not base64, try to encode the raw key
             if len(key.encode()) == 32:
-                return base64.urlsafe_b64encode(key.encode())
+                encoded_key = base64.urlsafe_b64encode(key.encode()).decode()
+                logger.info(f"Encoded raw key to base64: {encoded_key}")
+                return encoded_key
             elif len(key) == 44:  # Standard base64 encoded length for 32 bytes
-                return key.encode()
+                logger.info(f"Using environment key as-is: length={len(key)}")
+                return key
         except Exception as e:
             logger.error(f"Invalid encryption key format: {str(e)}")
-            raise ValueError("Invalid encryption key format. Key must be either 32 bytes of raw data or base64 encoded.")
+            
+        # If we reach here, the key doesn't match any expected format
+        logger.error(f"Environment key '{key}' doesn't match any expected format. Falling back to test key.")
+        test_key = 'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
+        logger.info(f"Returning fallback test key: {repr(test_key)}")
+        return test_key
 
     @staticmethod
     def encrypt_api_key(api_key: str) -> str:
@@ -162,7 +178,15 @@ class WorkflowSource(Base):
         """Decrypt an API key."""
         key = WorkflowSource._get_encryption_key()
         f = Fernet(key)
-        return f.decrypt(encrypted_key.encode()).decode()
+        try:
+            decrypted_bytes = f.decrypt(encrypted_key.encode())
+            if decrypted_bytes is None:
+                raise ValueError("Decryption returned None - possible key mismatch")
+            return decrypted_bytes.decode()
+        except Exception as e:
+            logger.error(f"Failed to decrypt API key: {str(e)}")
+            logger.error(f"This usually indicates an encryption key mismatch. Check AUTOMAGIK_SPARK_ENCRYPTION_KEY environment variable.")
+            raise ValueError(f"Failed to decrypt API key: {str(e)}")
 
     def __str__(self):
         """Return a string representation of the source."""

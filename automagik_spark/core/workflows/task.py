@@ -138,14 +138,14 @@ class TaskManager:
             await self.session.rollback()
             return None
 
-    async def delete_task(self, task_id: Union[str, UUID]) -> bool:
+    async def delete_task(self, task_id: Union[str, UUID]) -> Optional[Task]:
         """Delete a task and its associated logs.
 
         Args:
             task_id (Union[str, UUID]): The ID of the task to delete.
 
         Returns:
-            bool: True if the task was deleted, False otherwise.
+            Optional[Task]: The deleted task if successful, None if task not found.
             
         Raises:
             ValueError: If there was an error during deletion.
@@ -153,10 +153,28 @@ class TaskManager:
         try:
             task_id = self._to_uuid(task_id)
             
-            # First verify the task exists
+            # First verify the task exists and get its data
             task = await self.get_task(task_id)
             if not task:
-                return False
+                return None
+                
+            # Store task data before deletion
+            task_data = Task(
+                id=task.id,
+                workflow_id=task.workflow_id,
+                schedule_id=task.schedule_id,
+                status=task.status,
+                input_data=task.input_data,
+                output_data=task.output_data,
+                error=task.error,
+                next_retry_at=task.next_retry_at,
+                tries=task.tries,
+                max_retries=task.max_retries,
+                created_at=task.created_at,
+                started_at=task.started_at,
+                finished_at=task.finished_at,
+                updated_at=task.updated_at
+            )
                 
             # Delete related task logs first
             await self.session.execute(
@@ -172,9 +190,7 @@ class TaskManager:
             await self.session.commit()
             self.session.expire_all()
             
-            # Verify deletion
-            task = await self.get_task(task_id)
-            return task is None
+            return task_data
             
         except Exception as e:
             logger.error(f"Failed to delete task {task_id}: {str(e)}")

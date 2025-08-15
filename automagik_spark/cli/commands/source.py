@@ -266,9 +266,8 @@ def run_agent(source_id, agent_name, input, session_id):
                         headers=headers,
                         json={
                             "message_content": input,
-                            "session_id": session_id,
-                            "user_id": 1,
-                            "message_limit": 10,
+                            "session_name": session_id,
+                            "user_id": "550e8400-e29b-41d4-a716-446655440000",
                             "session_origin": "automagik-spark"
                         }
                     )
