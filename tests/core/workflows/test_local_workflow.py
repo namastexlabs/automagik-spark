@@ -1,7 +1,7 @@
 """Test local workflow management functionality."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -75,7 +75,7 @@ async def test_workflow(session: AsyncSession) -> Workflow:
         status="completed",
         input_data="test input",
         output_data="test output",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     session.add(task)
     

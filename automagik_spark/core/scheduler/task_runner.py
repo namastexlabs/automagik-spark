@@ -7,7 +7,7 @@ Handles execution of workflow tasks, including input/output processing and error
 
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import uuid
 
@@ -55,10 +55,10 @@ class TaskRunner:
             
             # Update task status
             task.status = 'running'
-            task.started_at = datetime.utcnow()
+            task.started_at = datetime.now(timezone.utc)
             task.tries += 1  # Increment tries counter
             task.error = None  # Clear any previous error
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
             await self.session.commit()
             
             try:
@@ -69,9 +69,9 @@ class TaskRunner:
                 
                 # Update task on success
                 task.status = 'completed'
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now(timezone.utc)
                 task.output_data = output
-                task.updated_at = datetime.utcnow()
+                task.updated_at = datetime.now(timezone.utc)
                 await self.session.commit()
                 
                 return output
@@ -91,8 +91,8 @@ class TaskRunner:
                     logger.info(f"Task {task_id} failed after {task.tries} attempts")
                 
                 task.error = error_msg  # Store error message
-                task.completed_at = datetime.utcnow()  # Mark completion time even for failures
-                task.updated_at = datetime.utcnow()
+                task.completed_at = datetime.now(timezone.utc)  # Mark completion time even for failures
+                task.updated_at = datetime.now(timezone.utc)
                 await self.session.commit()
                 return None
             
@@ -105,8 +105,8 @@ class TaskRunner:
                 if 'task' in locals():
                     task.status = 'failed'
                     task.error = error_msg
-                    task.completed_at = datetime.utcnow()
-                    task.updated_at = datetime.utcnow()
+                    task.completed_at = datetime.now(timezone.utc)
+                    task.updated_at = datetime.now(timezone.utc)
                     await self.session.commit()
             except Exception:
                 pass  # Ignore errors in error handling

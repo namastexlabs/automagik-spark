@@ -59,7 +59,7 @@ class TaskManager:
         """
         for field, value in updates.items():
             setattr(task, field, value)
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now(timezone.utc)
         self.session.add(task)
         await self.session.flush()
         await self.session.refresh(task)
@@ -275,7 +275,7 @@ class TaskManager:
                     task_id=task_id,
                     level="error",
                     message=f"Previous error: {task.error}",
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 self.session.add(error_log)
 
@@ -285,7 +285,7 @@ class TaskManager:
                 task_id=task_id,
                 level="info",
                 message=f"Retrying task after {2 ** task.tries} seconds",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
             self.session.add(retry_log)
 
@@ -294,8 +294,8 @@ class TaskManager:
                 "status": "pending",
                 "tries": task.tries + 1,
                 "error": None,
-                "next_retry_at": datetime.utcnow() + timedelta(seconds=2 ** task.tries),
-                "updated_at": datetime.utcnow()
+                "next_retry_at": datetime.now(timezone.utc) + timedelta(seconds=2 ** task.tries),
+                "updated_at": datetime.now(timezone.utc)
             }
             
             task = await self.update_task_fields(task, updates)

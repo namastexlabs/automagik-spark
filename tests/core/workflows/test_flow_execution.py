@@ -1,7 +1,7 @@
 """Test flow execution functionality."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 import httpx
@@ -46,7 +46,7 @@ async def test_task(session: AsyncSession, test_flow: Workflow) -> Task:
         workflow_id=test_flow.id,
         status="pending",
         input_data="test input",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     session.add(task)
     await session.commit()

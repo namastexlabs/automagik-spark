@@ -8,7 +8,7 @@ Provides functionality for fetching, filtering, and syncing workflows.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import httpx
@@ -109,7 +109,7 @@ class WorkflowSync:
             raise ValueError("Missing input/output components")
 
         # Mark task as started
-        task.started_at = datetime.utcnow()
+        task.started_at = datetime.now(timezone.utc)
         task.status = "running"
         await self.session.commit()
 
@@ -134,7 +134,7 @@ class WorkflowSync:
 
             # Mark as completed
             task.status = "completed"
-            task.finished_at = datetime.utcnow()
+            task.finished_at = datetime.now(timezone.utc)
             await self.session.commit()
             return result
 
@@ -154,7 +154,7 @@ class WorkflowSync:
         """Utility to set task to failed & optionally add TaskLog."""
         task.status = "failed"
         task.error = error_msg
-        task.finished_at = datetime.utcnow()
+        task.finished_at = datetime.now(timezone.utc)
         self.session.add(task)
 
         if log_traceback:
