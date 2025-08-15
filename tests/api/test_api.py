@@ -86,7 +86,7 @@ def client():
 @pytest.fixture
 def clean_env():
     """Clean up environment variables before and after each test."""
-    env_vars = ["SPARK_API_KEY", "AUTOMAGIK_API_CORS"]
+    env_vars = ["AUTOMAGIK_SPARK_API_KEY", "AUTOMAGIK_SPARK_API_CORS"]
     original_values = {}
     for var in env_vars:
         if var in os.environ:
@@ -100,7 +100,7 @@ def clean_env():
 
 async def test_root_endpoint(client: TestClient, clean_env):
     """Test the root endpoint returns correct status."""
-    os.environ["SPARK_API_KEY"] = TEST_API_KEY
+    os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
     headers = {"X-API-Key": TEST_API_KEY}
     response = client.get("/", headers=headers)
     assert response.status_code == 200
@@ -160,7 +160,7 @@ async def test_cors_configuration_default(client: TestClient, clean_env):
 async def test_cors_configuration_custom(client: TestClient, clean_env):
     """Test custom CORS configuration."""
     test_origin = "http://example.com"
-    os.environ["SPARK_API_CORS"] = test_origin
+    os.environ["AUTOMAGIK_SPARK_API_CORS"] = test_origin
     
     # Create a new client with fresh CORS configuration
     client = create_test_client()
