@@ -1,8 +1,8 @@
 """Update schedules to use input_data instead of workflow_params
 
-Revision ID: update_schedules_input_data
-Revises: 
-Create Date: 2025-02-14 04:13:16.000000
+Revision ID: f7173038c3b4
+Revises: 4b7033ec9033
+Create Date: 2025-02-14 04:13:16.000000+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'update_schedules_input_data'
+revision: str = 'f7173038c3b4'
 down_revision: Union[str, None] = '4b7033ec9033'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

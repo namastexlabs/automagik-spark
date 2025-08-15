@@ -1,6 +1,6 @@
 """add_workflow_components
 
-Revision ID: 20250218_0015
+Revision ID: 9adb44ec69a7
 Revises: d2f7d449b382
 Create Date: 2025-02-18 00:15:00.000000+00:00
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '20250218_0015'
+revision: str = '9adb44ec69a7'
 down_revision: Union[str, None] = 'd2f7d449b382'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
