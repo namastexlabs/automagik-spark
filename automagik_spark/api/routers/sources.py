@@ -9,13 +9,14 @@ import httpx
 
 from ..dependencies import verify_api_key
 from ...core.database.session import get_session
-from ...core.workflows.source import WorkflowSource
+from ...core.database.models import WorkflowSource
 from ...core.schemas.source import (
     WorkflowSourceCreate,
     WorkflowSourceUpdate,
-    WorkflowSourceResponse
+    WorkflowSourceResponse,
+    SourceType,
+    SourceStatus
 )
-from ...core.schemas.source import SourceType
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -193,20 +194,24 @@ async def update_source(
             raise HTTPException(status_code=404, detail="Source not found")
         
         # Update fields
+        if update_data.name is not None:
+            source.name = update_data.name
         if update_data.source_type is not None:
             source.source_type = update_data.source_type
         if update_data.url is not None:
+            # Convert HttpUrl to string for database operations
+            url_str = str(update_data.url).rstrip('/')
             # Check if new URL conflicts with existing source
-            if update_data.url != source.url:
+            if url_str != source.url:
                 result = await session.execute(
-                    select(WorkflowSource).where(WorkflowSource.url == update_data.url)
+                    select(WorkflowSource).where(WorkflowSource.url == url_str)
                 )
                 if result.scalar_one_or_none():
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Source with URL {update_data.url} already exists"
+                        detail=f"Source with URL {url_str} already exists"
                     )
-            source.url = update_data.url
+            source.url = url_str
         if update_data.api_key is not None:
             source.encrypted_api_key = WorkflowSource.encrypt_api_key(update_data.api_key)
             # Validate new API key and update version info

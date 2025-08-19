@@ -12,6 +12,11 @@ class SourceType(str, Enum):
     AUTOMAGIK_AGENTS = "automagik-agents"
     AUTOMAGIK_HIVE = "automagik-hive"
 
+class SourceStatus(str, Enum):
+    """Enum for workflow source statuses."""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
 class WorkflowSourceBase(BaseModel):
     """Base model for workflow sources."""
     name: Optional[str] = None
@@ -28,7 +33,7 @@ class WorkflowSourceUpdate(BaseModel):
     source_type: Optional[SourceType] = None
     url: Optional[HttpUrl] = None
     api_key: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[SourceStatus] = None
 
 class WorkflowSourceResponse(WorkflowSourceBase):
     """Model for workflow source responses."""

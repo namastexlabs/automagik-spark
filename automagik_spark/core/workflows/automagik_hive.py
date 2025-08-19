@@ -36,8 +36,7 @@ class AutomagikHiveManager:
             base_url=self.api_url,
             headers={
                 "accept": "application/json",
-                "x-api-key": self.api_key,
-                "Content-Type": "application/json"
+                "x-api-key": self.api_key
             },
             verify=False,  # TODO: Make this configurable
             timeout=30.0  # 30 second timeout
@@ -397,7 +396,12 @@ class AutomagikHiveManager:
         if session_id:
             payload["session_id"] = session_id
             
-        response = await client.post(f"/playground/agents/{agent_id}/runs", data=payload)
+        # Use form data for agent runs
+        response = await client.post(
+            f"/playground/agents/{agent_id}/runs", 
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
         response.raise_for_status()
         result = response.json()
         
@@ -495,8 +499,7 @@ class AutomagikHiveManager:
             base_url=self.api_url,
             headers={
                 "accept": "application/json",
-                "x-api-key": self.api_key,
-                "Content-Type": "application/json"
+                "x-api-key": self.api_key
             },
             verify=False,
             timeout=30.0
@@ -698,7 +701,12 @@ class AutomagikHiveManager:
         
         logger.info(f"Running agent {agent_id} with payload: {payload}")
         
-        response = client.post(f"/playground/agents/{agent_id}/runs", data=payload)
+        # Use form data for agent runs
+        response = client.post(
+            f"/playground/agents/{agent_id}/runs", 
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
         response.raise_for_status()
         result = response.json()
         
