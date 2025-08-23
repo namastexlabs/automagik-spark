@@ -32,9 +32,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle FastAPI application startup and shutdown."""
-    # Startup - Auto-discover workflow sources
-    await auto_discover_langflow()
-    await auto_discover_automagik_agents()
+    # Skip auto-discovery in test environment to avoid database contamination
+    import os
+    if os.getenv("ENVIRONMENT") != "testing":
+        # Startup - Auto-discover workflow sources
+        await auto_discover_langflow()
+        await auto_discover_automagik_agents()
     
     # Log telemetry status
     _log_telemetry_status()

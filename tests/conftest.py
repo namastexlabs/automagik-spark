@@ -37,14 +37,14 @@ def setup_test_env():
 # Configure pytest-asyncio to use session scope for event loop
 pytest.mark.asyncio.loop_scope = "session"
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def engine():
-    """Create a test database engine."""
+    """Create a test database engine with function scope for better isolation."""
     engine = create_async_engine(
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
-        echo=True,  # Enable SQL logging
+        echo=False,  # Disable SQL logging to reduce test noise
     )
     
     async with engine.begin() as conn:
@@ -53,11 +53,15 @@ async def engine():
     try:
         yield engine
     finally:
-        await engine.dispose()
+        # Ensure complete cleanup
+        try:
+            await engine.dispose()
+        except Exception:
+            pass
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_session_factory(engine):
-    """Create a test session factory."""
+    """Create a test session factory with function scope for better isolation."""
     return async_sessionmaker(
         bind=engine,
         class_=AsyncSession,
@@ -77,12 +81,25 @@ async def session(test_session_factory) -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
         finally:
-            # Clean up all tables after each test
-            await session.execute(text("DELETE FROM workflow_sources"))
-            await session.execute(text("DELETE FROM schedules"))
-            await session.execute(text("DELETE FROM workflows"))
-            await session.commit()
-            await session.close()
+            # Clean up all tables after each test in reverse dependency order
+            # This ensures foreign key constraints are respected during cleanup
+            try:
+                # Delete dependent tables first (those with foreign keys)
+                await session.execute(text("DELETE FROM task_logs"))
+                await session.execute(text("DELETE FROM tasks"))
+                await session.execute(text("DELETE FROM workflow_components"))
+                await session.execute(text("DELETE FROM workers"))
+                await session.execute(text("DELETE FROM schedules"))
+                await session.execute(text("DELETE FROM workflows"))
+                # Delete parent table last
+                await session.execute(text("DELETE FROM workflow_sources"))
+                await session.commit()
+            except Exception as e:
+                # If cleanup fails, rollback and try to close cleanly
+                await session.rollback()
+                print(f"Warning: Database cleanup failed: {e}")
+            finally:
+                await session.close()
 
 @pytest.fixture
 async def override_get_session(session: AsyncSession):
