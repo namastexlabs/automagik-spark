@@ -1,14 +1,12 @@
 """API endpoints for managing workflow sources."""
-
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
-
 from ..dependencies import verify_api_key
-from ...core.database.session import get_session
+from ...core.database.session import get_async_session
 from ...core.database.models import WorkflowSource
 from ...core.schemas.source import (
     WorkflowSourceCreate,
@@ -17,9 +15,7 @@ from ...core.schemas.source import (
     SourceType,
     SourceStatus
 )
-
 router = APIRouter(prefix="/sources", tags=["sources"])
-
 async def _validate_source(url: str, api_key: str, source_type: SourceType) -> dict:
     """Validate a source by checking health and fetching version info."""
     try:
@@ -27,7 +23,6 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
             headers = {"accept": "application/json"}
             if api_key:
                 headers["x-api-key"] = api_key
-
             # Check health first - different endpoints for different source types
             if source_type == SourceType.AUTOMAGIK_HIVE:
                 health_response = await client.get(f"{url}/api/v1/health", headers=headers)
@@ -49,7 +44,6 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                     status_code=400,
                     detail=f"Source health check failed: {health_data}"
                 )
-
             # Get version info based on source type
             if source_type == SourceType.AUTOMAGIK_AGENTS:
                 # Get root info which contains version and service info
@@ -96,7 +90,6 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 version_response = await client.get(f"{url}/api/v1/version", headers=headers)
                 version_response.raise_for_status()
                 version_data = version_response.json()
-
             return {
                 **version_data,
                 'status': health_data.get('status', 'unknown')
@@ -108,136 +101,126 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
             status_code=400,
             detail=f"Failed to validate source: {str(e)}"
         )
-
-@router.post("/", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
+@router.post("/", response_model=WorkflowSourceResponse, status_code=201, dependencies=[Depends(verify_api_key)])
 async def create_source(
     source: WorkflowSourceCreate,
-    session_factory: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_async_session)
 ) -> WorkflowSourceResponse:
     """Create a new workflow source."""
-    async with session_factory as session:
-        # Convert HttpUrl to string for database operations
-        url_str = str(source.url).rstrip('/')
-        
-        # Check if source with URL already exists
-        result = await session.execute(
-            select(WorkflowSource).where(WorkflowSource.url == url_str)
+    # Convert HttpUrl to string for database operations
+    url_str = str(source.url).rstrip('/')
+    
+    # Check if source with URL already exists
+    result = await session.execute(
+        select(WorkflowSource).where(WorkflowSource.url == url_str)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Source with URL {url_str} already exists"
         )
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Source with URL {url_str} already exists"
-            )
-        
-        # Validate source and get version info
-        version_info = await _validate_source(url_str, source.api_key, source.source_type)
-        
-        # Create source with status from health check
-        # Determine expected status based on source type
-        if source.source_type == SourceType.AUTOMAGIK_AGENTS:
-            expected_status = 'healthy'
-        elif source.source_type == SourceType.AUTOMAGIK_HIVE:
-            expected_status = 'success'
-        else:  # LANGFLOW
-            expected_status = 'ok'
-        db_source = WorkflowSource(
-            name=source.name,
-            source_type=source.source_type,
-            url=url_str,
-            encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),
-            version_info=version_info,
-            status='active' if version_info.get('status') == expected_status else 'inactive'
-        )
-        session.add(db_source)
-        await session.commit()
-        await session.refresh(db_source)
-        
-        return WorkflowSourceResponse.from_orm(db_source)
-
+    
+    # Validate source and get version info
+    version_info = await _validate_source(url_str, source.api_key, source.source_type)
+    
+    # Create source with status from health check
+    # Determine expected status based on source type
+    if source.source_type == SourceType.AUTOMAGIK_AGENTS:
+        expected_status = 'healthy'
+    elif source.source_type == SourceType.AUTOMAGIK_HIVE:
+        expected_status = 'success'
+    else:  # LANGFLOW
+        expected_status = 'ok'
+    db_source = WorkflowSource(
+        name=source.name,
+        source_type=source.source_type,
+        url=url_str,
+        encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),
+        version_info=version_info,
+        status='active' if version_info.get('status') == expected_status else 'inactive'
+    )
+    session.add(db_source)
+    await session.commit()
+    await session.refresh(db_source)
+    
+    return WorkflowSourceResponse.from_orm(db_source)
 @router.get("/", response_model=List[WorkflowSourceResponse], dependencies=[Depends(verify_api_key)])
 async def list_sources(
     status: Optional[str] = None,
-    session_factory: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_async_session)
 ) -> List[WorkflowSourceResponse]:
     """List all workflow sources."""
-    async with session_factory as session:
-        query = select(WorkflowSource)
-        if status:
-            query = query.where(WorkflowSource.status == status)
-        
-        result = await session.execute(query)
-        sources = result.scalars().all()
-        return [WorkflowSourceResponse.from_orm(source) for source in sources]
-
+    query = select(WorkflowSource)
+    if status:
+        query = query.where(WorkflowSource.status == status)
+    
+    result = await session.execute(query)
+    sources = result.scalars().all()
+    return [WorkflowSourceResponse.from_orm(source) for source in sources]
 @router.get("/{source_id}", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
 async def get_source(
     source_id: UUID,
-    session_factory: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_async_session)
 ) -> WorkflowSourceResponse:
     """Get a specific workflow source."""
-    async with session_factory as session:
-        source = await session.get(WorkflowSource, source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
-        return WorkflowSourceResponse.from_orm(source)
-
+    source = await session.get(WorkflowSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    return WorkflowSourceResponse.from_orm(source)
 @router.patch("/{source_id}", response_model=WorkflowSourceResponse, dependencies=[Depends(verify_api_key)])
 async def update_source(
     source_id: UUID,
     update_data: WorkflowSourceUpdate,
-    session_factory: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_async_session)
 ) -> WorkflowSourceResponse:
     """Update a workflow source."""
-    async with session_factory as session:
+    source = await session.get(WorkflowSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Update fields
+    if update_data.name is not None:
+        source.name = update_data.name
+    if update_data.source_type is not None:
+        source.source_type = update_data.source_type
+    if update_data.url is not None:
+        # Convert HttpUrl to string for database operations
+        url_str = str(update_data.url).rstrip('/')
+        # Check if new URL conflicts with existing source
+        if url_str != source.url:
+            result = await session.execute(
+                select(WorkflowSource).where(WorkflowSource.url == url_str)
+            )
+            if result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Source with URL {url_str} already exists"
+                )
+        source.url = url_str
+    if update_data.api_key is not None:
+        source.encrypted_api_key = WorkflowSource.encrypt_api_key(update_data.api_key)
+        # Validate new API key and update version info
+        version_info = await _validate_source(source.url, update_data.api_key, source.source_type)
+        source.version_info = version_info
+    if update_data.status is not None:
+        source.status = update_data.status
+    
+    await session.commit()
+    await session.refresh(source)
+    return WorkflowSourceResponse.from_orm(source)
+@router.delete("/{source_id}", dependencies=[Depends(verify_api_key)])
+async def delete_source(
+    source_id: UUID,
+    session: AsyncSession = Depends(get_async_session)
+) -> dict:
+    """Delete a workflow source."""
+    try:
         source = await session.get(WorkflowSource, source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
         
-        # Update fields
-        if update_data.name is not None:
-            source.name = update_data.name
-        if update_data.source_type is not None:
-            source.source_type = update_data.source_type
-        if update_data.url is not None:
-            # Convert HttpUrl to string for database operations
-            url_str = str(update_data.url).rstrip('/')
-            # Check if new URL conflicts with existing source
-            if url_str != source.url:
-                result = await session.execute(
-                    select(WorkflowSource).where(WorkflowSource.url == url_str)
-                )
-                if result.scalar_one_or_none():
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Source with URL {url_str} already exists"
-                    )
-            source.url = url_str
-        if update_data.api_key is not None:
-            source.encrypted_api_key = WorkflowSource.encrypt_api_key(update_data.api_key)
-            # Validate new API key and update version info
-            version_info = await _validate_source(source.url, update_data.api_key, source.source_type)
-            source.version_info = version_info
-        if update_data.status is not None:
-            source.status = update_data.status
-        
+        await session.delete(source)
         await session.commit()
-        await session.refresh(source)
-        return WorkflowSourceResponse.from_orm(source)
-
-@router.delete("/{source_id}", dependencies=[Depends(verify_api_key)])
-async def delete_source(
-    source_id: UUID,
-    session_factory: AsyncSession = Depends(get_session)
-) -> dict:
-    """Delete a workflow source."""
-    async with session_factory as session:
-        try:
-            source = await session.get(WorkflowSource, source_id)
-            if not source:
-                raise HTTPException(status_code=404, detail="Source not found")
-            
-            await session.delete(source)
-            await session.commit()
-            return {"message": "Source deleted successfully"}
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Error deleting source: {str(e)}")
+        return {"message": "Source deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error deleting source: {str(e)}")

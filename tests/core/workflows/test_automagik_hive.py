@@ -1,18 +1,13 @@
 """Test AutoMagik Hive integration functionality."""
-
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import json
 from uuid import uuid4
-
 from automagik_spark.core.workflows.automagik_hive import AutomagikHiveManager
 from automagik_spark.core.schemas.source import SourceType
-
-
 class TestAutomagikHiveManager:
     """Test AutoMagik Hive manager functionality."""
-
     @pytest.fixture
     def manager(self):
         """Create AutoMagik Hive manager for testing."""
@@ -21,7 +16,6 @@ class TestAutomagikHiveManager:
             api_key="test_key",
             source_id=uuid4()
         )
-
     @pytest.fixture
     def mock_agents_response(self):
         """Mock agents API response."""
@@ -49,7 +43,6 @@ class TestAutomagikHiveManager:
                 "add_context": False
             }
         ]
-
     @pytest.fixture
     def mock_teams_response(self):
         """Mock teams API response."""
@@ -68,7 +61,6 @@ class TestAutomagikHiveManager:
                 "storage": {"name": "PostgresStorage"}
             }
         ]
-
     @pytest.fixture
     def mock_workflows_response(self):
         """Mock workflows API response."""
@@ -84,7 +76,6 @@ class TestAutomagikHiveManager:
                 ]
             }
         ]
-
     @pytest.fixture
     def mock_health_response(self):
         """Mock health API response."""
@@ -94,7 +85,6 @@ class TestAutomagikHiveManager:
             "utc": "2025-08-15T15:00:00.000000+00:00",
             "message": "System operational"
         }
-
     @pytest.fixture
     def mock_status_response(self):
         """Mock status API response."""
@@ -107,14 +97,12 @@ class TestAutomagikHiveManager:
             "database": "connected",
             "mcp_servers": ["claude-mcp", "postgres", "zen"]
         }
-
     def test_manager_initialization(self, manager):
         """Test manager initialization."""
         assert manager.api_url == "http://localhost:8886"
         assert manager.api_key == "test_key"
         assert manager.source_id is not None
         assert manager._client is None
-
     @pytest.mark.asyncio
     async def test_validate_success(self, manager, mock_health_response, mock_status_response):
         """Test successful validation."""
@@ -141,7 +129,6 @@ class TestAutomagikHiveManager:
             assert result["agents_loaded"] == 6
             assert result["teams_loaded"] == 2
             assert result["workflows_loaded"] == 1
-
     @pytest.mark.asyncio
     async def test_validate_health_failure(self, manager):
         """Test validation with health check failure."""
@@ -157,7 +144,6 @@ class TestAutomagikHiveManager:
             
             with pytest.raises(Exception):
                 await manager.validate()
-
     @pytest.mark.asyncio
     async def test_list_agents(self, manager, mock_agents_response):
         """Test listing agents."""
@@ -180,7 +166,6 @@ class TestAutomagikHiveManager:
             assert agents[0]["icon"] == "🤖"
             assert "agent" in agents[0]["tags"]
             assert "hive" in agents[0]["tags"]
-
     @pytest.mark.asyncio
     async def test_list_teams(self, manager, mock_teams_response):
         """Test listing teams."""
@@ -204,7 +189,6 @@ class TestAutomagikHiveManager:
             assert teams[0]["data"]["members_count"] == 2
             assert "team" in teams[0]["tags"]
             assert "multi-agent" in teams[0]["tags"]
-
     @pytest.mark.asyncio
     async def test_list_workflows(self, manager, mock_workflows_response):
         """Test listing workflows."""
@@ -228,7 +212,6 @@ class TestAutomagikHiveManager:
             assert len(workflows[0]["data"]["steps"]) == 3
             assert "workflow" in workflows[0]["tags"]
             assert "multi-step" in workflows[0]["tags"]
-
     @pytest.mark.asyncio
     async def test_list_flows_combined(self, manager, mock_agents_response, mock_teams_response, mock_workflows_response):
         """Test listing all flows combines agents, teams, and workflows."""
@@ -240,7 +223,6 @@ class TestAutomagikHiveManager:
             
             # Should combine all three types
             assert len(flows) == 4  # 2 agents + 1 team + 1 workflow
-
     @pytest.mark.asyncio
     async def test_get_flow_agent(self, manager, mock_agents_response):
         """Test getting a specific agent flow."""
@@ -255,7 +237,6 @@ class TestAutomagikHiveManager:
             assert flow is not None
             assert flow['id'] == 'master-genie'
             assert flow['data']['type'] == 'hive_agent'
-
     @pytest.mark.asyncio
     async def test_get_flow_not_found(self, manager):
         """Test getting non-existent flow."""
@@ -266,13 +247,12 @@ class TestAutomagikHiveManager:
             flow = await manager.get_flow('nonexistent')
             
             assert flow is None
-
     @pytest.mark.asyncio
     async def test_run_agent(self, manager):
         """Test running an agent."""
         mock_flow = {'data': {'type': 'hive_agent'}}
         mock_response = {
-            'response': {'content': 'Agent response'},
+            'content': 'Agent response',
             'session_id': 'session123',
             'run_id': 'run456',
             'agent_id': 'test-agent',
@@ -297,7 +277,6 @@ class TestAutomagikHiveManager:
             assert result['run_id'] == 'run456'
             assert result['status'] == 'completed'
             assert result['success'] == True
-
     @pytest.mark.asyncio
     async def test_run_team(self, manager):
         """Test running a team."""
@@ -332,7 +311,6 @@ class TestAutomagikHiveManager:
             assert '**test**: Test response' in result['result']
             assert result['session_id'] == 'session123'
             assert result['success'] == True
-
     @pytest.mark.asyncio
     async def test_run_workflow(self, manager):
         """Test running a workflow."""
@@ -366,7 +344,6 @@ class TestAutomagikHiveManager:
             assert result['session_id'] == 'session123'
             assert len(result['steps_completed']) == 2
             assert result['success'] == True
-
     @pytest.mark.asyncio
     async def test_run_flow_not_found(self, manager):
         """Test running non-existent flow."""
@@ -374,7 +351,6 @@ class TestAutomagikHiveManager:
             
             with pytest.raises(ValueError, match="Flow .* not found in AutoMagik Hive"):
                 await manager.run_flow('nonexistent', 'test')
-
     def test_sync_list_flows(self, manager, mock_agents_response, mock_teams_response, mock_workflows_response):
         """Test synchronous list flows."""
         with patch('httpx.Client') as mock_client_class:
@@ -404,7 +380,6 @@ class TestAutomagikHiveManager:
             assert "hive_agent" in types
             assert "hive_team" in types  
             assert "hive_workflow" in types
-
     def test_sync_get_flow(self, manager):
         """Test synchronous get flow."""
         mock_flows = [
@@ -417,12 +392,11 @@ class TestAutomagikHiveManager:
             assert flow is not None
             assert flow['id'] == 'test-agent'
             assert flow['data']['type'] == 'hive_agent'
-
     def test_sync_run_agent(self, manager):
         """Test synchronous agent run."""
         mock_flow = {'data': {'type': 'hive_agent'}}
         mock_response = {
-            'response': {'content': 'Agent response'},
+            'content': 'Agent response',
             'session_id': 'session123',
             'status': 'completed'
         }
@@ -443,7 +417,6 @@ class TestAutomagikHiveManager:
             assert result['result'] == 'Agent response'
             assert result['session_id'] == 'session123'
             assert result['success'] == True
-
     def test_context_managers(self, manager):
         """Test context manager functionality."""
         # Test sync context manager
@@ -452,15 +425,12 @@ class TestAutomagikHiveManager:
         
         # Test that async context manager sets up client
         assert manager._client is None
-
     @pytest.mark.asyncio
     async def test_async_context_manager(self, manager):
         """Test async context manager."""
         async with manager:
             assert manager._client is not None
         assert manager._client is None
-
-
 class TestSourceTypeEnum:
     """Test SourceType enum includes AUTOMAGIK_HIVE."""
     

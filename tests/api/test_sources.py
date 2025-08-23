@@ -133,12 +133,12 @@ class TestSourcesCreate:
         with patch("httpx.AsyncClient.get") as mock_get:
             # Mock health check
             health_mock = AsyncMock()
-            health_mock.json.return_value = mock_langflow_response
+            health_mock.json = lambda: mock_langflow_response  # Return actual data, not a mock
             health_mock.raise_for_status = AsyncMock()
             
             # Mock version check
             version_mock = AsyncMock()
-            version_mock.json.return_value = {"version": "1.0.0", "status": "ok"}
+            version_mock.json = lambda: {"version": "1.0.0", "status": "ok"}  # Return actual data
             version_mock.raise_for_status = AsyncMock()
             
             mock_get.side_effect = [health_mock, version_mock]
@@ -152,6 +152,8 @@ class TestSourcesCreate:
             
             response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             
+            print(f"Response status: {response.status_code}")
+            print(f"Response content: {response.text}")
             assert response.status_code == 201
             data = response.json()
             assert data["name"] == "Test LangFlow"

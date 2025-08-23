@@ -130,7 +130,7 @@ class WorkflowSource(Base):
             # Log a warning that we're using a testing key
             logger.warning("No AUTOMAGIK_SPARK_ENCRYPTION_KEY found in environment, using testing key. This is unsafe for production!")
             # Use a fixed testing key that's URL-safe base64 encoded (as string, not bytes)
-            test_key = 'S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09'
+            test_key = '5aQaTalKCAOAgOPFV_xZrQVzWgE80mseLFW-x_sa06o='
             logger.info(f"Returning test key: {repr(test_key)}")
             return test_key
         
