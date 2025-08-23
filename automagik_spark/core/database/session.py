@@ -31,19 +31,42 @@ if os.getenv('ENVIRONMENT') != 'testing':
 
 logger.info(f"Using database at {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else DATABASE_URL}")
 
-# Create async engine
-async_engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    future=True
-)
+# Create async engine with appropriate configuration for environment
+if os.getenv('ENVIRONMENT') == 'testing' and 'sqlite' in DATABASE_URL.lower():
+    # SQLite-specific configuration for testing
+    from sqlalchemy.pool import StaticPool
+    
+    async_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    # Create sync engine for CLI commands (convert aiosqlite to sqlite)
+    sync_database_url = DATABASE_URL.replace('sqlite+aiosqlite://', 'sqlite://')
+    sync_engine = create_engine(
+        sync_database_url,
+        echo=False,
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    # PostgreSQL configuration for production
+    async_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        future=True
+    )
 
-# Create sync engine for CLI commands
-sync_engine = create_engine(
-    DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://'),
-    echo=False,
-    future=True
-)
+    # Create sync engine for CLI commands
+    sync_engine = create_engine(
+        DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://'),
+        echo=False,
+        future=True
+    )
 
 # Create session factories
 async_session_factory = async_sessionmaker(

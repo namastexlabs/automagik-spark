@@ -86,6 +86,7 @@ def monkeypatch_db_globals(monkeypatch, engine, test_session_factory):
     from sqlalchemy.pool import StaticPool as SyncStaticPool
 
     # Create a sync engine for testing purposes, adapting the URL for sync SQLite
+    # Convert async SQLite URL to sync SQLite URL
     test_sync_database_url = TEST_DATABASE_URL.replace('sqlite+aiosqlite://', 'sqlite://')
     test_sync_engine = create_sync_engine_(
         test_sync_database_url,
@@ -93,6 +94,7 @@ def monkeypatch_db_globals(monkeypatch, engine, test_session_factory):
         poolclass=SyncStaticPool,
         echo=False
     )
+    
 
     # Create a sync session factory for testing purposes
     test_sync_session_factory = sync_sessionmaker_(
