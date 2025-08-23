@@ -10,7 +10,6 @@ from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from automagik_spark.api.app import app
 from automagik_spark.api.dependencies import verify_api_key
 from automagik_spark.core.database.models import WorkflowSource
 from automagik_spark.core.schemas.source import SourceType, SourceStatus
