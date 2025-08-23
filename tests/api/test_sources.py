@@ -20,10 +20,6 @@ from tests.conftest import TEST_API_KEY
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-@pytest.fixture
-def client():
-    """Create a test client with sources router included."""
-    return TestClient(app)
 
 
 @pytest.fixture
@@ -152,8 +148,6 @@ class TestSourcesCreate:
             
             response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             
-            print(f"Response status: {response.status_code}")
-            print(f"Response content: {response.text}")
             assert response.status_code == 201
             data = response.json()
             assert data["name"] == "Test LangFlow"

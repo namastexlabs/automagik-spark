@@ -4,9 +4,9 @@
 import os
 import pytest
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import text
 from fastapi.testclient import TestClient
 from automagik_spark.core.workflows import WorkflowManager  # Fix import path
 
@@ -58,7 +58,7 @@ async def engine():
 @pytest.fixture(scope="session")
 def test_session_factory(engine):
     """Create a test session factory."""
-    return sessionmaker(
+    return async_sessionmaker(
         bind=engine,
         class_=AsyncSession,
         expire_on_commit=False,
@@ -68,12 +68,20 @@ def test_session_factory(engine):
 
 @pytest.fixture
 async def session(test_session_factory) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
+    """Create a test database session with table cleanup.
+    
+    This fixture provides a database session and ensures all tables
+    are cleaned after each test for proper test isolation.
+    """
     async with test_session_factory() as session:
         try:
             yield session
         finally:
-            await session.rollback()
+            # Clean up all tables after each test
+            await session.execute(text("DELETE FROM workflow_sources"))
+            await session.execute(text("DELETE FROM schedules"))
+            await session.execute(text("DELETE FROM workflows"))
+            await session.commit()
             await session.close()
 
 @pytest.fixture
