@@ -2,11 +2,16 @@
 
 ## Overview
 
-This documentation provides comprehensive examples and payloads for the AutoMagik Spark API, focusing on **agent management** rather than general workflows. All examples use real API responses from a running instance.
+This documentation provides comprehensive examples and payloads for the AutoMagik Spark API, focusing on **workflow management across multiple source types** including AutoMagik Agents and AutoMagik Hive Multi-Agent Systems. All examples use real API responses from a running instance.
+
+### Supported Source Types
+- **AutoMagik Agents**: Traditional single-agent workflows from AutoMagik instances
+- **AutoMagik Hive**: Multi-agent systems with agents, teams, and structured workflows
+- **LangFlow**: Flow-based workflow systems (legacy support)
 
 **Base URL**: `http://localhost:8883`  
 **Authentication**: API Key via `X-API-Key` header  
-**Test Credentials**: `namastex888`  
+**Test Credentials**: `spark_test_key`  
 
 ## API Health & Status
 
@@ -45,7 +50,7 @@ GET /health
 **Endpoint**: `GET /api/v1/workflows/remote`
 
 ```bash
-curl -H "X-API-Key: namastex888" \
+curl -H "X-API-Key: spark_test_key" \
   "http://localhost:8883/api/v1/workflows/remote?source_url=http://localhost:8881"
 ```
 
@@ -94,12 +99,159 @@ curl -H "X-API-Key: namastex888" \
 - `summary` - Document summarization agent
 - Plus specialized architecture, security, and workflow agents
 
+## AutoMagik Hive Multi-Agent Workflows
+
+AutoMagik Hive provides three types of execution entities that can be imported as workflows:
+
+### Entity Types
+- **Agents** (`hive_agent`): Individual AI agents with specific capabilities
+- **Teams** (`hive_team`): Multi-agent coordinated teams for complex tasks  
+- **Workflows** (`hive_workflow`): Structured multi-step processes
+
+### 1. List AutoMagik Hive Workflows
+
+After adding an AutoMagik Hive source, workflows are automatically imported and appear in the standard workflows list:
+
+**Endpoint**: `GET /api/v1/workflows`
+
+**Example Response with Hive Workflows:**
+```json
+[
+  {
+    "id": "f9c38d51-56a4-42e8-8b0f-10b180345468",
+    "name": "🧞 Master Genie - Ultimate Development Companion",
+    "description": "The ultimate development companion with dual identity",
+    "source": "AutoMagik Hive Local",
+    "remote_flow_id": "master-genie",
+    "flow_version": 1,
+    "input_component": "input",
+    "output_component": "output",
+    "folder_name": "Agents",
+    "icon": "🤖",
+    "icon_bg_color": "#4F46E5",
+    "tags": ["agent", "hive"],
+    "data": {
+      "type": "hive_agent",
+      "model": {"name": "OpenAIChat", "model": "gpt-4o"},
+      "tools": [],
+      "memory": {"name": "Memory"},
+      "storage": {"name": "PostgresStorage"}
+    },
+    "latest_run": "COMPLETED",
+    "task_count": 2,
+    "failed_task_count": 0
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "🧞 Genie",
+    "description": "Clean, efficient coordination through 3 domain specialists",
+    "source": "AutoMagik Hive Local", 
+    "remote_flow_id": "genie",
+    "data": {
+      "type": "hive_team",
+      "mode": "coordinate",
+      "members": [
+        {"agent_id": "genie-dev", "name": "🧞 Genie Dev"},
+        {"agent_id": "genie-testing", "name": "🧪 Genie Testing"},
+        {"agent_id": "genie-quality", "name": "🔧 Genie Quality"}
+      ],
+      "members_count": 4
+    },
+    "folder_name": "Teams",
+    "icon": "👥",
+    "icon_bg_color": "#059669",
+    "tags": ["team", "multi-agent", "hive"]
+  }
+]
+```
+
+### 2. Execute AutoMagik Hive Workflows
+
+AutoMagik Hive workflows use the same execution API as other workflows:
+
+**Endpoint**: `POST /api/v1/workflows/{workflow_id}/run`
+
+**Agent Execution Example:**
+```bash
+curl -X POST -H "X-API-Key: spark_test_key" \
+  -H "Content-Type: application/json" \
+  -d '"Please provide a helpful development tip."' \
+  "http://localhost:8883/api/v1/workflows/f9c38d51-56a4-42e8-8b0f-10b180345468/run"
+```
+
+**Team Execution Example:**
+```bash
+curl -X POST -H "X-API-Key: spark_test_key" \
+  -H "Content-Type: application/json" \
+  -d '"Create a complete REST API with authentication, database models, and tests"' \
+  "http://localhost:8883/api/v1/workflows/a1b2c3d4-e5f6-7890-abcd-ef1234567890/run"
+```
+
+**Response Format:**
+```json
+{
+  "id": "ddabe5c6-672a-466f-b24b-74f233788238",
+  "workflow_id": "f9c38d51-56a4-42e8-8b0f-10b180345468",
+  "status": "completed",
+  "input_data": {"value": "Please provide a helpful development tip."},
+  "output_data": {
+    "result": "Hello! Here's a development tip that can help optimize your workflow: **Automate Frequent Tasks with Scripts or Tools.** Identify tasks that you do repeatedly...",
+    "session_id": "91e43347-0ab3-4f0a-93ef-550ea4ad04da_master-genie",
+    "run_id": "run_abc123",
+    "agent_id": "master-genie",
+    "metadata": {"tokens_used": 250, "duration_ms": 4500},
+    "status": "completed",
+    "success": true
+  },
+  "started_at": "2025-08-15T17:39:00.007846Z",
+  "finished_at": "2025-08-15T17:39:05.019619Z",
+  "created_at": "2025-08-15T17:39:00.007848Z"
+}
+```
+
+### 3. Schedule AutoMagik Hive Workflows
+
+AutoMagik Hive workflows support the same scheduling capabilities:
+
+**Example - Schedule Master Genie for Daily Tips:**
+```bash
+curl -X POST -H "X-API-Key: spark_test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "f9c38d51-56a4-42e8-8b0f-10b180345468",
+    "schedule_type": "cron",
+    "schedule_expr": "0 9 * * *",
+    "input_value": "Provide a daily development tip for the team."
+  }' \
+  "http://localhost:8883/api/v1/schedules"
+```
+
+### 4. AutoMagik Hive Workflow Types
+
+**Agent Workflows (`hive_agent`)**
+- Single AI agent execution
+- Personalized with memory and storage
+- Tool integration capabilities
+- Session continuity support
+
+**Team Workflows (`hive_team`)**  
+- Multi-agent coordination
+- Coordinator + member agent responses
+- Specialized domain experts
+- Complex task decomposition
+
+**Structured Workflows (`hive_workflow`)**
+- Multi-step orchestrated processes
+- Step-by-step execution tracking
+- Workflow-specific input/output handling
+- Process automation capabilities
+
 ### 2. Get Specific Remote Agent Details
 
 **Endpoint**: `GET /api/v1/workflows/remote/{agent_id}`
 
 ```bash
-curl -H "X-API-Key: namastex888" \
+curl -H "X-API-Key: spark_test_key" \
   "http://localhost:8883/api/v1/workflows/remote/simple?source_url=http://localhost:8881"
 ```
 
@@ -108,7 +260,7 @@ curl -H "X-API-Key: namastex888" \
 **Endpoint**: `POST /api/v1/workflows/sync/{agent_id}`
 
 ```bash
-curl -X POST -H "X-API-Key: namastex888" \
+curl -X POST -H "X-API-Key: spark_test_key" \
   "http://localhost:8883/api/v1/workflows/sync/simple?input_component=input&output_component=output"
 ```
 
@@ -137,7 +289,7 @@ curl -X POST -H "X-API-Key: namastex888" \
 **Endpoint**: `GET /api/v1/workflows`
 
 ```bash
-curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/workflows
+curl -H "X-API-Key: spark_test_key" http://localhost:8883/api/v1/workflows
 ```
 
 **Response**: Array of local agents
@@ -176,7 +328,7 @@ curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/workflows
 **Endpoint**: `GET /api/v1/workflows/{agent_id}`
 
 ```bash
-curl -H "X-API-Key: namastex888" \
+curl -H "X-API-Key: spark_test_key" \
   http://localhost:8883/api/v1/workflows/90e0325b-e222-4956-9ac8-43d50af22be5
 ```
 
@@ -185,7 +337,7 @@ curl -H "X-API-Key: namastex888" \
 **Endpoint**: `DELETE /api/v1/workflows/{agent_id}`
 
 ```bash
-curl -X DELETE -H "X-API-Key: namastex888" \
+curl -X DELETE -H "X-API-Key: spark_test_key" \
   http://localhost:8883/api/v1/workflows/90e0325b-e222-4956-9ac8-43d50af22be5
 ```
 
@@ -196,7 +348,7 @@ curl -X DELETE -H "X-API-Key: namastex888" \
 **Endpoint**: `POST /api/v1/workflows/{agent_id}/run`
 
 ```bash
-curl -X POST -H "X-API-Key: namastex888" \
+curl -X POST -H "X-API-Key: spark_test_key" \
   -H "Content-Type: application/json" \
   -d '"What is the capital of France?"' \
   "http://localhost:8883/api/v1/workflows/90e0325b-e222-4956-9ac8-43d50af22be5/run"
@@ -243,7 +395,7 @@ curl -X POST -H "X-API-Key: namastex888" \
 **Endpoint**: `GET /api/v1/tasks`
 
 ```bash
-curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/tasks
+curl -H "X-API-Key: spark_test_key" http://localhost:8883/api/v1/tasks
 ```
 
 **Query Parameters:**
@@ -287,7 +439,7 @@ curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/tasks
 **Endpoint**: `GET /api/v1/schedules`
 
 ```bash
-curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/schedules
+curl -H "X-API-Key: spark_test_key" http://localhost:8883/api/v1/schedules
 ```
 
 **Response**: Array of active schedules
@@ -323,7 +475,7 @@ curl -H "X-API-Key: namastex888" http://localhost:8883/api/v1/schedules
 **Endpoint**: `POST /api/v1/schedules`
 
 ```bash
-curl -X POST -H "X-API-Key: namastex888" \
+curl -X POST -H "X-API-Key: spark_test_key" \
   -H "Content-Type: application/json" \
   -d '{
     "workflow_id": "90e0325b-e222-4956-9ac8-43d50af22be5",
@@ -376,7 +528,7 @@ curl -X POST -H "X-API-Key: namastex888" \
 **Endpoint**: `DELETE /api/v1/schedules/{schedule_id}`
 
 ```bash
-curl -X DELETE -H "X-API-Key: namastex888" \
+curl -X DELETE -H "X-API-Key: spark_test_key" \
   "http://localhost:8883/api/v1/schedules/c604192f-c921-4139-9002-043eec756501"
 ```
 
@@ -395,14 +547,28 @@ curl -X DELETE -H "X-API-Key: namastex888" \
 
 **Endpoint**: `POST /api/v1/sources`
 
+**AutoMagik Agents Source:**
 ```bash
-curl -X POST -H "X-API-Key: namastex888" \
+curl -X POST -H "X-API-Key: spark_test_key" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "AutoMagik Local",
+    "source_type": "automagik-agents",
     "url": "http://localhost:8881",
-    "api_key": "namastex888",
-    "description": "Local AutoMagik instance for agent testing"
+    "api_key": "namastex888"
+  }' \
+  "http://localhost:8883/api/v1/sources"
+```
+
+**AutoMagik Hive Source:**
+```bash
+curl -X POST -H "X-API-Key: spark_test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "AutoMagik Hive Local",
+    "source_type": "automagik-hive",
+    "url": "http://localhost:8886",
+    "api_key": "hive_namastex888"
   }' \
   "http://localhost:8883/api/v1/sources"
 ```
@@ -438,21 +604,24 @@ curl -X POST -H "X-API-Key: namastex888" \
 
 ## UI Implementation Guidelines
 
-### 1. Agent Discovery Flow
-1. **Connect to Source**: Add AutoMagik instance via sources API
-2. **Browse Agents**: List available remote agents with descriptions
-3. **Preview Agent**: Show agent capabilities and example inputs
-4. **Sync Agent**: Import agent to local instance for execution
+### 1. Workflow Discovery Flow
+1. **Connect to Source**: Add AutoMagik Agents or AutoMagik Hive instance via sources API
+2. **Browse Workflows**: List available workflows (agents, teams, or structured workflows) with descriptions
+3. **Preview Workflow**: Show workflow capabilities, type (`hive_agent`, `hive_team`, `hive_workflow`), and example inputs
+4. **Auto-Import**: Workflows are automatically imported when source is added (no manual sync required for Hive)
 
-### 2. Agent Execution Flow  
-1. **Select Agent**: Choose from synchronized agents
-2. **Provide Input**: Text input appropriate for agent type
-3. **Execute**: Run agent and get task ID
+### 2. Workflow Execution Flow  
+1. **Select Workflow**: Choose from available workflows (agents, teams, structured workflows)
+2. **Provide Input**: Text input appropriate for workflow type:
+   - **Agents**: Direct conversational input
+   - **Teams**: Complex task descriptions for multi-agent coordination
+   - **Structured Workflows**: Task-specific input based on workflow requirements
+3. **Execute**: Run workflow and get task ID
 4. **Monitor**: Poll task status until completion
-5. **View Results**: Display agent output and execution details
+5. **View Results**: Display workflow output and execution details with type-specific formatting
 
 ### 3. Schedule Management Flow
-1. **Select Agent**: Choose agent to schedule
+1. **Select Workflow**: Choose workflow to schedule (supports all types: agents, teams, structured workflows)
 2. **Configure Schedule**: Set interval or cron expression
 3. **Set Input**: Optional default input for scheduled runs
 4. **Manage**: Enable/disable, update, or delete schedules
@@ -460,17 +629,20 @@ curl -X POST -H "X-API-Key: namastex888" \
 
 ### 4. Recommended UI Components
 
-**Agent Browser**
-- Grid/list view of available agents
-- Search and filter by capabilities
-- Agent description and examples
-- Sync status indicators
+**Workflow Browser**
+- Grid/list view of available workflows with type indicators
+- Search and filter by workflow type (`hive_agent`, `hive_team`, `hive_workflow`)
+- Workflow description, source, and examples
+- Visual differentiation for agents (🤖), teams (👥), and workflows (⚡)
 
-**Agent Executor**
-- Input form with agent-specific placeholders
-- Real-time execution status
-- Output display with formatting
-- Execution history
+**Workflow Executor**
+- Input form with workflow-specific placeholders and guidance
+- Real-time execution status with progress indicators
+- Output display with type-specific formatting:
+  - **Agent results**: Direct response content
+  - **Team results**: Coordinator + member responses
+  - **Workflow results**: Step-by-step execution details
+- Execution history with filtering
 
 **Schedule Manager**
 - Schedule creation wizard
