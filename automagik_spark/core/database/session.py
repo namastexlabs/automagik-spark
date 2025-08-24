@@ -30,21 +30,32 @@ _database_url: Optional[str] = None
 def get_database_url_runtime():
     """Get database URL at runtime (not import time) for lazy initialization."""
     global _database_url
+    
+    # In testing environment, always re-evaluate to pick up environment variable changes
+    env = os.getenv('ENVIRONMENT', 'unknown')
+    if env == 'testing':
+        database_url = get_database_url()
+        if not database_url:
+            raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
+        
+        # Debug: Log what URL we're actually using in testing
+        logger.info(f"[LAZY INIT] Testing mode - using fresh database URL: {database_url}")
+        return database_url
+    
+    # In non-testing environments, use cached value for performance
     if _database_url is None:
         database_url = get_database_url()
         if not database_url:
             raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
 
         # Only enforce PostgreSQL check in non-testing environments
-        if os.getenv('ENVIRONMENT') != 'testing':
-            if not database_url.startswith('postgresql+asyncpg://'):
-                if database_url.startswith('postgresql://'):
-                    database_url = f"postgresql+asyncpg://{database_url.split('://', 1)[1]}"
-                else:
-                    raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'")
+        if not database_url.startswith('postgresql+asyncpg://'):
+            if database_url.startswith('postgresql://'):
+                database_url = f"postgresql+asyncpg://{database_url.split('://', 1)[1]}"
+            else:
+                raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL must start with 'postgresql://' or 'postgresql+asyncpg://'")
 
         # Debug: Log what URL we're actually using
-        env = os.getenv('ENVIRONMENT', 'unknown')
         logger.info(f"[LAZY INIT] Environment: {env}, Using database URL: {database_url}")
         _database_url = database_url
     return _database_url
@@ -53,51 +64,85 @@ def get_async_engine_lazy():
     """Get the async database engine, creating it on first access."""
     global _async_engine, _sync_engine, _async_session_factory, _sync_session_factory
     
+    env = os.getenv('ENVIRONMENT', 'unknown')
+    
+    # In testing mode, always recreate engines to pick up database URL changes
+    if env == 'testing':
+        database_url = get_database_url_runtime()
+        logger.info(f"[LAZY ENGINE] Testing mode - creating fresh engines with URL: {database_url}")
+        
+        if 'sqlite' in database_url.lower():
+            # SQLite-specific configuration for testing
+            from sqlalchemy.pool import StaticPool
+            
+            logger.info("[LAZY ENGINE] Using SQLite configuration for testing")
+            
+            # Always recreate in testing mode to avoid cached values
+            async_engine = create_async_engine(
+                database_url,
+                echo=False,
+                future=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+            
+            # Create sync engine for CLI commands (convert aiosqlite to sqlite)
+            sync_database_url = database_url.replace('sqlite+aiosqlite://', 'sqlite://')
+            sync_engine = create_engine(
+                sync_database_url,
+                echo=False,
+                future=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+            
+            # Update globals for testing
+            _async_engine = async_engine
+            _sync_engine = sync_engine
+            _async_session_factory = async_sessionmaker(
+                async_engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
+            _sync_session_factory = sessionmaker(
+                sync_engine,
+                expire_on_commit=False
+            )
+            
+            # Create tables for testing mode using sync engine
+            try:
+                from ..database.base import Base
+                Base.metadata.create_all(sync_engine)
+                logger.info("[LAZY ENGINE] Created tables for testing database using sync engine")
+            except Exception as e:
+                logger.warning(f"[LAZY ENGINE] Could not create tables in testing mode: {e}")
+            
+            return async_engine
+        else:
+            logger.warning(f"[LAZY ENGINE] Testing mode but non-SQLite URL: {database_url}")
+    
+    # Production mode - use cached engines with double-check locking
     if _async_engine is None:
         with _engine_lock:
             if _async_engine is None:  # Double-check locking pattern
                 database_url = get_database_url_runtime()
-                env = os.getenv('ENVIRONMENT', 'unknown')
                 
                 logger.info(f"[LAZY ENGINE] Creating engines - Environment: {env}, URL: {database_url}")
                 
-                if env == 'testing' and 'sqlite' in database_url.lower():
-                    # SQLite-specific configuration for testing
-                    from sqlalchemy.pool import StaticPool
-                    
-                    logger.info("[LAZY ENGINE] Using SQLite configuration for testing")
-                    _async_engine = create_async_engine(
-                        database_url,
-                        echo=False,
-                        future=True,
-                        connect_args={"check_same_thread": False},
-                        poolclass=StaticPool,
-                    )
-                    
-                    # Create sync engine for CLI commands (convert aiosqlite to sqlite)
-                    sync_database_url = database_url.replace('sqlite+aiosqlite://', 'sqlite://')
-                    _sync_engine = create_engine(
-                        sync_database_url,
-                        echo=False,
-                        future=True,
-                        connect_args={"check_same_thread": False},
-                        poolclass=StaticPool,
-                    )
-                else:
-                    # PostgreSQL configuration for production
-                    logger.info("[LAZY ENGINE] Using PostgreSQL configuration for production")
-                    _async_engine = create_async_engine(
-                        database_url,
-                        echo=False,
-                        future=True
-                    )
+                # PostgreSQL configuration for production
+                logger.info("[LAZY ENGINE] Using PostgreSQL configuration for production")
+                _async_engine = create_async_engine(
+                    database_url,
+                    echo=False,
+                    future=True
+                )
 
-                    # Create sync engine for CLI commands
-                    _sync_engine = create_engine(
-                        database_url.replace('postgresql+asyncpg://', 'postgresql://'),
-                        echo=False,
-                        future=True
-                    )
+                # Create sync engine for CLI commands
+                _sync_engine = create_engine(
+                    database_url.replace('postgresql+asyncpg://', 'postgresql://'),
+                    echo=False,
+                    future=True
+                )
 
                 # Create session factories
                 _async_session_factory = async_sessionmaker(

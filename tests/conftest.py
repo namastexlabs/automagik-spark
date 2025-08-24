@@ -52,18 +52,42 @@ atexit.register(cleanup_test_db)
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Set up test environment."""
+    # Force environment setup 
+    os.environ["ENVIRONMENT"] = "testing"
+    os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
+    os.environ["AUTOMAGIK_SPARK_DATABASE_URL"] = TEST_DATABASE_URL
+    
+    # Clear any cached database values
+    import automagik_spark.core.database.session as db_session
+    db_session._async_engine = None
+    db_session._sync_engine = None
+    db_session._async_session_factory = None
+    db_session._sync_session_factory = None
+    db_session._database_url = None
+    
+    print(f"[SETUP] Test environment configured with DB: {TEST_DATABASE_URL}")
+    
     yield
+    
+    # Cleanup
     cleanup_test_db()
+    os.environ.pop("ENVIRONMENT", None)
+    os.environ.pop("AUTOMAGIK_SPARK_API_KEY", None)
+    os.environ.pop("AUTOMAGIK_SPARK_DATABASE_URL", None)
 
 # Configure pytest-asyncio to use session scope for event loop
 pytest.mark.asyncio.loop_scope = "session"
 
 @pytest.fixture(scope="session")
-async def test_engine():
+async def test_engine(setup_test_env):
     """Create a single test database engine for the entire test session."""
+    print(f"[TEST ENGINE] Starting with environment: {os.getenv('ENVIRONMENT')}")
+    print(f"[TEST ENGINE] Database URL: {os.getenv('AUTOMAGIK_SPARK_DATABASE_URL')}")
+    
     # Clean up any existing test database
     if os.path.exists(_test_db_path):
         os.unlink(_test_db_path)
+        print(f"[TEST ENGINE] Removed existing database: {_test_db_path}")
     
     # Create async engine
     engine = create_async_engine(
@@ -73,20 +97,27 @@ async def test_engine():
         echo=False,
     )
     
+    print(f"[TEST ENGINE] Created engine for: {engine.url}")
+    
     # Create all tables ONCE at the start of the test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        print("[TEST ENGINE] Tables created via Base.metadata.create_all")
     
     # Verify tables were created
     async with engine.connect() as conn:
         result = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
         tables = result.fetchall()
-        print(f"[TEST ENGINE] Created tables: {[table[0] for table in tables]}")
-        assert len(tables) > 0, "No tables were created in test database!"
+        table_names = [table[0] for table in tables]
+        print(f"[TEST ENGINE] Verified tables exist: {table_names}")
+        
+        if not table_names:
+            raise RuntimeError("No tables were created in test database!")
     
     yield engine
     
     # Cleanup
+    print("[TEST ENGINE] Disposing engine and cleaning up")
     await engine.dispose()
     if os.path.exists(_test_db_path):
         os.unlink(_test_db_path)
