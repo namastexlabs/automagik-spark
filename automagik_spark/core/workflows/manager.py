@@ -116,16 +116,15 @@ class WorkflowManager:
             all_flows = []
             for source in sources:
                 try:
-                    api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+                    # Use consistent pattern with _get_source_manager
+                    manager = await self._get_source_manager(source=source)
+                    
                     if source.source_type == SourceType.LANGFLOW:
-                        manager = LangFlowManager(api_url=source.url, api_key=api_key)
                         with manager:  # Use context manager for proper cleanup
                             flows = manager.list_flows_sync()
                     elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
-                        manager = AutoMagikAgentManager(source.url, api_key, source_id=source.id)
                         flows = manager.list_flows_sync()
                     elif source.source_type == SourceType.AUTOMAGIK_HIVE:
-                        manager = AutomagikHiveManager(source.url, api_key, source_id=source.id)
                         flows = manager.list_flows_sync()
                     else:
                         logger.warning(f"Unsupported source type: {source.source_type}")
@@ -171,16 +170,24 @@ class WorkflowManager:
         if source_url:
             # Try specific source
             try:
-                self.source_manager = await self._get_source_manager(source_url=source_url)
+                # Get source from database to check type consistently
+                source = (await self.session.execute(
+                    select(WorkflowSource).where(WorkflowSource.url == source_url)
+                )).scalar_one_or_none()
+                if not source:
+                    logger.warning(f"No source found with URL {source_url}")
+                    return None
+                
+                self.source_manager = await self._get_source_manager(source=source)
                 async with self.source_manager:
-                    if isinstance(self.source_manager, LangFlowManager):
+                    if source.source_type == SourceType.LANGFLOW:
                         flow = await self.source_manager.get_flow(flow_id)
-                    elif isinstance(self.source_manager, AutoMagikAgentManager):
+                    elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
                         flow = await self.source_manager.get_agent(flow_id)
-                    elif isinstance(self.source_manager, AutomagikHiveManager):
+                    elif source.source_type == SourceType.AUTOMAGIK_HIVE:
                         flow = await self.source_manager.get_flow(flow_id)
                     else:
-                        logger.warning("Unsupported source type")
+                        logger.warning(f"Unsupported source type: {source.source_type}")
                         return None
 
                     if flow:

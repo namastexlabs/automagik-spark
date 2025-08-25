@@ -33,6 +33,7 @@ class TestWorkflowManagerHiveIntegration:
         source.url = "http://localhost:8886"
         source.source_type = SourceType.AUTOMAGIK_HIVE
         source.encrypted_api_key = "encrypted_key"
+        source.status = "active"  # Ensure status check passes
         return source
 
     @pytest.fixture
@@ -141,31 +142,32 @@ class TestWorkflowManagerHiveIntegration:
         mock_manager.list_flows_sync.return_value = mock_hive_flows
         mock_manager.get_flow_sync.return_value = mock_hive_flows[0]
         
-        with patch.object(workflow_manager, '_get_source_manager', return_value=mock_manager):
-            # Mock session queries
-            mock_source_result = MagicMock()
-            mock_source_result.scalar_one_or_none.return_value = mock_hive_source
-            workflow_manager.session.execute.return_value = mock_source_result
-            
-            # Mock _create_or_update_workflow
-            expected_workflow_data = {"id": "workflow_123", "name": "Master Genie Agent"}
-            with patch.object(workflow_manager, '_create_or_update_workflow', 
-                             return_value=expected_workflow_data) as mock_create:
-                
-                result = await workflow_manager.sync_flow(
-                    flow_id="master-genie",
-                    input_component="input",
-                    output_component="output", 
-                    source_url=mock_hive_source.url
-                )
-                
-                assert result == expected_workflow_data
-                mock_create.assert_called_once()
-                
-                # Verify flow data was enhanced with components
-                call_args = mock_create.call_args[0][0]
-                assert call_args['input_component'] == "input"
-                assert call_args['output_component'] == "output"
+        # Mock session.execute properly to handle async database calls
+        mock_source_result = MagicMock()
+        mock_source_result.scalar_one_or_none.return_value = mock_hive_source
+        mock_source_result.scalars.return_value.all.return_value = [mock_hive_source]
+        
+        with patch.object(workflow_manager.session, 'execute', return_value=mock_source_result):
+            with patch.object(workflow_manager, '_get_source_manager', return_value=mock_manager):
+                # Mock _create_or_update_workflow
+                expected_workflow_data = {"id": "workflow_123", "name": "Master Genie Agent"}
+                with patch.object(workflow_manager, '_create_or_update_workflow', 
+                                 return_value=expected_workflow_data) as mock_create:
+                    
+                    result = await workflow_manager.sync_flow(
+                        flow_id="master-genie",
+                        input_component="input",
+                        output_component="output", 
+                        source_url=mock_hive_source.url
+                    )
+                    
+                    assert result == expected_workflow_data
+                    mock_create.assert_called_once()
+                    
+                    # Verify flow data was enhanced with components
+                    call_args = mock_create.call_args[0][0]
+                    assert call_args['input_component'] == "input"
+                    assert call_args['output_component'] == "output"
 
     @patch('automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key') 
     async def test_unsupported_source_type_error(self, mock_decrypt, workflow_manager):
