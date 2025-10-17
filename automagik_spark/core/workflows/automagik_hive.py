@@ -95,33 +95,15 @@ class AutomagikHiveManager:
                         detail=f"AutoMagik Hive health check failed: {health_data}"
                     )
 
-                # Get playground status for additional info
-                try:
-                    status_response = await client.get("/playground/status")
-                    status_response.raise_for_status()
-                    status_data = status_response.json()
-                    
-                    return {
-                        'version': health_data.get('utc', 'unknown'),
-                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
-                        'description': 'AutoMagik Hive Multi-Agent System with agents, teams, and workflows',
-                        'status': health_data.get('status', 'unknown'),
-                        'timestamp': health_data.get('utc'),
-                        'agents_loaded': status_data.get('agents_loaded', 0),
-                        'teams_loaded': status_data.get('teams_loaded', 0),
-                        'workflows_loaded': status_data.get('workflows_loaded', 0),
-                        'environment': 'production'
-                    }
-                except:
-                    # If playground status fails, return basic health info
-                    return {
-                        'version': health_data.get('utc', 'unknown'),
-                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
-                        'description': 'AutoMagik Hive Multi-Agent System',
-                        'status': health_data.get('status', 'unknown'),
-                        'timestamp': health_data.get('utc'),
-                        'environment': 'production'
-                    }
+                # Return health info from AgentOS v2
+                return {
+                    'version': health_data.get('utc', 'unknown'),
+                    'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
+                    'description': 'AutoMagik Hive Multi-Agent System with agents, teams, and workflows',
+                    'status': health_data.get('status', 'unknown'),
+                    'timestamp': health_data.get('utc'),
+                    'environment': 'production'
+                }
             finally:
                 # Close the client if we created it
                 if should_close_client and client is not None:
@@ -145,7 +127,7 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/agents")
+                response = await client.get("/agents")
                 response.raise_for_status()
                 agents = response.json()
                 
@@ -195,7 +177,7 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/teams")
+                response = await client.get("/teams")
                 response.raise_for_status()
                 teams = response.json()
                 
@@ -246,7 +228,7 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/workflows")
+                response = await client.get("/workflows")
                 response.raise_for_status()
                 workflows = response.json()
                 
@@ -398,7 +380,7 @@ class AutomagikHiveManager:
             
         # Use form data for agent runs
         response = await client.post(
-            f"/playground/agents/{agent_id}/runs", 
+            f"/agents/{agent_id}/runs",
             data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
@@ -425,7 +407,7 @@ class AutomagikHiveManager:
         if session_id:
             payload["session_id"] = session_id
             
-        response = await client.post(f"/playground/teams/{team_id}/runs", data=payload)
+        response = await client.post(f"/teams/{team_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -463,7 +445,7 @@ class AutomagikHiveManager:
         if session_id:
             payload["session_id"] = session_id
             
-        response = await client.post(f"/playground/workflows/{workflow_id}/runs", json=payload)
+        response = await client.post(f"/workflows/{workflow_id}/runs", json=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -519,13 +501,13 @@ class AutomagikHiveManager:
                 timeout=30.0
             ) as client:
                 # Get agents
-                agents_response = client.get("/playground/agents")
+                agents_response = client.get("/agents")
                 agents_response.raise_for_status()
                 agents = agents_response.json()
                 
                 # Get teams
                 try:
-                    teams_response = client.get("/playground/teams")
+                    teams_response = client.get("/teams")
                     teams_response.raise_for_status()
                     teams = teams_response.json()
                 except:
@@ -533,7 +515,7 @@ class AutomagikHiveManager:
                 
                 # Get workflows
                 try:
-                    workflows_response = client.get("/playground/workflows")
+                    workflows_response = client.get("/workflows")
                     workflows_response.raise_for_status()
                     workflows = workflows_response.json()
                 except:
@@ -703,7 +685,7 @@ class AutomagikHiveManager:
         
         # Use form data for agent runs
         response = client.post(
-            f"/playground/agents/{agent_id}/runs", 
+            f"/agents/{agent_id}/runs",
             data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
@@ -734,7 +716,7 @@ class AutomagikHiveManager:
         
         logger.info(f"Running team {team_id} with payload: {payload}")
         
-        response = client.post(f"/playground/teams/{team_id}/runs", data=payload)
+        response = client.post(f"/teams/{team_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -776,7 +758,7 @@ class AutomagikHiveManager:
         
         logger.info(f"Running workflow {workflow_id} with payload: {payload}")
         
-        response = client.post(f"/playground/workflows/{workflow_id}/runs", json=payload)
+        response = client.post(f"/workflows/{workflow_id}/runs", json=payload)
         response.raise_for_status()
         result = response.json()
         

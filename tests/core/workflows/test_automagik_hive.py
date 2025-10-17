@@ -85,18 +85,7 @@ class TestAutomagikHiveManager:
             "utc": "2025-08-15T15:00:00.000000+00:00",
             "message": "System operational"
         }
-    @pytest.fixture
-    def mock_status_response(self):
-        """Mock status API response."""
-        return {
-            "status": "running",
-            "app_id": "automagik-hive",
-            "agents_loaded": 6,
-            "teams_loaded": 2,
-            "workflows_loaded": 1,
-            "database": "connected",
-            "mcp_servers": ["claude-mcp", "postgres", "zen"]
-        }
+    # Removed mock_status_response fixture as we no longer use /playground/status endpoint
     def test_manager_initialization(self, manager):
         """Test manager initialization."""
         assert manager.api_url == "http://localhost:8886"
@@ -104,31 +93,25 @@ class TestAutomagikHiveManager:
         assert manager.source_id is not None
         assert manager._client is None
     @pytest.mark.asyncio
-    async def test_validate_success(self, manager, mock_health_response, mock_status_response):
-        """Test successful validation."""
+    async def test_validate_success(self, manager, mock_health_response):
+        """Test successful validation with AgentOS v2 health endpoint."""
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             # Mock health response
             mock_health_resp = MagicMock()
             mock_health_resp.raise_for_status = MagicMock()
             mock_health_resp.json = MagicMock(return_value=mock_health_response)
-            
-            # Mock status response
-            mock_status_resp = MagicMock()
-            mock_status_resp.raise_for_status = MagicMock()
-            mock_status_resp.json = MagicMock(return_value=mock_status_response)
-            
-            mock_client.get.side_effect = [mock_health_resp, mock_status_resp]
-            
+
+            mock_client.get.return_value = mock_health_resp
+
             result = await manager.validate()
-            
+
             assert result["status"] == "success"
             assert result["name"] == "Automagik Hive Multi-Agent System"
-            assert result["agents_loaded"] == 6
-            assert result["teams_loaded"] == 2
-            assert result["workflows_loaded"] == 1
+            assert result["description"] == "AutoMagik Hive Multi-Agent System with agents, teams, and workflows"
+            assert result["environment"] == "production"
     @pytest.mark.asyncio
     async def test_validate_health_failure(self, manager):
         """Test validation with health check failure."""
