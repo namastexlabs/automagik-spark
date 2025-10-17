@@ -22,6 +22,7 @@ from .task import TaskManager
 from .source import WorkflowSource
 from .automagik_agents import AutoMagikAgentManager
 from .automagik_hive import AutomagikHiveManager
+from .adapters import AdapterRegistry, WorkflowExecutionResult
 
 import os
 import asyncio
@@ -255,20 +256,20 @@ class WorkflowManager:
         return []
 
     async def sync_flow(
-        self, 
-        flow_id: str, 
-        input_component: Optional[str] = None, 
+        self,
+        flow_id: str,
+        input_component: Optional[str] = None,
         output_component: Optional[str] = None,
         source_url: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Sync a flow from a remote source.
-        
+
         Args:
             flow_id: ID of the flow to sync
-            input_component: ID of the input component
-            output_component: ID of the output component
+            input_component: Optional ID of the input component (will use source defaults if not provided)
+            output_component: Optional ID of the output component (will use source defaults if not provided)
             source_url: Optional URL of the source to sync from
-            
+
         Returns:
             Optional[Dict[str, Any]]: The synced workflow data if successful
         """
@@ -289,26 +290,51 @@ class WorkflowManager:
             # Skip inactive sources
             if getattr(source, "status", "active") != "active":
                 continue
+
+            # Get adapter for this source
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
-            self.source_manager = await self._get_source_manager(source=source)
-            
-            # Use sync methods since we're in a sync context
             try:
-                flows = self.source_manager.list_flows_sync()
-            except Exception as e:
-                logger.error(f"Failed to list flows from source {source.url}: {e}")
+                adapter = AdapterRegistry.get_adapter(
+                    source_type=source.source_type,
+                    api_url=source.url,
+                    api_key=api_key,
+                    source_id=source.id
+                )
+            except ValueError as e:
+                logger.warning(f"No adapter for source type {source.source_type}: {e}")
                 continue
-            if flows:
-                # Check if the flow exists in this source
+
+            # Check if flow exists and get it
+            try:
+                flows = adapter.list_flows_sync()
                 flow_exists = any(flow.get('id') == flow_id for flow in flows)
-                if flow_exists:
-                    # Found the flow, get its data
-                    flow_data = self.source_manager.get_flow_sync(flow_id)
-                    if flow_data:
-                        # Update with input and output components
-                        flow_data['input_component'] = input_component
-                        flow_data['output_component'] = output_component
-                        return await self._create_or_update_workflow(flow_data)
+                if not flow_exists:
+                    continue
+
+                # Get flow data
+                flow_data = adapter.get_flow_sync(flow_id)
+                if not flow_data:
+                    continue
+
+                # Use provided params or get defaults from adapter
+                if not input_component or not output_component:
+                    defaults = adapter.get_default_sync_params(flow_data)
+                    input_component = input_component or defaults.get("input_component")
+                    output_component = output_component or defaults.get("output_component")
+
+                # Normalize flow data and save
+                flow_data = adapter.normalize_flow_data(flow_data)
+                flow_data['input_component'] = input_component
+                flow_data['output_component'] = output_component
+
+                # Store adapter for _create_or_update_workflow
+                self.source_manager = adapter
+
+                return await self._create_or_update_workflow(flow_data)
+
+            except Exception as e:
+                logger.error(f"Failed to sync flow from source {source.url}: {e}")
+                continue
 
         raise ValueError(f"No source found containing flow {flow_id}")
 
@@ -509,11 +535,11 @@ class WorkflowManager:
             status="running",
             started_at=datetime.now(timezone.utc)
         )
-        
+
         if not existing_task:
             self.session.add(task)
             await self.session.commit()
-        
+
         try:
             # Get the workflow source
             source = await self._get_workflow_source(str(workflow_id))
@@ -522,39 +548,51 @@ class WorkflowManager:
 
             logger.info(f"Using workflow source: {source.url}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
-            
-            self.source_manager = await self._get_source_manager(source=source)
-            
-            # Execute workflow - don't use context manager to avoid session type issues
+
+            # Get adapter for this source
+            api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
+            adapter = AdapterRegistry.get_adapter(
+                source_type=source.source_type,
+                api_url=source.url,
+                api_key=api_key,
+                source_id=source.id
+            )
+
+            # Execute workflow using adapter
             try:
-                # Call run_flow directly without context manager
-                result = await self.source_manager.run_flow(workflow.remote_flow_id, input_data)
-                # For automagik-agents, extract just the message from the response
-                if isinstance(self.source_manager, AutoMagikAgentManager) and isinstance(result, dict):
-                    result = result.get('result', result)
+                with adapter:
+                    execution_result = adapter.run_flow_sync(
+                        workflow.remote_flow_id,
+                        input_data,
+                        str(task.id)
+                    )
+
+                # Handle execution result
+                if execution_result.success:
+                    logger.info(f"Task {task.id} completed successfully")
+                    logger.info(f"Result: {self._format_result_for_logging(execution_result.result)}")
+
+                    # Store the result appropriately based on its type
+                    if isinstance(execution_result.result, (dict, list)):
+                        task.output_data = json.dumps(execution_result.result)
+                    else:
+                        task.output_data = str(execution_result.result)
+
+                    task.status = 'completed'
+                    task.finished_at = datetime.now(timezone.utc)
+                else:
+                    logger.error(f"Task {task.id} failed: {execution_result.error}")
+                    task.status = 'failed'
+                    task.error = execution_result.error or "No error details provided"
+                    task.finished_at = datetime.now(timezone.utc)
+
             except Exception as e:
                 logger.error(f"Error executing flow: {str(e)}")
                 if isinstance(e, httpx.HTTPStatusError):
                     logger.error(f"HTTP Status: {e.response.status_code}")
                     logger.error(f"Response text: {e.response.text}")
                 raise
-            
-            if result:
-                logger.info(f"Task {task.id} completed successfully")
-                logger.info(f"Result: {self._format_result_for_logging(result)}")
-                # Store the result appropriately based on its type
-                if isinstance(result, (dict, list)):
-                    task.output_data = json.dumps(result)
-                else:
-                    task.output_data = str(result)
-                task.status = 'completed'
-                task.finished_at = datetime.now(timezone.utc)
-            else:
-                logger.error(f"Task {task.id} failed - no result returned")
-                task.status = 'failed'
-                task.error = "No result returned from workflow execution"
-                task.finished_at = datetime.now(timezone.utc)
-                
+
         except Exception as e:
             logger.error(f"Failed to run workflow: {str(e)}")
             if isinstance(e, httpx.HTTPStatusError):
@@ -562,7 +600,7 @@ class WorkflowManager:
             task.status = 'failed'
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
-        
+
         await self.session.commit()
         return task
 
@@ -728,58 +766,41 @@ class SyncWorkflowManager:
             logger.info(f"Using workflow source: {source.url}")
             logger.info(f"Remote flow ID: {workflow.remote_flow_id}")
 
-            # Initialize appropriate manager based on source type
+            # Get adapter for this source
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             logger.info(f"Decrypted API key length: {len(api_key) if api_key else 0}")
-            
-            # Initialize appropriate manager based on source type
-            if source.source_type == SourceType.LANGFLOW:
-                self.source_manager = LangFlowManager(
-                    session,
-                    api_url=source.url,
-                    api_key=api_key
+
+            adapter = AdapterRegistry.get_adapter(
+                source_type=source.source_type,
+                api_url=source.url,
+                api_key=api_key,
+                source_id=source.id
+            )
+
+            # Execute workflow using adapter
+            with adapter:
+                execution_result = adapter.run_flow_sync(
+                    workflow.remote_flow_id,
+                    task.input_data,
+                    str(task.id)
                 )
-                result = self.source_manager.run_workflow_sync(workflow.remote_flow_id, task.input_data)
-            elif source.source_type == SourceType.AUTOMAGIK_AGENTS:
-                self.source_manager = AutoMagikAgentManager(
-                    source.url,
-                    api_key,
-                    source_id=source.id
-                )
-                with self.source_manager:
-                    result = self.source_manager.run_flow_sync(workflow.remote_flow_id, task.input_data)
-                    # For automagik-agents, extract just the result field
-                    if isinstance(result, dict):
-                        result = result.get('result', result)
-            elif source.source_type == SourceType.AUTOMAGIK_HIVE:
-                self.source_manager = AutomagikHiveManager(
-                    source.url,
-                    api_key,
-                    source_id=source.id
-                )
-                with self.source_manager:
-                    result = self.source_manager.run_flow_sync(workflow.remote_flow_id, task.input_data)
-                    # For automagik-hive, extract just the result field
-                    if isinstance(result, dict):
-                        result = result.get('result', result)
-            else:
-                raise ValueError(f"Unsupported source type: {source.source_type}")
-            
-            if result:
+
+            # Handle execution result
+            if execution_result.success:
                 logger.info(f"Task {task.id} completed successfully")
                 # Store the result appropriately based on its type
-                if isinstance(result, (dict, list)):
-                    task.output_data = json.dumps(result)
+                if isinstance(execution_result.result, (dict, list)):
+                    task.output_data = json.dumps(execution_result.result)
                 else:
-                    task.output_data = str(result)
+                    task.output_data = str(execution_result.result)
                 task.status = 'completed'
                 task.finished_at = datetime.now(timezone.utc)
             else:
-                logger.error(f"Task {task.id} failed - no result returned")
+                logger.error(f"Task {task.id} failed: {execution_result.error}")
                 task.status = 'failed'
-                task.error = "No result returned from workflow execution"
+                task.error = execution_result.error or "No error details provided"
                 task.finished_at = datetime.now(timezone.utc)
-                
+
         except Exception as e:
             logger.error(f"Failed to run workflow: {str(e)}")
             if isinstance(e, httpx.HTTPStatusError):
@@ -788,6 +809,6 @@ class SyncWorkflowManager:
             task.status = 'failed'
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
-        
+
         session.commit()
         return task

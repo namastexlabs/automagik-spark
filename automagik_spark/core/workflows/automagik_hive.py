@@ -134,7 +134,8 @@ class AutomagikHiveManager:
                 # Transform agent data to match Spark workflow format
                 transformed_agents = []
                 for agent in agents:
-                    agent_id = agent.get('agent_id', agent.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
+                    agent_id = agent.get('id') or agent.get('agent_id') or agent.get('name', 'unknown')
                     transformed_agents.append({
                         'id': agent_id,
                         'name': agent.get('name', agent_id),
@@ -184,7 +185,8 @@ class AutomagikHiveManager:
                 # Transform team data to match Spark workflow format
                 transformed_teams = []
                 for team in teams:
-                    team_id = team.get('team_id', team.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'team_id', then 'name' as fallback
+                    team_id = team.get('id') or team.get('team_id') or team.get('name', 'unknown')
                     members_count = len(team.get('members', []))
                     transformed_teams.append({
                         'id': team_id,
@@ -235,7 +237,8 @@ class AutomagikHiveManager:
                 # Transform workflow data to match Spark workflow format
                 transformed_workflows = []
                 for workflow in workflows:
-                    workflow_id = workflow.get('workflow_id', workflow.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
+                    workflow_id = workflow.get('id') or workflow.get('workflow_id') or workflow.get('name', 'unknown')
                     transformed_workflows.append({
                         'id': workflow_id,
                         'name': workflow.get('name', workflow_id),
@@ -526,7 +529,8 @@ class AutomagikHiveManager:
                 
                 # Transform agents
                 for agent in agents:
-                    agent_id = agent.get('agent_id', agent.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
+                    agent_id = agent.get('id') or agent.get('agent_id') or agent.get('name', 'unknown')
                     all_flows.append({
                         'id': agent_id,
                         'name': agent.get('name', agent_id),
@@ -553,7 +557,8 @@ class AutomagikHiveManager:
                 
                 # Transform teams
                 for team in teams:
-                    team_id = team.get('team_id', team.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'team_id', then 'name' as fallback
+                    team_id = team.get('id') or team.get('team_id') or team.get('name', 'unknown')
                     members_count = len(team.get('members', []))
                     all_flows.append({
                         'id': team_id,
@@ -581,7 +586,8 @@ class AutomagikHiveManager:
                 
                 # Transform workflows
                 for workflow in workflows:
-                    workflow_id = workflow.get('workflow_id', workflow.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
+                    workflow_id = workflow.get('id') or workflow.get('workflow_id') or workflow.get('name', 'unknown')
                     all_flows.append({
                         'id': workflow_id,
                         'name': workflow.get('name', workflow_id),
