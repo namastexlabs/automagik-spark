@@ -439,16 +439,15 @@ class AutomagikHiveManager:
 
     async def _run_workflow(self, client: httpx.AsyncClient, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
         """Run a structured workflow."""
+        # Hive workflows use form-urlencoded (like agents/teams), not JSON
         payload = {
-            "input_data": {
-                "message": message,
-                "requirements": message
-            }
+            "message": message,
+            "stream": False
         }
         if session_id:
             payload["session_id"] = session_id
-            
-        response = await client.post(f"/workflows/{workflow_id}/runs", json=payload)
+
+        response = await client.post(f"/workflows/{workflow_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -753,18 +752,17 @@ class AutomagikHiveManager:
 
     def _run_workflow_sync(self, client: httpx.Client, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
         """Run a structured workflow synchronously."""
+        # Hive workflows use form-urlencoded (like agents/teams), not JSON
         payload = {
-            "input_data": {
-                "message": message,
-                "requirements": message
-            }
+            "message": message,
+            "stream": False
         }
         if session_id:
             payload["session_id"] = session_id
-        
+
         logger.info(f"Running workflow {workflow_id} with payload: {payload}")
-        
-        response = client.post(f"/workflows/{workflow_id}/runs", json=payload)
+
+        response = client.post(f"/workflows/{workflow_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
