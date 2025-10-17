@@ -397,7 +397,7 @@ class AutomagikHiveManager:
             'agent_id': result.get('agent_id'),
             'metadata': result.get('metrics', {}),
             'status': result.get('status', 'completed'),
-            'success': result.get('status') in ['RUNNING', 'completed']
+            'success': result.get('status') in ['RUNNING', 'COMPLETED', 'completed']
         }
 
     async def _run_team(self, client: httpx.AsyncClient, team_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -434,7 +434,7 @@ class AutomagikHiveManager:
             'coordinator_response': result.get('coordinator_response', {}),
             'member_responses': member_responses,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     async def _run_workflow(self, client: httpx.AsyncClient, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -472,7 +472,7 @@ class AutomagikHiveManager:
             'steps_completed': steps_completed,
             'final_output': final_output,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -707,7 +707,7 @@ class AutomagikHiveManager:
             'agent_id': result.get('agent_id'),
             'metadata': result.get('metrics', {}),
             'status': result.get('status', 'completed'),
-            'success': result.get('status') in ['RUNNING', 'completed']
+            'success': result.get('status') in ['RUNNING', 'COMPLETED', 'completed']
         }
 
     def _run_team_sync(self, client: httpx.Client, team_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -748,7 +748,7 @@ class AutomagikHiveManager:
             'coordinator_response': result.get('coordinator_response', {}),
             'member_responses': member_responses,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     def _run_workflow_sync(self, client: httpx.Client, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -790,5 +790,5 @@ class AutomagikHiveManager:
             'steps_completed': steps_completed,
             'final_output': final_output,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
