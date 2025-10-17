@@ -42,11 +42,14 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
 
             # Create task with input data as string
             input_data = ""
-            if schedule.params and isinstance(schedule.params, dict):
+            # Try input_value first (current field), then fallback to deprecated fields
+            if hasattr(schedule, 'input_value') and schedule.input_value:
+                input_data = schedule.input_value
+            elif schedule.params and isinstance(schedule.params, dict):
                 input_data = schedule.params.get("value", "")
-            elif schedule.input_data:
+            elif hasattr(schedule, 'input_data') and schedule.input_data:
                 input_data = schedule.input_data  # Fallback to old field
-            
+
             # Ensure input_data is always a string
             if not input_data:
                 input_data = "Hello World"  # Default value if nothing provided
