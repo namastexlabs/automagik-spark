@@ -135,14 +135,34 @@ async def delete_workflow(
 @router.post("/sync/{flow_id}", dependencies=[Depends(verify_api_key)])
 async def sync_flow(
     flow_id: str,
-    input_component: str,
-    output_component: str,
+    source_url: str,
+    input_component: Optional[str] = None,
+    output_component: Optional[str] = None,
     workflow_manager: WorkflowManager = Depends(get_workflow_manager)
 ) -> Dict[str, Any]:
-    """Sync a flow from LangFlow API into a local workflow."""
-    workflow_data = await workflow_manager.sync_flow(flow_id, input_component, output_component)
+    """Sync a flow from any workflow source into a local workflow.
+
+    Args:
+        flow_id: ID of the flow to sync
+        source_url: URL of the workflow source (e.g., http://localhost:8886 for Hive)
+        input_component: Optional input component ID (uses source defaults if not provided)
+        output_component: Optional output component ID (uses source defaults if not provided)
+        workflow_manager: Workflow manager instance
+
+    Returns:
+        The synced workflow data
+
+    Raises:
+        HTTPException: If the flow is not found or sync fails
+    """
+    workflow_data = await workflow_manager.sync_flow(
+        flow_id=flow_id,
+        source_url=source_url,
+        input_component=input_component,
+        output_component=output_component
+    )
     if not workflow_data:
-        raise HTTPException(status_code=404, detail="Flow not found in LangFlow")
+        raise HTTPException(status_code=404, detail=f"Flow {flow_id} not found")
     return workflow_data
 
 

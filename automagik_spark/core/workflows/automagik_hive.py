@@ -95,33 +95,15 @@ class AutomagikHiveManager:
                         detail=f"AutoMagik Hive health check failed: {health_data}"
                     )
 
-                # Get playground status for additional info
-                try:
-                    status_response = await client.get("/playground/status")
-                    status_response.raise_for_status()
-                    status_data = status_response.json()
-                    
-                    return {
-                        'version': health_data.get('utc', 'unknown'),
-                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
-                        'description': 'AutoMagik Hive Multi-Agent System with agents, teams, and workflows',
-                        'status': health_data.get('status', 'unknown'),
-                        'timestamp': health_data.get('utc'),
-                        'agents_loaded': status_data.get('agents_loaded', 0),
-                        'teams_loaded': status_data.get('teams_loaded', 0),
-                        'workflows_loaded': status_data.get('workflows_loaded', 0),
-                        'environment': 'production'
-                    }
-                except:
-                    # If playground status fails, return basic health info
-                    return {
-                        'version': health_data.get('utc', 'unknown'),
-                        'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
-                        'description': 'AutoMagik Hive Multi-Agent System',
-                        'status': health_data.get('status', 'unknown'),
-                        'timestamp': health_data.get('utc'),
-                        'environment': 'production'
-                    }
+                # Return health info from AgentOS v2
+                return {
+                    'version': health_data.get('utc', 'unknown'),
+                    'name': health_data.get('service', 'Automagik Hive Multi-Agent System'),
+                    'description': 'AutoMagik Hive Multi-Agent System with agents, teams, and workflows',
+                    'status': health_data.get('status', 'unknown'),
+                    'timestamp': health_data.get('utc'),
+                    'environment': 'production'
+                }
             finally:
                 # Close the client if we created it
                 if should_close_client and client is not None:
@@ -145,14 +127,15 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/agents")
+                response = await client.get("/agents")
                 response.raise_for_status()
                 agents = response.json()
                 
                 # Transform agent data to match Spark workflow format
                 transformed_agents = []
                 for agent in agents:
-                    agent_id = agent.get('agent_id', agent.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
+                    agent_id = agent.get('id') or agent.get('agent_id') or agent.get('name', 'unknown')
                     transformed_agents.append({
                         'id': agent_id,
                         'name': agent.get('name', agent_id),
@@ -195,14 +178,15 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/teams")
+                response = await client.get("/teams")
                 response.raise_for_status()
                 teams = response.json()
                 
                 # Transform team data to match Spark workflow format
                 transformed_teams = []
                 for team in teams:
-                    team_id = team.get('team_id', team.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'team_id', then 'name' as fallback
+                    team_id = team.get('id') or team.get('team_id') or team.get('name', 'unknown')
                     members_count = len(team.get('members', []))
                     transformed_teams.append({
                         'id': team_id,
@@ -246,14 +230,15 @@ class AutomagikHiveManager:
             should_close = client != self._client
             
             try:
-                response = await client.get("/playground/workflows")
+                response = await client.get("/workflows")
                 response.raise_for_status()
                 workflows = response.json()
                 
                 # Transform workflow data to match Spark workflow format
                 transformed_workflows = []
                 for workflow in workflows:
-                    workflow_id = workflow.get('workflow_id', workflow.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
+                    workflow_id = workflow.get('id') or workflow.get('workflow_id') or workflow.get('name', 'unknown')
                     transformed_workflows.append({
                         'id': workflow_id,
                         'name': workflow.get('name', workflow_id),
@@ -398,7 +383,7 @@ class AutomagikHiveManager:
             
         # Use form data for agent runs
         response = await client.post(
-            f"/playground/agents/{agent_id}/runs", 
+            f"/agents/{agent_id}/runs",
             data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
@@ -412,7 +397,7 @@ class AutomagikHiveManager:
             'agent_id': result.get('agent_id'),
             'metadata': result.get('metrics', {}),
             'status': result.get('status', 'completed'),
-            'success': result.get('status') in ['RUNNING', 'completed']
+            'success': result.get('status') in ['RUNNING', 'COMPLETED', 'completed']
         }
 
     async def _run_team(self, client: httpx.AsyncClient, team_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -425,7 +410,7 @@ class AutomagikHiveManager:
         if session_id:
             payload["session_id"] = session_id
             
-        response = await client.post(f"/playground/teams/{team_id}/runs", data=payload)
+        response = await client.post(f"/teams/{team_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -449,21 +434,20 @@ class AutomagikHiveManager:
             'coordinator_response': result.get('coordinator_response', {}),
             'member_responses': member_responses,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     async def _run_workflow(self, client: httpx.AsyncClient, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
         """Run a structured workflow."""
+        # Hive workflows use form-urlencoded (like agents/teams), not JSON
         payload = {
-            "input_data": {
-                "message": message,
-                "requirements": message
-            }
+            "message": message,
+            "stream": False
         }
         if session_id:
             payload["session_id"] = session_id
-            
-        response = await client.post(f"/playground/workflows/{workflow_id}/runs", json=payload)
+
+        response = await client.post(f"/workflows/{workflow_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -487,7 +471,7 @@ class AutomagikHiveManager:
             'steps_completed': steps_completed,
             'final_output': final_output,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -519,13 +503,13 @@ class AutomagikHiveManager:
                 timeout=30.0
             ) as client:
                 # Get agents
-                agents_response = client.get("/playground/agents")
+                agents_response = client.get("/agents")
                 agents_response.raise_for_status()
                 agents = agents_response.json()
                 
                 # Get teams
                 try:
-                    teams_response = client.get("/playground/teams")
+                    teams_response = client.get("/teams")
                     teams_response.raise_for_status()
                     teams = teams_response.json()
                 except:
@@ -533,7 +517,7 @@ class AutomagikHiveManager:
                 
                 # Get workflows
                 try:
-                    workflows_response = client.get("/playground/workflows")
+                    workflows_response = client.get("/workflows")
                     workflows_response.raise_for_status()
                     workflows = workflows_response.json()
                 except:
@@ -544,7 +528,8 @@ class AutomagikHiveManager:
                 
                 # Transform agents
                 for agent in agents:
-                    agent_id = agent.get('agent_id', agent.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
+                    agent_id = agent.get('id') or agent.get('agent_id') or agent.get('name', 'unknown')
                     all_flows.append({
                         'id': agent_id,
                         'name': agent.get('name', agent_id),
@@ -571,7 +556,8 @@ class AutomagikHiveManager:
                 
                 # Transform teams
                 for team in teams:
-                    team_id = team.get('team_id', team.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'team_id', then 'name' as fallback
+                    team_id = team.get('id') or team.get('team_id') or team.get('name', 'unknown')
                     members_count = len(team.get('members', []))
                     all_flows.append({
                         'id': team_id,
@@ -599,7 +585,8 @@ class AutomagikHiveManager:
                 
                 # Transform workflows
                 for workflow in workflows:
-                    workflow_id = workflow.get('workflow_id', workflow.get('name', 'unknown'))
+                    # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
+                    workflow_id = workflow.get('id') or workflow.get('workflow_id') or workflow.get('name', 'unknown')
                     all_flows.append({
                         'id': workflow_id,
                         'name': workflow.get('name', workflow_id),
@@ -703,7 +690,7 @@ class AutomagikHiveManager:
         
         # Use form data for agent runs
         response = client.post(
-            f"/playground/agents/{agent_id}/runs", 
+            f"/agents/{agent_id}/runs",
             data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
@@ -719,7 +706,7 @@ class AutomagikHiveManager:
             'agent_id': result.get('agent_id'),
             'metadata': result.get('metrics', {}),
             'status': result.get('status', 'completed'),
-            'success': result.get('status') in ['RUNNING', 'completed']
+            'success': result.get('status') in ['RUNNING', 'COMPLETED', 'completed']
         }
 
     def _run_team_sync(self, client: httpx.Client, team_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
@@ -734,7 +721,7 @@ class AutomagikHiveManager:
         
         logger.info(f"Running team {team_id} with payload: {payload}")
         
-        response = client.post(f"/playground/teams/{team_id}/runs", data=payload)
+        response = client.post(f"/teams/{team_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -760,23 +747,22 @@ class AutomagikHiveManager:
             'coordinator_response': result.get('coordinator_response', {}),
             'member_responses': member_responses,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }
 
     def _run_workflow_sync(self, client: httpx.Client, workflow_id: str, message: str, session_id: Optional[str]) -> Dict[str, Any]:
         """Run a structured workflow synchronously."""
+        # Hive workflows use form-urlencoded (like agents/teams), not JSON
         payload = {
-            "input_data": {
-                "message": message,
-                "requirements": message
-            }
+            "message": message,
+            "stream": False
         }
         if session_id:
             payload["session_id"] = session_id
-        
+
         logger.info(f"Running workflow {workflow_id} with payload: {payload}")
-        
-        response = client.post(f"/playground/workflows/{workflow_id}/runs", json=payload)
+
+        response = client.post(f"/workflows/{workflow_id}/runs", data=payload)
         response.raise_for_status()
         result = response.json()
         
@@ -802,5 +788,5 @@ class AutomagikHiveManager:
             'steps_completed': steps_completed,
             'final_output': final_output,
             'status': result.get('status', 'completed'),
-            'success': result.get('status') == 'completed'
+            'success': result.get('status') in ['COMPLETED', 'completed']
         }

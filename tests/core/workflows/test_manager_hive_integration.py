@@ -132,42 +132,49 @@ class TestWorkflowManagerHiveIntegration:
             assert flow["source_url"] == mock_hive_source.url
 
     @patch('automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key')
-    async def test_sync_flow_hive(self, mock_decrypt,
+    @patch('automagik_spark.core.workflows.manager.AdapterRegistry.get_adapter')
+    async def test_sync_flow_hive(self, mock_get_adapter, mock_decrypt,
                                 workflow_manager, mock_hive_source, mock_hive_flows):
         """Test syncing flow from Hive source."""
         mock_decrypt.return_value = "decrypted_key"
-        
-        # Mock manager instance
-        mock_manager = MagicMock()
-        mock_manager.list_flows_sync.return_value = mock_hive_flows
-        mock_manager.get_flow_sync.return_value = mock_hive_flows[0]
-        
+
+        # Mock adapter instance with required methods
+        mock_adapter = MagicMock()
+        mock_adapter.list_flows_sync.return_value = mock_hive_flows
+        mock_adapter.get_flow_sync.return_value = mock_hive_flows[0]
+        mock_adapter.get_default_sync_params.return_value = {
+            "input_component": "message",
+            "output_component": "result"
+        }
+        mock_adapter.normalize_flow_data.side_effect = lambda x: x  # Return data as-is
+        mock_adapter.api_url = mock_hive_source.url
+        mock_get_adapter.return_value = mock_adapter
+
         # Mock session.execute properly to handle async database calls
         mock_source_result = MagicMock()
         mock_source_result.scalar_one_or_none.return_value = mock_hive_source
         mock_source_result.scalars.return_value.all.return_value = [mock_hive_source]
-        
+
         with patch.object(workflow_manager.session, 'execute', return_value=mock_source_result):
-            with patch.object(workflow_manager, '_get_source_manager', return_value=mock_manager):
-                # Mock _create_or_update_workflow
-                expected_workflow_data = {"id": "workflow_123", "name": "Master Genie Agent"}
-                with patch.object(workflow_manager, '_create_or_update_workflow', 
-                                 return_value=expected_workflow_data) as mock_create:
-                    
-                    result = await workflow_manager.sync_flow(
-                        flow_id="master-genie",
-                        input_component="input",
-                        output_component="output", 
-                        source_url=mock_hive_source.url
-                    )
-                    
-                    assert result == expected_workflow_data
-                    mock_create.assert_called_once()
-                    
-                    # Verify flow data was enhanced with components
-                    call_args = mock_create.call_args[0][0]
-                    assert call_args['input_component'] == "input"
-                    assert call_args['output_component'] == "output"
+            # Mock _create_or_update_workflow
+            expected_workflow_data = {"id": "workflow_123", "name": "Master Genie Agent"}
+            with patch.object(workflow_manager, '_create_or_update_workflow',
+                             return_value=expected_workflow_data) as mock_create:
+
+                result = await workflow_manager.sync_flow(
+                    flow_id="master-genie",
+                    input_component="input",
+                    output_component="output",
+                    source_url=mock_hive_source.url
+                )
+
+                assert result == expected_workflow_data
+                mock_create.assert_called_once()
+
+                # Verify flow data was enhanced with components
+                call_args = mock_create.call_args[0][0]
+                assert call_args['input_component'] == "input"
+                assert call_args['output_component'] == "output"
 
     @patch('automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key') 
     async def test_unsupported_source_type_error(self, mock_decrypt, workflow_manager):

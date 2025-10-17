@@ -170,7 +170,7 @@ wheels = [
 
 [[package]]
 name = "automagik-spark"
-version = "0.3.6"
+version = "0.3.7"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
