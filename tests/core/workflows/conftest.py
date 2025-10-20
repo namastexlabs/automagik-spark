@@ -1,11 +1,12 @@
-
 """Test fixtures for flow tests."""
+
 import pytest
 from unittest.mock import AsyncMock
 
 
 class AsyncClientMock(AsyncMock):
     """Mock for httpx.AsyncClient."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.get = AsyncMock()
@@ -36,31 +37,17 @@ def mock_flows():
             "name": "Test Flow 1",
             "description": "Test flow 1 description",
             "data": {
-                "nodes": [
-                    {
-                        "id": "node1",
-                        "type": "input",
-                        "data": {"value": "test"}
-                    }
-                ],
-                "edges": []
-            }
+                "nodes": [{"id": "node1", "type": "input", "data": {"value": "test"}}],
+                "edges": [],
+            },
         },
         {
             "id": "flow2",
             "name": "Test Flow 2",
             "description": "Test flow 2 description",
             "data": {
-                "nodes": [
-                    {
-                        "id": "node1",
-                        "type": "input",
-                        "data": {"value": "test"}
-                    }
-                ],
-                "edges": []
-            }
-        }
+                "nodes": [{"id": "node1", "type": "input", "data": {"value": "test"}}],
+                "edges": [],
+            },
+        },
     ]
-
-

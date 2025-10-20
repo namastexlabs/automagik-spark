@@ -1,4 +1,3 @@
-
 """
 CLI commands package.
 
@@ -24,5 +23,3 @@ __all__ = [
     "source_group",
     "telemetry_group",
 ]
-
-

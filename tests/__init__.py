@@ -1,4 +1,1 @@
-
 """Test package for automagik."""
-
-

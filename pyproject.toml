@@ -78,6 +78,18 @@ dev = [
     "mypy>=1.5.0",
 ]
 
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E402",  # Module level import not at top of file (required for dotenv)
+    "E501",  # Line too long (handled by formatter)
+    "E722",  # Bare except (intentional fallback patterns)
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--asyncio-mode=auto --cov=automagik_spark --cov-report=term-missing"

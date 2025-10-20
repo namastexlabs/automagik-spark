@@ -4,7 +4,12 @@ import logging
 from typing import Any, Dict, List, Optional, TypeVar, Union
 from uuid import UUID
 from datetime import datetime
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,27 +23,37 @@ LANGFLOW_API_URL = get_langflow_api_url()
 LANGFLOW_API_KEY = get_langflow_api_key()
 API_VERSION = "v1"
 
-T = TypeVar('T')
-ResponseT = TypeVar('ResponseT', bound=BaseModel)
+T = TypeVar("T")
+ResponseT = TypeVar("ResponseT", bound=BaseModel)
+
 
 class APIError(Exception):
     """Base class for API errors."""
+
     pass
+
 
 class APIClientError(APIError):
     """Client-side API errors (4xx)."""
+
     pass
+
 
 class APIServerError(APIError):
     """Server-side API errors (5xx)."""
+
     pass
+
 
 class RateLimitError(APIError):
     """Rate limit exceeded."""
+
     pass
+
 
 class FlowResponse(BaseModel):
     """Base model for flow responses."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -60,30 +75,37 @@ class FlowResponse(BaseModel):
     # Pydantic v2 config
     model_config = ConfigDict(extra="allow")
 
-    @field_validator('instance', mode='after')
+    @field_validator("instance", mode="after")
     def _set_instance_from_source(cls, v, info):
         if not v:
-            src_url = info.data.get('source_url') if info else None
+            src_url = info.data.get("source_url") if info else None
             if src_url:
-                instance = src_url.split('://')[-1].split('/')[0]
-                instance = instance.split('.')[0]
+                instance = src_url.split("://")[-1].split("/")[0]
+                instance = instance.split(".")[0]
                 return instance
         return v
 
+
 class FlowComponentsResponse(BaseModel):
     """Response model for flow components."""
+
     components: Dict[str, Any]
+
 
 class FlowExecuteRequest(BaseModel):
     """Request model for flow execution."""
+
     input_value: Any
     output_type: str = "debug"
     input_type: str = "chat"
     tweaks: Dict[str, Any] = Field(default_factory=dict)
 
+
 class FlowExecuteResponse(BaseModel):
     """Response model for flow execution."""
+
     result: Any
+
 
 class BaseAPIClient:
     """Base class for API clients with common functionality."""
@@ -104,7 +126,7 @@ class BaseAPIClient:
         self.headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "automagik/1.0"
+            "User-Agent": "automagik/1.0",
         }
         if api_key:
             self.headers["x-api-key"] = api_key
@@ -117,9 +139,13 @@ class BaseAPIClient:
     def _handle_error_response(response: httpx.Response) -> None:
         """Handle error responses from the API."""
         if 400 <= response.status_code < 500:
-            raise APIClientError(f"Client error: {response.status_code} - {response.text}")
+            raise APIClientError(
+                f"Client error: {response.status_code} - {response.text}"
+            )
         elif 500 <= response.status_code < 600:
-            raise APIServerError(f"Server error: {response.status_code} - {response.text}")
+            raise APIServerError(
+                f"Server error: {response.status_code} - {response.text}"
+            )
         elif response.status_code == 429:
             raise RateLimitError("Rate limit exceeded")
         response.raise_for_status()
@@ -128,23 +154,15 @@ class BaseAPIClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type(APIServerError),
-        reraise=True
+        reraise=True,
     )
     async def _request_with_retry(
-        self,
-        client: httpx.AsyncClient,
-        method: str,
-        endpoint: str,
-        **kwargs
+        self, client: httpx.AsyncClient, method: str, endpoint: str, **kwargs
     ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
         try:
             response = await client.request(
-                method,
-                endpoint,
-                headers=self.headers,
-                timeout=self.timeout,
-                **kwargs
+                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
             )
             self._handle_error_response(response)
             return response
@@ -154,6 +172,7 @@ class BaseAPIClient:
                 logger.error(f"HTTP Status: {e.response.status_code}")
                 logger.error(f"Response text: {e.response.text}")
             raise
+
 
 class LangFlowManager:
     """Manager for remote LangFlow operations."""
@@ -174,7 +193,7 @@ class LangFlowManager:
         self.headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "automagik/1.0"
+            "User-Agent": "automagik/1.0",
         }
         if self.api_key:
             self.headers["x-api-key"] = self.api_key
@@ -191,9 +210,13 @@ class LangFlowManager:
     def _handle_error_response(response: httpx.Response) -> None:
         """Handle error responses from the API."""
         if 400 <= response.status_code < 500:
-            raise APIClientError(f"Client error: {response.status_code} - {response.text}")
+            raise APIClientError(
+                f"Client error: {response.status_code} - {response.text}"
+            )
         elif 500 <= response.status_code < 600:
-            raise APIServerError(f"Server error: {response.status_code} - {response.text}")
+            raise APIServerError(
+                f"Server error: {response.status_code} - {response.text}"
+            )
         elif response.status_code == 429:
             raise RateLimitError("Rate limit exceeded")
         response.raise_for_status()
@@ -202,23 +225,15 @@ class LangFlowManager:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type(APIServerError),
-        reraise=True
+        reraise=True,
     )
     async def _request_with_retry(
-        self,
-        client: httpx.AsyncClient,
-        method: str,
-        endpoint: str,
-        **kwargs
+        self, client: httpx.AsyncClient, method: str, endpoint: str, **kwargs
     ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
         try:
             response = await client.request(
-                method,
-                endpoint,
-                headers=self.headers,
-                timeout=self.timeout,
-                **kwargs
+                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
             )
             self._handle_error_response(response)
             return response
@@ -233,24 +248,16 @@ class LangFlowManager:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type(APIServerError),
-        reraise=True
+        reraise=True,
     )
     def _request_with_retry_sync(
-        self,
-        client: httpx.Client,
-        method: str,
-        endpoint: str,
-        **kwargs
+        self, client: httpx.Client, method: str, endpoint: str, **kwargs
     ) -> httpx.Response:
         """Make a synchronous HTTP request with retry logic."""
         try:
             # Use the client passed to the method instead of creating a new one
             response = client.request(
-                method,
-                endpoint,
-                headers=self.headers,
-                timeout=self.timeout,
-                **kwargs
+                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
             )
             self._handle_error_response(response)
             return response
@@ -270,13 +277,15 @@ class LangFlowManager:
             return [dict(item) for item in data]
         return {}
 
-    async def _execute_async_request(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    async def _execute_async_request(
+        self, method: str, endpoint: str, **kwargs
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Execute an async request with a temporary client."""
-        async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, verify=False) as temp_client:
+        async with httpx.AsyncClient(
+            headers=self.headers, timeout=self.timeout, verify=False
+        ) as temp_client:
             response = await temp_client.request(
-                method,
-                self._get_endpoint(endpoint),
-                **kwargs
+                method, self._get_endpoint(endpoint), **kwargs
             )
             self._handle_error_response(response)
             return self._process_response(response)
@@ -284,75 +293,74 @@ class LangFlowManager:
     async def _make_request_async(self, method: str, endpoint: str, **kwargs) -> Any:
         """
         Make a request to the LangFlow API with automatic client creation.
-        
+
         This handles the case where the client may not be initialized yet.
         """
         # Create client if it doesn't exist
         if not self._client:
             self._client = httpx.AsyncClient(verify=False, timeout=30.0)
-        
+
         url = f"{self.api_url}/api/v1/{endpoint}"
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        
+
         try:
             # Use verb-specific method if it exists (helps with unit tests that patch .get etc.)
             verb = method.lower()
             if hasattr(self._client, verb):
                 response = await getattr(self._client, verb)(
-                    url,
-                    headers=headers,
-                    **kwargs
+                    url, headers=headers, **kwargs
                 )
             else:
                 response = await self._client.request(
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    **kwargs
+                    method=method, url=url, headers=headers, **kwargs
                 )
-            
+
             # Log the request URL and status
             logger.debug(f"LangFlow API request: {method} {url}")
             logger.debug(f"Response status: {response.status_code}")
-            
+
             # Raise for HTTP errors
             response.raise_for_status()
-            
+
             # Try to parse as JSON, return empty dict if not JSON
             try:
                 return response.json()
             except ValueError:
                 # Handle non-JSON responses (might be text or other content)
                 return {"content": response.text, "status": "success"}
-                
+
         except httpx.HTTPStatusError as e:
             # Log and re-raise so callers/tests can handle it
-            logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")
+            logger.error(
+                f"HTTP error for {url}: {e.response.status_code} - {e.response.text}"
+            )
             raise
-            
+
         except httpx.RequestError as e:
             # Log and handle request errors (connection, timeout, etc.)
             logger.error(f"Request error for {url}: {str(e)}")
             return {"error": str(e), "status": "error"}
-            
+
         except Exception as e:
             # Log and handle any other exceptions
             logger.error(f"Unexpected error for {url}: {str(e)}")
             return {"error": str(e), "status": "error"}
 
-    def _make_request_sync(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    def _make_request_sync(
+        self, method: str, endpoint: str, **kwargs
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make a sync request to the API."""
         # Log a warning instead of raising an error if session type doesn't match
         if self.is_async:
-            logger.warning("Calling sync method on async session. This may cause issues.")
-        
-        # Use a new client instance to avoid session type issues
-        with httpx.Client(headers=self.headers, timeout=self.timeout, verify=False) as client:
-            response = client.request(
-                method,
-                self._get_endpoint(endpoint),
-                **kwargs
+            logger.warning(
+                "Calling sync method on async session. This may cause issues."
             )
+
+        # Use a new client instance to avoid session type issues
+        with httpx.Client(
+            headers=self.headers, timeout=self.timeout, verify=False
+        ) as client:
+            response = client.request(method, self._get_endpoint(endpoint), **kwargs)
             self._handle_error_response(response)
             return self._process_response(response)
 
@@ -401,13 +409,15 @@ class LangFlowManager:
 
         return []
 
-    async def list_flows(self, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_flows(
+        self, source_url: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """List all flows from LangFlow API.
-        
+
         Args:
             source_url: Optional URL to list flows from. If provided, will temporarily
                       switch to this URL for the request.
-            
+
         Returns:
             List[Dict[str, Any]]: List of flows, excluding:
                 - Components (is_component=True)
@@ -420,23 +430,25 @@ class LangFlowManager:
             current_url = self.api_url
             current_key = self.api_key
             self.api_url = source_url
-        
+
         try:
             # Get valid container IDs first (projects or folders)
             valid_containers = await self._get_folders()
-            
+
             # Get all flows
             flows = await self._make_request_async("GET", "flows/")
-            
+
             def _get_container_id(flow: Dict[str, Any]):
                 return flow.get("folder_id") or flow.get("project_id")
-            
+
             # Filter flows to exclude:
             # 1. Components (is_component=True)
             # 2. Templates (flows without a valid folder/project id)
             return [
-                flow for flow in flows
-                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
+                flow
+                for flow in flows
+                if not flow.get("is_component", False)
+                and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched
@@ -446,11 +458,11 @@ class LangFlowManager:
 
     def list_flows_sync(self, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all flows from LangFlow API (sync version).
-        
+
         Args:
             source_url: Optional URL to list flows from. If provided, will temporarily
                       switch to this URL for the request.
-            
+
         Returns:
             List[Dict[str, Any]]: List of flows, excluding:
                 - Components (is_component=True)
@@ -463,23 +475,25 @@ class LangFlowManager:
             current_url = self.api_url
             current_key = self.api_key
             self.api_url = source_url
-        
+
         try:
             # Get valid container IDs first (projects or folders)
             valid_containers = self._get_folders_sync()
-            
+
             # Get all flows
             flows = self._make_request_sync("GET", "flows/")
-            
+
             def _get_container_id(flow: Dict[str, Any]):
                 return flow.get("folder_id") or flow.get("project_id")
-            
+
             # Filter flows to exclude:
             # 1. Components (is_component=True)
             # 2. Templates (flows without a valid folder/project id)
             return [
-                flow for flow in flows
-                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
+                flow
+                for flow in flows
+                if not flow.get("is_component", False)
+                and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched
@@ -506,7 +520,9 @@ class LangFlowManager:
         """Get flow components from LangFlow API (sync version)."""
         return self._make_request_sync("GET", f"flows/{flow_id}/components/")
 
-    async def run_flow(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
+    async def run_flow(
+        self, flow_id: str, input_data: str | Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Run a flow with input data."""
         try:
             # Get flow data to find component IDs
@@ -517,36 +533,37 @@ class LangFlowManager:
             # Get input and output component IDs
             input_component = None
             output_component = None
-            for node in flow_data.get('data', {}).get('nodes', []):
-                node_type = node.get('data', {}).get('type', '')
-                if node_type == 'ChatInput':
-                    input_component = node['id']
-                elif node_type == 'ChatOutput':
-                    output_component = node['id']
+            for node in flow_data.get("data", {}).get("nodes", []):
+                node_type = node.get("data", {}).get("type", "")
+                if node_type == "ChatInput":
+                    input_component = node["id"]
+                elif node_type == "ChatOutput":
+                    output_component = node["id"]
 
             if not input_component or not output_component:
-                raise ValueError("Could not find chat input and output components in flow")
+                raise ValueError(
+                    "Could not find chat input and output components in flow"
+                )
 
             request_data = FlowExecuteRequest(
                 input_value=input_data,
-                tweaks={
-                    input_component: {},
-                    output_component: {}
-                }
+                tweaks={input_component: {}, output_component: {}},
             )
-            
+
             # Use _make_request_async which now handles missing client
             return await self._make_request_async(
                 "POST",
                 f"run/{flow_id}",
                 params={"stream": "false"},
-                json=request_data.dict()
+                json=request_data.dict(),
             )
         except Exception as e:
             logger.error(f"Error in run_flow: {str(e)}")
             raise
 
-    def run_flow_sync(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
+    def run_flow_sync(
+        self, flow_id: str, input_data: str | Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Run a flow with input data (sync version)."""
         # Get flow data to find component IDs
         flow_data = self.get_flow_sync(flow_id)
@@ -556,28 +573,24 @@ class LangFlowManager:
         # Get input and output component IDs
         input_component = None
         output_component = None
-        for node in flow_data.get('data', {}).get('nodes', []):
-            node_type = node.get('data', {}).get('type', '')
-            if node_type == 'ChatInput':
-                input_component = node['id']
-            elif node_type == 'ChatOutput':
-                output_component = node['id']
+        for node in flow_data.get("data", {}).get("nodes", []):
+            node_type = node.get("data", {}).get("type", "")
+            if node_type == "ChatInput":
+                input_component = node["id"]
+            elif node_type == "ChatOutput":
+                output_component = node["id"]
 
         if not input_component or not output_component:
             raise ValueError("Could not find chat input and output components in flow")
 
         request_data = FlowExecuteRequest(
-            input_value=input_data,
-            tweaks={
-                input_component: {},
-                output_component: {}
-            }
+            input_value=input_data, tweaks={input_component: {}, output_component: {}}
         )
         return self._make_request_sync(
             "POST",
             f"run/{flow_id}",
             params={"stream": "false"},
-            json=request_data.dict()
+            json=request_data.dict(),
         )
 
     def run_workflow_sync(self, flow_id: str, input_data: str) -> Dict[str, Any]:
@@ -585,24 +598,28 @@ class LangFlowManager:
         try:
             # Don't check session type here to allow this method to be called from both contexts
             # self._check_session_type(False)
-            
+
             # Ensure input_data is a string
             if not isinstance(input_data, str):
                 input_data = str(input_data)
-            
+
             # Prepare payload
             request_data = FlowExecuteRequest(
                 input_value=input_data,
-                tweaks={}  # No tweaks needed for basic execution
+                tweaks={},  # No tweaks needed for basic execution
             )
-            
+
             # Execute workflow using a new client instance to avoid session type issues
-            with httpx.Client(headers=self.headers, timeout=60.0, verify=False) as client:
+            with httpx.Client(
+                headers=self.headers, timeout=60.0, verify=False
+            ) as client:
                 url = f"{self.api_url}/api/v1/run/{flow_id}"
-                response = client.post(url, json=request_data.dict(), params={"stream": "false"})
+                response = client.post(
+                    url, json=request_data.dict(), params={"stream": "false"}
+                )
                 response.raise_for_status()
                 return response.json()
-                
+
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error executing workflow: {e.response.text}")
             raise
@@ -637,7 +654,9 @@ class LangFlowManager:
         if self.is_async != expected_async:
             method_type = "async" if expected_async else "sync"
             session_type = "async" if self.is_async else "sync"
-            logger.warning(f"Session type mismatch: Calling {method_type} method on {session_type} session. This may cause issues.")
+            logger.warning(
+                f"Session type mismatch: Calling {method_type} method on {session_type} session. This may cause issues."
+            )
             # Instead of raising an error, we'll just log a warning and continue
             # This allows async methods to be called on sync sessions and vice versa
             # raise ValueError(f"Cannot call {method_type} method on {'async' if self.is_async else 'sync'} session")

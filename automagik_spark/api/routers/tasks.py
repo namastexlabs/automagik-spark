@@ -1,4 +1,5 @@
 """Tasks router for the AutoMagik API."""
+
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from ..models import TaskResponse, ErrorResponse
@@ -8,21 +9,25 @@ from ...core.workflows.manager import WorkflowManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(
-    prefix="/tasks",
-    tags=["tasks"],
-    responses={401: {"model": ErrorResponse}}
+    prefix="/tasks", tags=["tasks"], responses={401: {"model": ErrorResponse}}
 )
 
-async def get_flow_manager(session: AsyncSession = Depends(get_session)) -> WorkflowManager:
+
+async def get_flow_manager(
+    session: AsyncSession = Depends(get_session),
+) -> WorkflowManager:
     """Get flow manager instance."""
     return WorkflowManager(session)
 
-@router.get("", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)])
+
+@router.get(
+    "", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)]
+)
 async def list_tasks(
     workflow_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
-    flow_manager: WorkflowManager = Depends(get_flow_manager)
+    flow_manager: WorkflowManager = Depends(get_flow_manager),
 ):
     """List all tasks."""
     try:
@@ -31,10 +36,12 @@ async def list_tasks(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
+
+@router.get(
+    "/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)]
+)
 async def get_task(
-    task_id: str,
-    flow_manager: WorkflowManager = Depends(get_flow_manager)
+    task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Get a specific task by ID."""
     try:
@@ -47,10 +54,12 @@ async def get_task(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
+
+@router.delete(
+    "/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)]
+)
 async def delete_task(
-    task_id: str,
-    flow_manager: WorkflowManager = Depends(get_flow_manager)
+    task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)
 ):
     """Delete a task by ID."""
     try:

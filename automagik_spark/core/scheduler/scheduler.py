@@ -1,4 +1,3 @@
-
 """Workflow scheduler."""
 
 import asyncio
@@ -34,12 +33,14 @@ class WorkflowScheduler:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
         await self.session.close()
-        
+
     async def stop(self):
         """Stop the scheduler."""
         await self.session.close()
 
-    def _get_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
+    def _get_next_run(
+        self, schedule_type: str, schedule_expr: str
+    ) -> Optional[datetime]:
         """Get next run time for a schedule."""
         try:
             now = datetime.now(timezone.utc)
@@ -69,7 +70,7 @@ class WorkflowScheduler:
         workflow_id: UUID,
         schedule_type: str,
         schedule_expr: str,
-        input_data: Optional[str] = None
+        input_data: Optional[str] = None,
     ) -> Optional[Schedule]:
         """Create a schedule for a workflow."""
         try:
@@ -103,20 +104,23 @@ class WorkflowScheduler:
                 schedule_expr=schedule_expr,
                 input_data=final_input,
                 next_run_at=next_run,  # This is already timezone-aware from _get_next_run
-                status='active'  # Set initial status to active
+                status="active",  # Set initial status to active
             )
 
             self.session.add(schedule)
             await self.session.commit()
-            
+
             # Log schedule creation
-            logger.info(f"Created schedule {schedule.id}: type={schedule.schedule_type}, status={schedule.status}, expr={schedule.schedule_expr}")
-            
+            logger.info(
+                f"Created schedule {schedule.id}: type={schedule.schedule_type}, status={schedule.status}, expr={schedule.schedule_expr}"
+            )
+
             # Notify celery scheduler
             from ..celery_config import notify_scheduler_change
+
             logger.info("Notifying celery scheduler of changes")
             notify_scheduler_change()
-            
+
             return schedule
         except Exception as e:
             logger.error(f"Error creating schedule: {e}")
@@ -129,7 +133,7 @@ class WorkflowScheduler:
         schedule_type: Optional[str] = None,
         schedule_expr: Optional[str] = None,
         input_data: Optional[str] = None,
-        active: Optional[bool] = None
+        active: Optional[bool] = None,
     ) -> Optional[Schedule]:
         """Update a schedule."""
         try:
@@ -159,8 +163,7 @@ class WorkflowScheduler:
             # Update next run time if schedule type or expression changed
             if schedule_type is not None or schedule_expr is not None:
                 next_run = self._get_next_run(
-                    schedule.schedule_type,
-                    schedule.schedule_expr
+                    schedule.schedule_type, schedule.schedule_expr
                 )
                 if not next_run:
                     return None
@@ -207,9 +210,7 @@ class WorkflowScheduler:
         """List all schedules."""
         try:
             result = await self.session.execute(
-                select(Schedule)
-                .join(Workflow)
-                .options(joinedload(Schedule.workflow))
+                select(Schedule).join(Workflow).options(joinedload(Schedule.workflow))
             )
             return list(result.scalars().all())
         except Exception as e:
@@ -222,9 +223,7 @@ class WorkflowScheduler:
             now = datetime.now(timezone.utc)
             # Query all active schedules
             result = await self.session.execute(
-                select(Schedule).where(
-                    Schedule.active == True
-                )
+                select(Schedule).where(Schedule.active)
             )
             schedules = list(result.scalars().all())
 
@@ -232,7 +231,11 @@ class WorkflowScheduler:
                 # Only process schedules that are due
                 if schedule.next_run_at and schedule.next_run_at <= now:
                     # Create and run task
-                    input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
+                    input_data = (
+                        str(schedule.workflow_params)
+                        if schedule.workflow_params
+                        else ""
+                    )
                     task = Task(
                         id=uuid4(),
                         workflow_id=schedule.workflow_id,
@@ -240,7 +243,7 @@ class WorkflowScheduler:
                         input_data=input_data,
                         status="pending",
                         created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc)
+                        updated_at=datetime.now(timezone.utc),
                     )
                 self.session.add(task)
                 await self.session.commit()
@@ -249,13 +252,12 @@ class WorkflowScheduler:
                 await self.workflow_manager.run_workflow(
                     workflow_id=schedule.workflow_id,
                     input_data=input_data,
-                    existing_task=task
+                    existing_task=task,
                 )
 
                 # Update next run time
                 next_run = self._get_next_run(
-                    schedule.schedule_type,
-                    schedule.schedule_expr
+                    schedule.schedule_type, schedule.schedule_expr
                 )
                 if next_run:
                     schedule.next_run_at = next_run
@@ -270,7 +272,7 @@ class WorkflowScheduler:
         try:
             while True:
                 # Get active schedules
-                query = select(Schedule).filter(Schedule.active == True)
+                query = select(Schedule).filter(Schedule.active)
                 result = await self.session.execute(query)
                 schedules = result.scalars().all()
 
@@ -278,7 +280,11 @@ class WorkflowScheduler:
                     # Check if it's time to run
                     if schedule.next_run_at <= datetime.now(timezone.utc):
                         # Create and run task
-                        input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
+                        input_data = (
+                            str(schedule.workflow_params)
+                            if schedule.workflow_params
+                            else ""
+                        )
                         task = Task(
                             id=uuid4(),
                             workflow_id=schedule.workflow_id,
@@ -286,7 +292,7 @@ class WorkflowScheduler:
                             input_data=input_data,
                             status="pending",
                             created_at=datetime.now(timezone.utc),
-                            updated_at=datetime.now(timezone.utc)
+                            updated_at=datetime.now(timezone.utc),
                         )
                         self.session.add(task)
                         await self.session.commit()
@@ -295,13 +301,12 @@ class WorkflowScheduler:
                         await self.workflow_manager.run_workflow(
                             workflow_id=schedule.workflow_id,
                             input_data=input_data,
-                            existing_task=task
+                            existing_task=task,
                         )
 
                         # Update next run time
                         next_run = self._get_next_run(
-                            schedule.schedule_type,
-                            schedule.schedule_expr
+                            schedule.schedule_type, schedule.schedule_expr
                         )
                         if next_run:
                             schedule.next_run_at = next_run
@@ -310,5 +315,3 @@ class WorkflowScheduler:
                 await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             logger.error(f"Error in scheduler loop: {str(e)}")
-
-

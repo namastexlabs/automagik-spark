@@ -1,4 +1,3 @@
-
 """Tests for flow components functionality."""
 
 import json
@@ -8,21 +7,25 @@ from unittest.mock import AsyncMock
 
 from automagik_spark.core.workflows.manager import WorkflowManager
 
+
 @pytest.fixture
 def flow_manager(session):
     """Create a WorkflowManager instance."""
     return WorkflowManager(session)
+
 
 @pytest.fixture
 def mock_data_dir():
     """Get the mock data directory."""
     return Path(__file__).parent.parent.parent.parent / "mock_data" / "flows"
 
+
 @pytest.fixture
 def mock_flows(mock_data_dir):
     """Load mock flow data."""
     with open(mock_data_dir / "flows.json") as f:
         return json.load(f)
+
 
 @pytest.mark.asyncio
 async def test_get_flow_components(flow_manager, mock_flows):
@@ -40,9 +43,9 @@ async def test_get_flow_components(flow_manager, mock_flows):
                             "id": "input1",
                             "type": "ChatInput",
                             "name": "Chat Input",
-                            "description": "A chat input component"
+                            "description": "A chat input component",
                         }
-                    }
+                    },
                 },
                 {
                     "type": "ChatOutput",
@@ -52,9 +55,9 @@ async def test_get_flow_components(flow_manager, mock_flows):
                             "id": "output1",
                             "type": "ChatOutput",
                             "name": "Chat Output",
-                            "description": "A chat output component"
+                            "description": "A chat output component",
                         }
-                    }
+                    },
                 },
                 {
                     "type": "Prompt",
@@ -64,12 +67,12 @@ async def test_get_flow_components(flow_manager, mock_flows):
                             "id": "prompt1",
                             "type": "Prompt",
                             "name": "Prompt",
-                            "description": "A prompt component"
+                            "description": "A prompt component",
                         }
-                    }
-                }
+                    },
+                },
             ]
-        }
+        },
     }
 
     # Mock the LangFlow manager
@@ -79,7 +82,7 @@ async def test_get_flow_components(flow_manager, mock_flows):
 
     # Get components
     components = await flow_manager.get_flow_components("test-flow-id")
-    
+
     # Verify the components
     assert len(components) == 3  # We should get 3 components
     assert all(isinstance(comp, dict) for comp in components)
@@ -91,5 +94,3 @@ async def test_get_flow_components(flow_manager, mock_flows):
     # Verify specific components
     component_types = {comp["type"] for comp in components}
     assert component_types == {"ChatInput", "ChatOutput", "Prompt"}
-
-

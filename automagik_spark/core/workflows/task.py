@@ -1,4 +1,3 @@
-
 """Task management."""
 
 import logging
@@ -30,10 +29,10 @@ class TaskManager:
 
     async def get_task(self, task_id: Union[str, UUID]) -> Optional[Task]:
         """Get a task by ID.
-        
+
         Args:
             task_id (Union[str, UUID]): The ID of the task to retrieve.
-            
+
         Returns:
             Optional[Task]: The task if found, None otherwise.
         """
@@ -49,11 +48,11 @@ class TaskManager:
 
     async def update_task_fields(self, task: Task, updates: Dict[str, Any]) -> Task:
         """Update specific fields of a task.
-        
+
         Args:
             task (Task): The task to update.
             updates (Dict[str, Any]): Dictionary of field names and values to update.
-            
+
         Returns:
             Task: The updated task.
         """
@@ -69,17 +68,17 @@ class TaskManager:
         self,
         workflow_id: Optional[Union[str, UUID]] = None,
         status: Optional[str] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[Task]:
         """List tasks with optional filters."""
         query = select(Task)
-        
+
         if workflow_id:
             workflow_id = self._to_uuid(workflow_id)
             query = query.where(Task.workflow_id == workflow_id)
         if status:
             query = query.where(Task.status == status)
-            
+
         query = query.order_by(Task.created_at.desc()).limit(limit)
         result = await self.session.execute(query)
         return result.scalars().all()
@@ -98,7 +97,7 @@ class TaskManager:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             started_at=task.get("started_at"),
-            finished_at=task.get("finished_at")
+            finished_at=task.get("finished_at"),
         )
 
         self.session.add(task_obj)
@@ -107,7 +106,9 @@ class TaskManager:
         await self.session.refresh(task_obj)
         return task_obj
 
-    async def update_task(self, task_id: Union[str, UUID], task: Dict[str, Any]) -> Optional[Task]:
+    async def update_task(
+        self, task_id: Union[str, UUID], task: Dict[str, Any]
+    ) -> Optional[Task]:
         """Update a task.
 
         Args:
@@ -146,18 +147,18 @@ class TaskManager:
 
         Returns:
             Optional[Task]: The deleted task if successful, None if task not found.
-            
+
         Raises:
             ValueError: If there was an error during deletion.
         """
         try:
             task_id = self._to_uuid(task_id)
-            
+
             # First verify the task exists and get its data
             task = await self.get_task(task_id)
             if not task:
                 return None
-                
+
             # Store task data before deletion
             task_data = Task(
                 id=task.id,
@@ -173,25 +174,23 @@ class TaskManager:
                 created_at=task.created_at,
                 started_at=task.started_at,
                 finished_at=task.finished_at,
-                updated_at=task.updated_at
+                updated_at=task.updated_at,
             )
-                
+
             # Delete related task logs first
             await self.session.execute(
                 delete(TaskLog).where(TaskLog.task_id == task_id)
             )
-            
+
             # Delete the task
-            await self.session.execute(
-                delete(Task).where(Task.id == task_id)
-            )
-            
+            await self.session.execute(delete(Task).where(Task.id == task_id))
+
             # Commit the changes and clear cache
             await self.session.commit()
             self.session.expire_all()
-            
+
             return task_data
-            
+
         except Exception as e:
             logger.error(f"Failed to delete task {task_id}: {str(e)}")
             await self.session.rollback()
@@ -200,18 +199,14 @@ class TaskManager:
     async def get_pending_tasks(self) -> List[Task]:
         """Get pending tasks."""
         result = await self.session.execute(
-            select(Task)
-            .where(Task.status == "pending")
-            .order_by(Task.created_at.asc())
+            select(Task).where(Task.status == "pending").order_by(Task.created_at.asc())
         )
         return result.scalars().all()
 
     async def get_failed_tasks(self) -> List[Task]:
         """Get failed tasks."""
         result = await self.session.execute(
-            select(Task)
-            .where(Task.status == "failed")
-            .order_by(Task.created_at.desc())
+            select(Task).where(Task.status == "failed").order_by(Task.created_at.desc())
         )
         return result.scalars().all()
 
@@ -251,7 +246,7 @@ class TaskManager:
 
         Returns:
             Optional[Task]: The retried task if successful, None otherwise.
-            
+
         Raises:
             ValueError: If the task is not found, not in failed state, or has reached max retries.
         """
@@ -275,7 +270,7 @@ class TaskManager:
                     task_id=task_id,
                     level="error",
                     message=f"Previous error: {task.error}",
-                    created_at=datetime.now(timezone.utc)
+                    created_at=datetime.now(timezone.utc),
                 )
                 self.session.add(error_log)
 
@@ -285,7 +280,7 @@ class TaskManager:
                 task_id=task_id,
                 level="info",
                 message=f"Retrying task after {2 ** task.tries} seconds",
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             )
             self.session.add(retry_log)
 
@@ -294,10 +289,11 @@ class TaskManager:
                 "status": "pending",
                 "tries": task.tries + 1,
                 "error": None,
-                "next_retry_at": datetime.now(timezone.utc) + timedelta(seconds=2 ** task.tries),
-                "updated_at": datetime.now(timezone.utc)
+                "next_retry_at": datetime.now(timezone.utc)
+                + timedelta(seconds=2**task.tries),
+                "updated_at": datetime.now(timezone.utc),
             }
-            
+
             task = await self.update_task_fields(task, updates)
             await self.session.commit()
             return task
@@ -308,5 +304,3 @@ class TaskManager:
         except Exception as e:
             logger.error(f"Failed to retry task {task_id}: {str(e)}")
             raise ValueError(f"Failed to retry task: {str(e)}")
-
-

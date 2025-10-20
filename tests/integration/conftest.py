@@ -1,4 +1,3 @@
-
 """Configuration for integration tests."""
 
 import pytest
@@ -9,6 +8,7 @@ from automagik_spark.core.database.models import Base
 
 # Note: We're using pytest-asyncio's built-in event_loop fixture with loop_scope configured in pytest.ini
 # All tests should use @pytest.mark.asyncio(loop_scope="function") for consistent event loop behavior
+
 
 @pytest.fixture(scope="session")
 async def engine():
@@ -47,5 +47,3 @@ async def session(engine):
         yield session
         await session.rollback()
         await session.close()
-
-

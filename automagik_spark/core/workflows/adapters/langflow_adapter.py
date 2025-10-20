@@ -55,10 +55,7 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             raise
 
     def run_flow_sync(
-        self,
-        flow_id: str,
-        input_data: Any,
-        session_id: Optional[str] = None
+        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
     ) -> WorkflowExecutionResult:
         """Execute a LangFlow flow and return normalized result.
 
@@ -76,18 +73,11 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             result = self.manager.run_workflow_sync(flow_id, input_data)
 
             return WorkflowExecutionResult(
-                success=True,
-                result=result,
-                session_id=session_id,
-                metadata={}
+                success=True, result=result, session_id=session_id, metadata={}
             )
         except Exception as e:
             logger.error(f"Failed to execute LangFlow flow {flow_id}: {str(e)}")
-            return WorkflowExecutionResult(
-                success=False,
-                result=None,
-                error=str(e)
-            )
+            return WorkflowExecutionResult(success=False, result=None, error=str(e))
 
     async def validate(self) -> Dict[str, Any]:
         """Validate connection to LangFlow.
@@ -98,16 +88,14 @@ class LangFlowAdapter(BaseWorkflowAdapter):
         try:
             # LangFlow validation logic
             # For now, return a simple validation response
-            return {
-                "status": "success",
-                "service": "LangFlow",
-                "url": self.api_url
-            }
+            return {"status": "success", "service": "LangFlow", "url": self.api_url}
         except Exception as e:
             logger.error(f"LangFlow validation failed: {str(e)}")
             raise
 
-    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(
+        self, flow_data: Dict[str, Any]
+    ) -> Dict[str, Optional[str]]:
         """Get default sync parameters for LangFlow flows.
 
         LangFlow flows use component IDs (ChatInput, ChatOutput, etc.).
@@ -123,28 +111,27 @@ class LangFlowAdapter(BaseWorkflowAdapter):
         input_component = None
         output_component = None
 
-        if 'data' in flow_data and 'nodes' in flow_data['data']:
-            nodes = flow_data['data']['nodes']
+        if "data" in flow_data and "nodes" in flow_data["data"]:
+            nodes = flow_data["data"]["nodes"]
 
             # Look for ChatInput component
             input_node = next(
-                (n for n in nodes if n.get('data', {}).get('type') == 'ChatInput'),
-                None
+                (n for n in nodes if n.get("data", {}).get("type") == "ChatInput"), None
             )
             if input_node:
-                input_component = input_node.get('id')
+                input_component = input_node.get("id")
 
             # Look for ChatOutput component
             output_node = next(
-                (n for n in nodes if n.get('data', {}).get('type') == 'ChatOutput'),
-                None
+                (n for n in nodes if n.get("data", {}).get("type") == "ChatOutput"),
+                None,
             )
             if output_node:
-                output_component = output_node.get('id')
+                output_component = output_node.get("id")
 
         return {
             "input_component": input_component,
-            "output_component": output_component
+            "output_component": output_component,
         }
 
     def normalize_flow_data(self, flow_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,11 +144,11 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             Normalized flow data
         """
         # Ensure standard fields exist
-        if 'source' not in flow_data:
-            flow_data['source'] = self.api_url
+        if "source" not in flow_data:
+            flow_data["source"] = self.api_url
 
         # LangFlow-specific: ensure data structure
-        if 'data' not in flow_data:
-            flow_data['data'] = {}
+        if "data" not in flow_data:
+            flow_data["data"] = {}
 
         return flow_data

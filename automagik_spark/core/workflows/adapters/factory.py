@@ -25,7 +25,7 @@ class AdapterRegistry:
         source_type: str,
         api_url: str,
         api_key: str,
-        source_id: Optional[Any] = None
+        source_id: Optional[Any] = None,
     ) -> BaseWorkflowAdapter:
         """Get an adapter instance for the given source type.
 

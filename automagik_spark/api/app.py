@@ -11,6 +11,7 @@ import httpx
 import tomllib
 from pathlib import Path
 
+
 def _get_version():
     """Get version from pyproject.toml"""
     try:
@@ -21,6 +22,7 @@ def _get_version():
     except Exception:
         return "unknown"
 
+
 __version__ = _get_version()
 from .config import get_cors_origins
 from ..core.config import get_settings
@@ -29,11 +31,13 @@ from .routers import tasks, workflows, schedules, sources
 
 logger = logging.getLogger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle FastAPI application startup and shutdown."""
     # Skip auto-discovery in test environment to avoid database contamination
     import os
+
     env = os.getenv("ENVIRONMENT")
     print(f"[LIFESPAN] Environment: {env}")
     if env != "testing":
@@ -43,31 +47,37 @@ async def lifespan(app: FastAPI):
         await auto_discover_automagik_agents()
     else:
         print("[LIFESPAN] Skipping auto-discovery for testing environment")
-    
+
     # Log telemetry status
     _log_telemetry_status()
-    
+
     yield
     # Shutdown (if needed)
     pass
 
+
 def _log_telemetry_status():
     """Log telemetry status on startup."""
     from ..core.telemetry import is_telemetry_enabled
-    
+
     if is_telemetry_enabled():
         logger.info("📊 Telemetry is ENABLED - helps us improve Automagik Spark")
-        logger.info("   • We collect anonymous usage analytics (commands, API usage, performance)")
-        logger.info("   • No personal data, credentials, or workflow content is collected")
+        logger.info(
+            "   • We collect anonymous usage analytics (commands, API usage, performance)"
+        )
+        logger.info(
+            "   • No personal data, credentials, or workflow content is collected"
+        )
         logger.info("   • Disable: export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true")
         logger.info("   • More info: automagik-spark telemetry info")
     else:
         logger.info("📊 Telemetry is DISABLED")
 
+
 async def auto_discover_langflow():
     """Auto-discover LangFlow on ports 7860 and 7860 during startup."""
     langflow_ports = [7860, 7860]
-    
+
     for port in langflow_ports:
         try:
             url = f"http://localhost:{port}"
@@ -75,12 +85,12 @@ async def auto_discover_langflow():
                 response = await client.get(f"{url}/health")
                 if response.status_code == 200:
                     logger.info(f"LangFlow detected on port {port}")
-                    
+
                     # Check if source already exists
                     from ..core.database.session import get_async_session
                     from ..core.database.models import WorkflowSource
                     from sqlalchemy import select
-                    
+
                     async with get_async_session() as session:
                         existing_source = await session.execute(
                             select(WorkflowSource).where(WorkflowSource.url == url)
@@ -89,42 +99,47 @@ async def auto_discover_langflow():
                             # Get version info
                             version_info = None
                             try:
-                                version_response = await client.get(f"{url}/api/v1/version")
+                                version_response = await client.get(
+                                    f"{url}/api/v1/version"
+                                )
                                 if version_response.status_code == 200:
                                     version_info = version_response.json()
                             except:
                                 pass
-                            
+
                             # Auto-add the LangFlow source
                             from ..core.schemas.source import SourceType
-                            
+
                             # Generate a descriptive name
-                            name = f"LangFlow (localhost:{port})"
-                            
+
                             new_source = WorkflowSource(
                                 source_type=SourceType.LANGFLOW,
                                 url=url,
-                                encrypted_api_key=WorkflowSource.encrypt_api_key("namastex888"),  # Standard API key across suite
+                                encrypted_api_key=WorkflowSource.encrypt_api_key(
+                                    "namastex888"
+                                ),  # Standard API key across suite
                                 version_info=version_info,
-                                status="active"
+                                status="active",
                             )
                             session.add(new_source)
                             await session.commit()
                             logger.info(f"Auto-added LangFlow source at {url}")
                         else:
                             logger.info(f"LangFlow source already exists at {url}")
-                    
+
                     return  # Exit after finding the first LangFlow instance
                 else:
                     logger.debug(f"LangFlow not available on port {port}")
         except Exception as e:
             logger.debug(f"LangFlow auto-discovery failed for port {port}: {e}")
-    
+
     logger.info("No LangFlow instances found on ports 7860 or 7860")
+
 
 async def auto_discover_automagik_agents():
     """Auto-discover AutoMagik Agents during startup."""
     from .config import get_agents_api_host, get_agents_api_port
+
     try:
         host = get_agents_api_host()
         port = get_agents_api_port()
@@ -133,12 +148,12 @@ async def auto_discover_automagik_agents():
             response = await client.get(f"{url}/health")
             if response.status_code == 200:
                 logger.info(f"AutoMagik Agents detected on {host}:{port}")
-                
+
                 # Check if source already exists
                 from ..core.database.session import get_async_session
                 from ..core.database.models import WorkflowSource
                 from sqlalchemy import select
-                
+
                 async with get_async_session() as session:
                     existing_source = await session.execute(
                         select(WorkflowSource).where(WorkflowSource.url == url)
@@ -150,61 +165,67 @@ async def auto_discover_automagik_agents():
                             root_response = await client.get(url)
                             if root_response.status_code == 200:
                                 root_data = root_response.json()
-                                version_info = {"version": root_data.get("version", "unknown")}
+                                version_info = {
+                                    "version": root_data.get("version", "unknown")
+                                }
                         except:
                             pass
-                        
+
                         # Auto-add the AutoMagik Agents source
                         from ..core.schemas.source import SourceType
-                        
+
                         # Generate a descriptive name
-                        name = f"AutoMagik Agents ({host}:{port})"
-                        
+
                         new_source = WorkflowSource(
                             source_type=SourceType.AUTOMAGIK_AGENTS,
                             url=url,
-                            encrypted_api_key=WorkflowSource.encrypt_api_key("namastex888"),  # Default API key for local instance
+                            encrypted_api_key=WorkflowSource.encrypt_api_key(
+                                "namastex888"
+                            ),  # Default API key for local instance
                             version_info=version_info,
-                            status="active"
+                            status="active",
                         )
                         session.add(new_source)
                         await session.commit()
                         logger.info(f"Auto-added AutoMagik Agents source at {url}")
-                        
+
                         # Auto-sync the "simple" agent if it exists
                         await auto_sync_simple_agent(session, new_source)
                     else:
                         logger.info(f"AutoMagik Agents source already exists at {url}")
-                        
+
                         # Try to sync the "simple" agent if it doesn't exist yet
-                        await auto_sync_simple_agent(session, existing_source.scalar_one_or_none())
+                        await auto_sync_simple_agent(
+                            session, existing_source.scalar_one_or_none()
+                        )
             else:
                 logger.info(f"AutoMagik Agents not available on {host}:{port}")
     except Exception as e:
         logger.info(f"AutoMagik Agents auto-discovery failed: {e}")
 
+
 async def auto_sync_simple_agent(session, source):
     """Auto-sync the 'simple' agent from AutoMagik Agents source."""
     if not source:
         return
-        
+
     try:
         from ..core.database.models import Workflow
         from ..core.workflows.manager import WorkflowManager
         from sqlalchemy import select
-        
+
         # Check if 'simple' agent is already synced
         existing_workflow = await session.execute(
             select(Workflow).where(
                 Workflow.workflow_source_id == source.id,
-                Workflow.remote_flow_id == "simple"
+                Workflow.remote_flow_id == "simple",
             )
         )
-        
+
         if existing_workflow.scalar_one_or_none():
             logger.info("Simple agent already synced from AutoMagik Agents")
             return
-            
+
         # Try to sync the 'simple' agent
         workflow_manager = WorkflowManager(session)
         try:
@@ -212,15 +233,18 @@ async def auto_sync_simple_agent(session, source):
                 flow_id="simple",
                 input_component="",  # AutoMagik Agents don't use components
                 output_component="",  # AutoMagik Agents don't use components
-                source_url=source.url
+                source_url=source.url,
             )
-            logger.info(f"Auto-synced 'simple' agent from AutoMagik Agents: {workflow_data.get('id')}")
+            logger.info(
+                f"Auto-synced 'simple' agent from AutoMagik Agents: {workflow_data.get('id')}"
+            )
         except Exception as sync_error:
             # This is expected if no API key is configured or agent doesn't exist
             logger.debug(f"Could not auto-sync 'simple' agent: {sync_error}")
-            
+
     except Exception as e:
         logger.debug(f"Auto-sync simple agent failed: {e}")
+
 
 app = FastAPI(
     title="Spark API",
@@ -241,18 +265,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Custom OpenAPI schema to include security components
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
         description=app.description,
         routes=app.routes,
     )
-    
+
     # Add API Key security scheme
     openapi_schema["components"] = openapi_schema.get("components", {})
     openapi_schema["components"]["securitySchemes"] = {
@@ -260,33 +285,45 @@ def custom_openapi():
             "type": "apiKey",
             "in": "header",
             "name": "X-API-Key",
-            "description": "API key authentication"
+            "description": "API key authentication",
         }
     }
-    
+
     # Apply security to all endpoints except those that don't need auth
     security_requirement = [{"APIKeyHeader": []}]
-    
+
     # These endpoints don't require authentication
-    no_auth_paths = ["/health", "/", "/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"]
-    
+    no_auth_paths = [
+        "/health",
+        "/",
+        "/api/v1/docs",
+        "/api/v1/redoc",
+        "/api/v1/openapi.json",
+    ]
+
     # Update security for each path
     for path, path_item in openapi_schema["paths"].items():
         if path not in no_auth_paths:
             for operation in path_item.values():
                 operation["security"] = security_requirement
-                
+
                 # Add authentication description to each endpoint
                 if "description" in operation:
-                    operation["description"] += "\n\n**Requires Authentication**: This endpoint requires an API key."
+                    operation[
+                        "description"
+                    ] += "\n\n**Requires Authentication**: This endpoint requires an API key."
                 else:
-                    operation["description"] = "**Requires Authentication**: This endpoint requires an API key."
-    
+                    operation["description"] = (
+                        "**Requires Authentication**: This endpoint requires an API key."
+                    )
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+
 # Set the custom OpenAPI schema
 app.openapi = custom_openapi
+
 
 @app.get("/health")
 async def health():
@@ -294,21 +331,21 @@ async def health():
     from ..core.celery.celery_app import app as celery_app
     import redis
     import os
-    
+
     current_time = datetime.datetime.now()
-    
+
     # Check API status (if we're responding, API is healthy)
     api_status = "healthy"
-    
+
     # Check worker status by inspecting Celery workers
     worker_status = "unknown"
     worker_details = {"active_workers": 0, "available_tasks": []}
-    
+
     try:
         # Get active workers from Celery
         inspect = celery_app.control.inspect()
         active_workers = inspect.active_queues()
-        
+
         if active_workers:
             worker_status = "healthy"
             worker_details["active_workers"] = len(active_workers)
@@ -325,40 +362,34 @@ async def health():
     except Exception as e:
         worker_status = "error"
         worker_details["error"] = str(e)
-    
+
     # Check Redis connectivity (Celery broker)
     redis_status = "unknown"
     try:
-        broker_url = os.getenv('AUTOMAGIK_SPARK_CELERY_BROKER_URL', 'redis://localhost:6379/0')
+        broker_url = os.getenv(
+            "AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0"
+        )
         # Parse Redis URL
-        if broker_url.startswith('redis://'):
+        if broker_url.startswith("redis://"):
             redis_client = redis.from_url(broker_url)
             redis_client.ping()
             redis_status = "healthy"
     except Exception:
         redis_status = "unhealthy"
-    
+
     # Determine overall status
     overall_status = "healthy"
     if worker_status in ["unhealthy", "error"] or redis_status == "unhealthy":
         overall_status = "degraded"
-    
+
     return {
         "status": overall_status,
         "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S"),
         "services": {
-            "api": {
-                "status": api_status,
-                "version": __version__
-            },
-            "worker": {
-                "status": worker_status,
-                **worker_details
-            },
-            "redis": {
-                "status": redis_status
-            }
-        }
+            "api": {"status": api_status, "version": __version__},
+            "worker": {"status": worker_status, **worker_details},
+            "redis": {"status": redis_status},
+        },
     }
 
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 @dataclass
 class WorkflowExecutionResult:
     """Unified result format across all workflow sources."""
+
     success: bool
     result: Any  # The actual response content
     session_id: Optional[str] = None
@@ -60,10 +61,7 @@ class BaseWorkflowAdapter(ABC):
 
     @abstractmethod
     def run_flow_sync(
-        self,
-        flow_id: str,
-        input_data: Any,
-        session_id: Optional[str] = None
+        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
     ) -> WorkflowExecutionResult:
         """Execute a flow and return normalized result (synchronous).
 
@@ -86,7 +84,9 @@ class BaseWorkflowAdapter(ABC):
         """
         pass
 
-    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(
+        self, flow_data: Dict[str, Any]
+    ) -> Dict[str, Optional[str]]:
         """Get default parameters for syncing this flow type.
 
         Override this in subclasses for source-specific defaults.
@@ -97,10 +97,7 @@ class BaseWorkflowAdapter(ABC):
         Returns:
             Dictionary with 'input_component' and 'output_component' keys
         """
-        return {
-            "input_component": "message",
-            "output_component": "result"
-        }
+        return {"input_component": "message", "output_component": "result"}
 
     def normalize_flow_data(self, flow_data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize flow data to common format.

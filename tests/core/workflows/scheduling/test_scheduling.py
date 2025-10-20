@@ -1,4 +1,3 @@
-
 """Tests for flow scheduling functionality."""
 
 import pytest
@@ -8,15 +7,18 @@ from automagik_spark.core.workflows import WorkflowManager
 from automagik_spark.core.scheduler import SchedulerManager
 from automagik_spark.core.database.models import Workflow, Schedule
 
+
 @pytest.fixture
 def flow_manager(session):
     """Create a WorkflowManager instance."""
     return WorkflowManager(session)
 
+
 @pytest.fixture
 async def scheduler_manager(flow_manager: WorkflowManager):
     """Create a scheduler manager for testing."""
     return SchedulerManager(flow_manager.session, flow_manager)
+
 
 @pytest.fixture
 async def sample_flow(session):
@@ -30,12 +32,13 @@ async def sample_flow(session):
         remote_flow_id="test_id",
         flow_version=1,
         input_component="input-1",
-        output_component="output-1"
+        output_component="output-1",
     )
     session.add(flow)
     await session.commit()
     await session.refresh(flow)
     return flow
+
 
 @pytest.mark.asyncio
 async def test_create_schedule(scheduler_manager, sample_flow):
@@ -44,14 +47,15 @@ async def test_create_schedule(scheduler_manager, sample_flow):
         workflow_id=sample_flow.id,
         schedule_type="cron",
         schedule_expr="0 0 * * *",
-        params={"input": "test"}
+        params={"input": "test"},
     )
-    
+
     assert schedule is not None
     assert schedule.workflow_id == sample_flow.id
     assert schedule.schedule_type == "cron"
     assert schedule.schedule_expr == "0 0 * * *"
     assert schedule.params == {"input": "test"}
+
 
 @pytest.mark.asyncio
 async def test_delete_schedule(scheduler_manager, sample_flow):
@@ -62,23 +66,22 @@ async def test_delete_schedule(scheduler_manager, sample_flow):
         workflow_id=sample_flow.id,
         schedule_type="cron",
         schedule_expr="0 0 * * *",
-        params={"input": "test"}
+        params={"input": "test"},
     )
     scheduler_manager.session.add(schedule)
     await scheduler_manager.session.commit()
-    
+
     # Now delete it
     deleted = await scheduler_manager.delete_schedule(schedule.id)
     assert deleted is True
-    
+
     # Verify it's gone
     result = await scheduler_manager.get_schedule(schedule.id)
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_delete_nonexistent_schedule(scheduler_manager):
     """Test deleting a schedule that doesn't exist."""
     deleted = await scheduler_manager.delete_schedule(uuid4())
     assert deleted is False
-
-

@@ -1,4 +1,3 @@
-
 """
 Core workflow execution functionality.
 """
@@ -7,9 +6,11 @@ import logging
 
 from ..core.workflows.remote import LangFlowManager
 
+
 def get_logger(name):
     logger = logging.getLogger(name)
     return logger
+
 
 async def run_workflow(workflow, task):
     """Run a workflow."""
@@ -26,13 +27,11 @@ async def run_workflow(workflow, task):
             raise ValueError(f"Unknown workflow type: {workflow_type}")
 
         return {
-            'workflow_id': str(workflow.id),
-            'task_id': str(task.id),
-            'result': result
+            "workflow_id": str(workflow.id),
+            "task_id": str(task.id),
+            "result": result,
         }
 
     except Exception as e:
         logger.error(f"Error running workflow: {e}")
         raise
-
-

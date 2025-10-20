@@ -21,9 +21,7 @@ class HiveAdapter(BaseWorkflowAdapter):
         """
         super().__init__(api_url, api_key, source_id)
         self.manager = AutomagikHiveManager(
-            api_url=api_url,
-            api_key=api_key,
-            source_id=source_id
+            api_url=api_url, api_key=api_key, source_id=source_id
         )
 
     @property
@@ -59,10 +57,7 @@ class HiveAdapter(BaseWorkflowAdapter):
             raise
 
     def run_flow_sync(
-        self,
-        flow_id: str,
-        input_data: Any,
-        session_id: Optional[str] = None
+        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
     ) -> WorkflowExecutionResult:
         """Execute a Hive flow and return normalized result.
 
@@ -81,28 +76,24 @@ class HiveAdapter(BaseWorkflowAdapter):
             # Hive returns a dict with various fields
             # Extract the relevant information
             return WorkflowExecutionResult(
-                success=result.get('success', True),
-                result=result.get('result'),
-                session_id=result.get('session_id', session_id),
-                run_id=result.get('run_id'),
+                success=result.get("success", True),
+                result=result.get("result"),
+                session_id=result.get("session_id", session_id),
+                run_id=result.get("run_id"),
                 metadata={
-                    'agent_id': result.get('agent_id'),
-                    'team_id': result.get('team_id'),
-                    'workflow_id': result.get('workflow_id'),
-                    'status': result.get('status'),
-                    'coordinator_response': result.get('coordinator_response'),
-                    'member_responses': result.get('member_responses'),
-                    'steps_completed': result.get('steps_completed'),
-                    'final_output': result.get('final_output')
-                }
+                    "agent_id": result.get("agent_id"),
+                    "team_id": result.get("team_id"),
+                    "workflow_id": result.get("workflow_id"),
+                    "status": result.get("status"),
+                    "coordinator_response": result.get("coordinator_response"),
+                    "member_responses": result.get("member_responses"),
+                    "steps_completed": result.get("steps_completed"),
+                    "final_output": result.get("final_output"),
+                },
             )
         except Exception as e:
             logger.error(f"Failed to execute Hive flow {flow_id}: {str(e)}")
-            return WorkflowExecutionResult(
-                success=False,
-                result=None,
-                error=str(e)
-            )
+            return WorkflowExecutionResult(success=False, result=None, error=str(e))
 
     async def validate(self) -> Dict[str, Any]:
         """Validate connection to Hive.
@@ -116,7 +107,9 @@ class HiveAdapter(BaseWorkflowAdapter):
             logger.error(f"Hive validation failed: {str(e)}")
             raise
 
-    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(
+        self, flow_data: Dict[str, Any]
+    ) -> Dict[str, Optional[str]]:
         """Get default sync parameters for Hive flows.
 
         Hive flows don't use component IDs like LangFlow. They follow a simple
@@ -128,10 +121,7 @@ class HiveAdapter(BaseWorkflowAdapter):
         Returns:
             Dictionary with default input/output component names
         """
-        return {
-            "input_component": "message",
-            "output_component": "result"
-        }
+        return {"input_component": "message", "output_component": "result"}
 
     def normalize_flow_data(self, flow_data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize Hive flow data to common format.
@@ -145,12 +135,12 @@ class HiveAdapter(BaseWorkflowAdapter):
             Normalized flow data with additional metadata
         """
         # Add flow type from data
-        if 'data' in flow_data and 'type' in flow_data['data']:
-            flow_data['flow_type'] = flow_data['data']['type']
+        if "data" in flow_data and "type" in flow_data["data"]:
+            flow_data["flow_type"] = flow_data["data"]["type"]
             # hive_agent, hive_team, or hive_workflow
 
         # Ensure standard fields exist
-        if 'source' not in flow_data:
-            flow_data['source'] = self.api_url
+        if "source" not in flow_data:
+            flow_data["source"] = self.api_url
 
         return flow_data

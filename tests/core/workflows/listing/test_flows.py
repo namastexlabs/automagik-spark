@@ -1,4 +1,3 @@
-
 """Tests for flow listing functionality."""
 
 import json
@@ -32,6 +31,3 @@ def mock_flows(mock_data_dir):
     """Load mock flow data."""
     with open(mock_data_dir / "flows.json") as f:
         return json.load(f)
-
-
-

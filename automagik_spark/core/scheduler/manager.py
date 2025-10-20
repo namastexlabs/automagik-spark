@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 
 class SchedulerManager:
     """Scheduler management class."""
-    
+
     def __init__(self, session: AsyncSession, workflow_manager: WorkflowManager):
         """
         Initialize scheduler manager.
-        
+
         Args:
             session: Database session
             workflow_manager: Workflow manager instance for executing workflows
@@ -58,66 +58,66 @@ class SchedulerManager:
     def _validate_interval(self, interval: str) -> bool:
         """
         Validate interval expression.
-        
+
         Valid formats:
         - Xm: X minutes (e.g., "1m", "30m")
         - Xh: X hours (e.g., "1h", "24h")
         - Xd: X days (e.g., "1d", "7d")
-        
+
         Where X is a positive integer.
         """
         try:
             # Must be a non-empty string
             if not interval or not isinstance(interval, str):
                 return False
-                
+
             # Must end with valid unit (m, h, d)
-            if len(interval) < 2 or interval[-1].lower() not in ['m', 'h', 'd']:
+            if len(interval) < 2 or interval[-1].lower() not in ["m", "h", "d"]:
                 return False
-                
+
             # Must have a value before the unit
             value_str = interval[:-1]
             if not value_str.isdigit():
                 return False
-                
+
             # Value must be a positive integer
             value = int(value_str)
             if value <= 0:
                 return False
-                
+
             # Must not have any extra characters
             if len(interval) != len(str(value)) + 1:
                 return False
-                
+
             return True
-            
+
         except (ValueError, TypeError, AttributeError):
             return False
 
     def parse_interval(self, interval: str) -> timedelta:
         """
         Parse interval string into timedelta.
-        
+
         Args:
             interval: Interval string (e.g., "30m", "1h", "1d")
-            
+
         Returns:
             timedelta object
-            
+
         Raises:
             ValueError if interval is invalid
         """
         if not self._validate_interval(interval):
             raise ValueError(f"Invalid interval format: {interval}")
-            
+
         value = int(interval[:-1])
         unit = interval[-1].lower()
-        
-        if unit == 'm':
+
+        if unit == "m":
             return timedelta(minutes=value)
-        elif unit == 'h':
+        elif unit == "h":
             return timedelta(hours=value)
-        elif unit == 'd':
+        elif unit == "d":
             return timedelta(days=value)
         else:
             raise ValueError("Invalid interval unit")
@@ -138,10 +138,12 @@ class SchedulerManager:
         except (ValueError, TypeError):
             return False
 
-    def _calculate_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
+    def _calculate_next_run(
+        self, schedule_type: str, schedule_expr: str
+    ) -> Optional[datetime]:
         """Calculate next run time based on schedule type and expression."""
         now = datetime.now(timezone.utc)
-        
+
         if schedule_type == "interval":
             if not self._validate_interval(schedule_expr):
                 logger.error(f"Invalid interval expression: {schedule_expr}")
@@ -152,7 +154,7 @@ class SchedulerManager:
             except ValueError as e:
                 logger.error(f"Error parsing interval: {e}")
                 return None
-            
+
         elif schedule_type == "cron":
             if not self._validate_cron(schedule_expr):
                 logger.error(f"Invalid cron expression: {schedule_expr}")
@@ -160,7 +162,7 @@ class SchedulerManager:
             cron = croniter(schedule_expr, now)
             next_run = cron.get_next(datetime)
             return next_run.replace(tzinfo=timezone.utc)
-            
+
         elif schedule_type == "one-time":
             if schedule_expr.lower() == "now":
                 return now
@@ -178,7 +180,7 @@ class SchedulerManager:
             except ValueError as e:
                 logger.error(f"Error parsing datetime: {e}")
                 return None
-            
+
         return None
 
     # Schedule database operations
@@ -203,7 +205,9 @@ class SchedulerManager:
             if not self._validate_cron(schedule_expr):
                 return None
         elif schedule_type == "one-time":
-            if schedule_expr.lower() != "now" and not self._validate_datetime(schedule_expr):
+            if schedule_expr.lower() != "now" and not self._validate_datetime(
+                schedule_expr
+            ):
                 return None
         else:
             return None
@@ -219,7 +223,7 @@ class SchedulerManager:
             schedule_expr=schedule_expr,
             params=params,
             next_run_at=next_run,
-            status="active"
+            status="active",
         )
         self.session.add(schedule)
         await self.session.commit()
@@ -237,42 +241,39 @@ class SchedulerManager:
     async def update_schedule_status(self, schedule_id: str, action: str) -> bool:
         """Update schedule status."""
         try:
-            status_map = {
-                'pause': 'paused',
-                'resume': 'active',
-                'stop': 'stopped'
-            }
-            
+            status_map = {"pause": "paused", "resume": "active", "stop": "stopped"}
+
             new_status = status_map.get(action)
             if not new_status:
                 logger.error(f"Invalid action: {action}")
                 return False
-            
+
             try:
                 schedule_uuid = UUID(schedule_id)
             except ValueError:
                 logger.error(f"Invalid schedule ID: {schedule_id}")
                 return False
-            
+
             result = await self.session.execute(
-                select(Schedule)
-                .where(Schedule.id == schedule_uuid)
+                select(Schedule).where(Schedule.id == schedule_uuid)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
                 return False
-            
+
             schedule.status = new_status
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             logger.error(f"Error updating schedule status: {str(e)}")
             await self.session.rollback()
             return False
 
-    async def update_schedule_next_run(self, schedule_id: str, next_run: datetime) -> bool:
+    async def update_schedule_next_run(
+        self, schedule_id: str, next_run: datetime
+    ) -> bool:
         """Update schedule next run time."""
         try:
             try:
@@ -280,41 +281,38 @@ class SchedulerManager:
             except ValueError:
                 logger.error(f"Invalid schedule ID: {schedule_id}")
                 return False
-            
+
             result = await self.session.execute(
-                select(Schedule)
-                .where(Schedule.id == schedule_uuid)
+                select(Schedule).where(Schedule.id == schedule_uuid)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
                 return False
-            
+
             # Ensure next_run is timezone-aware
             if next_run.tzinfo is None:
                 next_run = next_run.replace(tzinfo=timezone.utc)
-            
+
             schedule.next_run_at = next_run
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             logger.error(f"Error updating schedule next run: {str(e)}")
             await self.session.rollback()
             return False
 
     async def update_schedule_expression(
-        self,
-        schedule_id: UUID,
-        schedule_expr: str
+        self, schedule_id: UUID, schedule_expr: str
     ) -> bool:
         """
         Update a schedule's expression.
-        
+
         Args:
             schedule_id: Schedule ID
             schedule_expr: New schedule expression
-            
+
         Returns:
             True if update was successful
         """
@@ -324,9 +322,9 @@ class SchedulerManager:
                 select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one()
-            
+
             # Validate new expression
-            if schedule.schedule_type == 'interval':
+            if schedule.schedule_type == "interval":
                 if not self._validate_interval(schedule_expr):
                     logger.error(f"Invalid interval expression: {schedule_expr}")
                     return False
@@ -334,21 +332,23 @@ class SchedulerManager:
                 if not self._validate_cron(schedule_expr):
                     logger.error(f"Invalid cron expression: {schedule_expr}")
                     return False
-            
+
             # Update expression
             schedule.schedule_expr = schedule_expr
-            
+
             # Calculate and update next run time
             next_run = self._calculate_next_run(schedule.schedule_type, schedule_expr)
             if next_run:
                 schedule.next_run_at = next_run
             else:
-                logger.error(f"Failed to calculate next run time for expression: {schedule_expr}")
+                logger.error(
+                    f"Failed to calculate next run time for expression: {schedule_expr}"
+                )
                 return False
-            
+
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             logger.error(f"Error updating schedule expression: {str(e)}")
             return False
@@ -360,15 +360,15 @@ class SchedulerManager:
                 select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one_or_none()
-            
+
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
                 return False
-            
+
             await self.session.delete(schedule)
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             logger.error(f"Error deleting schedule: {e}")
             return False
@@ -379,5 +379,3 @@ class SchedulerManager:
             select(Schedule).where(Schedule.id == schedule_id)
         )
         return result.scalar_one_or_none()
-
-

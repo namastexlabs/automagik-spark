@@ -1,4 +1,3 @@
-
 """Test configuration and fixtures."""
 
 import os
@@ -31,11 +30,13 @@ from automagik_spark.core.workflows import WorkflowManager
 
 # Clear any cached database values from the lazy loading system
 import automagik_spark.core.database.session as db_session
+
 db_session._async_engine = None
 db_session._sync_engine = None
 db_session._async_session_factory = None
-db_session._sync_session_factory = None  
+db_session._sync_session_factory = None
 db_session._database_url = None
+
 
 # Cleanup function to remove test database
 def cleanup_test_db():
@@ -45,48 +46,53 @@ def cleanup_test_db():
     except Exception:
         pass
 
+
 atexit.register(cleanup_test_db)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Set up test environment."""
-    # Force environment setup 
+    # Force environment setup
     os.environ["ENVIRONMENT"] = "testing"
     os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
     os.environ["AUTOMAGIK_SPARK_DATABASE_URL"] = TEST_DATABASE_URL
-    
+
     # Clear any cached database values
     import automagik_spark.core.database.session as db_session
+
     db_session._async_engine = None
     db_session._sync_engine = None
     db_session._async_session_factory = None
     db_session._sync_session_factory = None
     db_session._database_url = None
-    
+
     print(f"[SETUP] Test environment configured with DB: {TEST_DATABASE_URL}")
-    
+
     yield
-    
+
     # Cleanup
     cleanup_test_db()
     os.environ.pop("ENVIRONMENT", None)
     os.environ.pop("AUTOMAGIK_SPARK_API_KEY", None)
     os.environ.pop("AUTOMAGIK_SPARK_DATABASE_URL", None)
 
+
 # Configure pytest-asyncio to use session scope for event loop
 pytest.mark.asyncio.loop_scope = "session"
+
 
 @pytest.fixture(scope="session")
 async def test_engine(setup_test_env):
     """Create a single test database engine for the entire test session."""
     print(f"[TEST ENGINE] Starting with environment: {os.getenv('ENVIRONMENT')}")
     print(f"[TEST ENGINE] Database URL: {os.getenv('AUTOMAGIK_SPARK_DATABASE_URL')}")
-    
+
     # Clean up any existing test database
     if os.path.exists(_test_db_path):
         os.unlink(_test_db_path)
         print(f"[TEST ENGINE] Removed existing database: {_test_db_path}")
-    
+
     # Create async engine
     engine = create_async_engine(
         TEST_DATABASE_URL,
@@ -94,31 +100,34 @@ async def test_engine(setup_test_env):
         poolclass=StaticPool,
         echo=False,
     )
-    
+
     print(f"[TEST ENGINE] Created engine for: {engine.url}")
-    
+
     # Create all tables ONCE at the start of the test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         print("[TEST ENGINE] Tables created via Base.metadata.create_all")
-    
+
     # Verify tables were created
     async with engine.connect() as conn:
-        result = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        result = await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table'")
+        )
         tables = result.fetchall()
         table_names = [table[0] for table in tables]
         print(f"[TEST ENGINE] Verified tables exist: {table_names}")
-        
+
         if not table_names:
             raise RuntimeError("No tables were created in test database!")
-    
+
     yield engine
-    
+
     # Cleanup
     print("[TEST ENGINE] Disposing engine and cleaning up")
     await engine.dispose()
     if os.path.exists(_test_db_path):
         os.unlink(_test_db_path)
+
 
 @pytest.fixture(scope="session")
 def test_sync_engine():
@@ -129,10 +138,11 @@ def test_sync_engine():
         poolclass=StaticPool,
         echo=False,
     )
-    
+
     # Tables are already created by the async engine since they share the same file
     yield engine
     engine.dispose()
+
 
 @pytest.fixture(scope="function")
 async def session(test_engine) -> AsyncGenerator[AsyncSession, None]:
@@ -142,7 +152,7 @@ async def session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    
+
     async with session_factory() as session:
         try:
             yield session
@@ -163,23 +173,25 @@ async def session(test_engine) -> AsyncGenerator[AsyncSession, None]:
             finally:
                 await session.close()
 
+
 @pytest.fixture
 async def client(test_engine) -> AsyncGenerator[TestClient, None]:
     """Create a test client with an overridden database session."""
     from automagik_spark.api.app import app
-    
+
     # Force clear any cached values before setting up test
     import automagik_spark.core.database.session as db_session
+
     db_session._async_engine = None
     db_session._sync_engine = None
     db_session._async_session_factory = None
-    db_session._sync_session_factory = None  
+    db_session._sync_session_factory = None
     db_session._database_url = None
-    
+
     # Clear the lazy string cache too
-    if hasattr(db_session.DATABASE_URL, '_cached_value'):
+    if hasattr(db_session.DATABASE_URL, "_cached_value"):
         db_session.DATABASE_URL._cached_value = None
-    
+
     # Override both the dependency and the lazy loading functions
     async def _get_test_session() -> AsyncGenerator[AsyncSession, None]:
         session_factory = async_sessionmaker(
@@ -189,22 +201,22 @@ async def client(test_engine) -> AsyncGenerator[TestClient, None]:
         )
         async with session_factory() as session:
             yield session
-    
+
     # Monkey patch the lazy loading functions to return our test engine
     original_get_async_engine_lazy = db_session.get_async_engine_lazy
     original_get_database_url_runtime = db_session.get_database_url_runtime
-    
+
     def mock_get_async_engine_lazy():
         return test_engine
-        
+
     def mock_get_database_url_runtime():
         return TEST_DATABASE_URL
-    
+
     db_session.get_async_engine_lazy = mock_get_async_engine_lazy
     db_session.get_database_url_runtime = mock_get_database_url_runtime
-    
+
     app.dependency_overrides[get_async_session] = _get_test_session
-    
+
     try:
         with TestClient(app) as client:
             yield client
@@ -215,11 +227,13 @@ async def client(test_engine) -> AsyncGenerator[TestClient, None]:
         db_session.get_async_engine_lazy = original_get_async_engine_lazy
         db_session.get_database_url_runtime = original_get_database_url_runtime
 
+
 @pytest.fixture
 async def workflow_manager(session):
     """Create a workflow manager for testing."""
     async with WorkflowManager(session) as manager:
         yield manager
+
 
 @pytest.fixture
 def mock_httpx_client(mocker):
@@ -227,5 +241,3 @@ def mock_httpx_client(mocker):
     mock_client = mocker.AsyncMock()
     mocker.patch("httpx.AsyncClient", return_value=mock_client)
     return mock_client
-
-

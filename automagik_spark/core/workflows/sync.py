@@ -23,11 +23,12 @@ from .automagik_hive import AutomagikHiveManager  # Import AutoMagik Hive manage
 
 logger = logging.getLogger(__name__)
 
+
 class WorkflowSync:
     """Workflow synchronization class.
-    
+
     This class must be used as a context manager to ensure proper initialization:
-    
+
     with WorkflowSync(session) as sync:
         result = sync.execute_workflow(...)
     """
@@ -121,7 +122,11 @@ class WorkflowSync:
                 raise RuntimeError("Manager not initialized")
 
             # Run the workflow via manager (await if coroutine)
-            run_call = self._manager.run_flow(workflow.remote_flow_id, input_data) if callable(getattr(self._manager, "run_flow", None)) else None
+            run_call = (
+                self._manager.run_flow(workflow.remote_flow_id, input_data)
+                if callable(getattr(self._manager, "run_flow", None))
+                else None
+            )
             if asyncio.iscoroutine(run_call):
                 result = await run_call
             else:
@@ -152,7 +157,9 @@ class WorkflowSync:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _mark_task_failed(self, task: Task, error_msg: str, *, log_traceback: bool = False):
+    async def _mark_task_failed(
+        self, task: Task, error_msg: str, *, log_traceback: bool = False
+    ):
         """Utility to set task to failed & optionally add TaskLog."""
         task.status = "failed"
         task.error = error_msg
@@ -161,12 +168,12 @@ class WorkflowSync:
 
         if log_traceback:
             import traceback
+
             tb = traceback.format_exc()
             from ..database.models import TaskLog
+
             log_entry = TaskLog(
-                task_id=task.id,
-                level="error",
-                message=f"{error_msg}\nTraceback:\n{tb}"
+                task_id=task.id, level="error", message=f"{error_msg}\nTraceback:\n{tb}"
             )
             self.session.add(log_entry)
 
@@ -175,9 +182,9 @@ class WorkflowSync:
 
 class WorkflowSyncSync:
     """Workflow synchronization class for synchronous workflow execution.
-    
+
     This class must be used as a context manager to ensure proper initialization:
-    
+
     with WorkflowSyncSync(session) as sync:
         result = sync.execute_workflow(...)
     """
@@ -195,25 +202,32 @@ class WorkflowSyncSync:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context."""
         if self._manager:
-            if hasattr(self._manager, 'close'):
+            if hasattr(self._manager, "close"):
                 self._manager.close()
             self._manager = None
 
     def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
         """Get the workflow source for a given workflow ID."""
         from sqlalchemy import select
-        result = self.session.execute(select(Workflow).where(Workflow.id == workflow_id))
+
+        result = self.session.execute(
+            select(Workflow).where(Workflow.id == workflow_id)
+        )
         workflow = result.scalar_one_or_none()
         if not workflow:
             return None
-        
+
         # Return the associated workflow source
         return workflow.workflow_source
 
-    def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
+    def execute_workflow(
+        self, workflow: Workflow, input_data: str
+    ) -> Optional[Dict[str, Any]]:
         """Execute a workflow with the given input data."""
         try:
-            logger.info(f"WorkflowSyncSync.execute_workflow called with workflow.id={workflow.id}, input_data={repr(input_data)}")
+            logger.info(
+                f"WorkflowSyncSync.execute_workflow called with workflow.id={workflow.id}, input_data={repr(input_data)}"
+            )
             # Get workflow source
             source = self._get_workflow_source(str(workflow.id))
             if not source:
@@ -228,53 +242,85 @@ class WorkflowSyncSync:
             logger.info(f"Source encrypted_api_key: {repr(source.encrypted_api_key)}")
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)
             logger.info(f"Decrypted API key: {'***' if api_key else 'None'}")
-            
+
             if source.source_type == SourceType.AUTOMAGIK_AGENTS:
                 # Use AutoMagik manager for AutoMagik sources
-                logger.info(f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}")
+                logger.info(
+                    f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}"
+                )
                 try:
-                    self._manager = AutoMagikAgentManager(api_url=source.url, api_key=api_key)
+                    self._manager = AutoMagikAgentManager(
+                        api_url=source.url, api_key=api_key
+                    )
                     logger.info("AutoMagikAgentManager created successfully")
                 except Exception as create_error:
-                    logger.error(f"Failed to create AutoMagikAgentManager: {create_error}")
+                    logger.error(
+                        f"Failed to create AutoMagikAgentManager: {create_error}"
+                    )
                     import traceback
+
                     logger.error(f"Create manager traceback: {traceback.format_exc()}")
                     raise
-                logger.info(f"Calling run_flow_sync with agent_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
+                logger.info(
+                    f"Calling run_flow_sync with agent_id={workflow.remote_flow_id}, input_data={repr(input_data)}"
+                )
                 try:
-                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
+                    result = self._manager.run_flow_sync(
+                        workflow.remote_flow_id, input_data
+                    )
                     logger.info("AutoMagik run_flow_sync completed successfully")
                 except Exception as automagik_error:
-                    logger.error(f"AutoMagik run_flow_sync failed with error: {automagik_error}")
+                    logger.error(
+                        f"AutoMagik run_flow_sync failed with error: {automagik_error}"
+                    )
                     logger.error(f"Error type: {type(automagik_error)}")
                     import traceback
+
                     logger.error(f"Full traceback: {traceback.format_exc()}")
                     raise
             elif source.source_type == SourceType.AUTOMAGIK_HIVE:
                 # Use AutoMagik Hive manager for Hive sources
-                logger.info(f"Creating AutomagikHiveManager with api_url={source.url}, api_key={'***' if api_key else None}")
+                logger.info(
+                    f"Creating AutomagikHiveManager with api_url={source.url}, api_key={'***' if api_key else None}"
+                )
                 try:
-                    self._manager = AutomagikHiveManager(api_url=source.url, api_key=api_key)
+                    self._manager = AutomagikHiveManager(
+                        api_url=source.url, api_key=api_key
+                    )
                     logger.info("AutomagikHiveManager created successfully")
                 except Exception as create_error:
-                    logger.error(f"Failed to create AutomagikHiveManager: {create_error}")
+                    logger.error(
+                        f"Failed to create AutomagikHiveManager: {create_error}"
+                    )
                     import traceback
+
                     logger.error(f"Create manager traceback: {traceback.format_exc()}")
                     raise
-                logger.info(f"Calling run_flow_sync with flow_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
+                logger.info(
+                    f"Calling run_flow_sync with flow_id={workflow.remote_flow_id}, input_data={repr(input_data)}"
+                )
                 try:
-                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
+                    result = self._manager.run_flow_sync(
+                        workflow.remote_flow_id, input_data
+                    )
                     logger.info("AutoMagik Hive run_flow_sync completed successfully")
                 except Exception as hive_error:
-                    logger.error(f"AutoMagik Hive run_flow_sync failed with error: {hive_error}")
+                    logger.error(
+                        f"AutoMagik Hive run_flow_sync failed with error: {hive_error}"
+                    )
                     logger.error(f"Error type: {type(hive_error)}")
                     import traceback
+
                     logger.error(f"Full traceback: {traceback.format_exc()}")
                     raise
             else:
                 # Default to LangFlow manager for other sources
-                self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
-                result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
+                self._manager = LangFlowManager(
+                    self.session, api_url=source.url, api_key=api_key
+                )
+                result = self._manager.run_workflow_sync(
+                    workflow.remote_flow_id, input_data
+                )
             if not result:
                 raise ValueError("No result from workflow execution")
 

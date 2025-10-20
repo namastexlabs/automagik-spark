@@ -15,11 +15,17 @@ from sqlalchemy import select, delete, cast, String, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, joinedload
 
-from ..database.models import Workflow, Schedule, Task, WorkflowComponent, TaskLog, WorkflowSource
+from ..database.models import (
+    Workflow,
+    Schedule,
+    Task,
+    WorkflowComponent,
+    TaskLog,
+    WorkflowSource,
+)
 from ..schemas.source import SourceType
 from .remote import LangFlowManager
 from .task import TaskManager
-from .source import WorkflowSource
 from .automagik_agents import AutoMagikAgentManager
 from .automagik_hive import AutomagikHiveManager
 from .adapters import AdapterRegistry
@@ -27,8 +33,8 @@ from .adapters import AdapterRegistry
 import os
 import asyncio
 
-LANGFLOW_API_URL = os.environ.get('LANGFLOW_API_URL')
-LANGFLOW_API_KEY = os.environ.get('LANGFLOW_API_KEY')
+LANGFLOW_API_URL = os.environ.get("LANGFLOW_API_URL")
+LANGFLOW_API_KEY = os.environ.get("LANGFLOW_API_KEY")
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +64,21 @@ class WorkflowManager:
         workflow = await self.get_workflow(workflow_id)
         if not workflow:
             return None
-        
+
         # Return the associated workflow source
         return workflow.workflow_source
 
-    async def _get_source_manager(self, source_url: Optional[str] = None, source: Optional[WorkflowSource] = None) -> Any:
+    async def _get_source_manager(
+        self, source_url: Optional[str] = None, source: Optional[WorkflowSource] = None
+    ) -> Any:
         """Get the appropriate source manager based on source type."""
         if not source and source_url:
             # Try to find source by URL
-            source = (await self.session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == source_url)
-            )).scalar_one_or_none()
+            source = (
+                await self.session.execute(
+                    select(WorkflowSource).where(WorkflowSource.url == source_url)
+                )
+            ).scalar_one_or_none()
             if not source:
                 raise ValueError(f"No source found with URL {source_url}")
 
@@ -89,13 +99,15 @@ class WorkflowManager:
         else:
             raise ValueError(f"Unsupported source type: {source.source_type}")
 
-    async def list_remote_flows(self, workflow_id: Optional[str] = None, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_remote_flows(
+        self, workflow_id: Optional[str] = None, source_url: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """List remote flows from all sources, or a specific source if provided.
-        
+
         Args:
             workflow_id: Optional workflow ID to filter by
             source_url: Optional source URL or instance name to filter by
-            
+
         Returns:
             List[Dict[str, Any]]: List of flows matching the criteria
         """
@@ -105,21 +117,23 @@ class WorkflowManager:
                 or_(
                     WorkflowSource.url == source_url,
                     # Extract instance name from URL and compare
-                    func.split_part(func.split_part(WorkflowSource.url, '://', 2), '/', 1).ilike(f"{source_url}%")
+                    func.split_part(
+                        func.split_part(WorkflowSource.url, "://", 2), "/", 1
+                    ).ilike(f"{source_url}%"),
                 )
             )
             sources = (await self.session.execute(sources_query)).scalars().all()
-            
+
             if not sources:
                 logger.warning(f"No sources found matching {source_url}")
                 return []
-                
+
             all_flows = []
             for source in sources:
                 try:
                     # Use consistent pattern with _get_source_manager
                     manager = await self._get_source_manager(source=source)
-                    
+
                     if source.source_type == SourceType.LANGFLOW:
                         with manager:  # Use context manager for proper cleanup
                             flows = manager.list_flows_sync()
@@ -134,18 +148,22 @@ class WorkflowManager:
                     # Add source info to each flow
                     for flow in flows:
                         flow["source_url"] = source.url
-                        instance = source.url.split('://')[-1].split('/')[0]
-                        instance = instance.split('.')[0]
+                        instance = source.url.split("://")[-1].split("/")[0]
+                        instance = instance.split(".")[0]
                         flow["instance"] = instance
                     all_flows.extend(flows)
                 except Exception as e:
-                    logger.error(f"Failed to list flows from source {source.url}: {str(e)}")
+                    logger.error(
+                        f"Failed to list flows from source {source.url}: {str(e)}"
+                    )
                     continue
 
             return all_flows
         else:
             # Get all active sources (skip inactive ones to avoid connection errors)
-            all_sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
+            all_sources = (
+                (await self.session.execute(select(WorkflowSource))).scalars().all()
+            )
             if not all_sources:
                 return []
 
@@ -154,17 +172,21 @@ class WorkflowManager:
                 # Skip inactive sources
                 if getattr(src, "status", "active") != "active":
                     continue
-                flows_for_src = await self.list_remote_flows(workflow_id=workflow_id, source_url=src.url)
+                flows_for_src = await self.list_remote_flows(
+                    workflow_id=workflow_id, source_url=src.url
+                )
                 aggregated_flows.extend(flows_for_src)
             return aggregated_flows
 
-    async def get_remote_flow(self, flow_id: str, source_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_remote_flow(
+        self, flow_id: str, source_url: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Get a remote flow by ID from any source or a specific source.
-        
+
         Args:
             flow_id: ID of the flow to get
             source_url: Optional URL of the source to get the flow from
-            
+
         Returns:
             Optional[Dict[str, Any]]: The flow data if found, None otherwise
         """
@@ -172,13 +194,15 @@ class WorkflowManager:
             # Try specific source
             try:
                 # Get source from database to check type consistently
-                source = (await self.session.execute(
-                    select(WorkflowSource).where(WorkflowSource.url == source_url)
-                )).scalar_one_or_none()
+                source = (
+                    await self.session.execute(
+                        select(WorkflowSource).where(WorkflowSource.url == source_url)
+                    )
+                ).scalar_one_or_none()
                 if not source:
                     logger.warning(f"No source found with URL {source_url}")
                     return None
-                
+
                 self.source_manager = await self._get_source_manager(source=source)
                 async with self.source_manager:
                     if source.source_type == SourceType.LANGFLOW:
@@ -193,16 +217,22 @@ class WorkflowManager:
 
                     if flow:
                         flow["source_url"] = self.source_manager.api_url
-                        instance = self.source_manager.api_url.split('://')[-1].split('/')[0]
-                        instance = instance.split('.')[0]
+                        instance = self.source_manager.api_url.split("://")[-1].split(
+                            "/"
+                        )[0]
+                        instance = instance.split(".")[0]
                         flow["instance"] = instance
                         return flow
             except Exception as e:
-                logger.error(f"Failed to get flow {flow_id} from source {source_url}: {str(e)}")
+                logger.error(
+                    f"Failed to get flow {flow_id} from source {source_url}: {str(e)}"
+                )
                 return None
         else:
             # Try all sources
-            sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
+            sources = (
+                (await self.session.execute(select(WorkflowSource))).scalars().all()
+            )
             for source in sources:
                 flow = await self.get_remote_flow(flow_id, source.url)
                 if flow:
@@ -210,9 +240,12 @@ class WorkflowManager:
             return None
 
     async def _get_langflow_manager(self, api_url: str = None, api_key: str = None):
-        """Deprecated helper for tests – returns a LangFlowManager instance synchronously/async. """
+        """Deprecated helper for tests – returns a LangFlowManager instance synchronously/async."""
         from .remote import LangFlowManager  # local import to avoid circular
-        return LangFlowManager(api_url=api_url or LANGFLOW_API_URL, api_key=api_key or LANGFLOW_API_KEY)
+
+        return LangFlowManager(
+            api_url=api_url or LANGFLOW_API_URL, api_key=api_key or LANGFLOW_API_KEY
+        )
 
     async def get_flow_components(self, flow_id: str) -> Dict[str, Any]:
         """Get flow components from LangFlow API.
@@ -229,15 +262,22 @@ class WorkflowManager:
         flow_data = None
         if hasattr(mgr, "sync_flow"):
             sync_fn = mgr.sync_flow
-            flow_data = await sync_fn(flow_id) if asyncio.iscoroutinefunction(sync_fn) else sync_fn(flow_id)
+            flow_data = (
+                await sync_fn(flow_id)
+                if asyncio.iscoroutinefunction(sync_fn)
+                else sync_fn(flow_id)
+            )
             if isinstance(flow_data, dict) and "flow" in flow_data:
                 flow_data = flow_data["flow"]
 
         if flow_data:
             from ..workflows.analyzer import FlowAnalyzer
+
             components = FlowAnalyzer.get_flow_components(flow_data)
             # Ensure description key exists for tests
-            for node, comp in zip(flow_data.get("data", {}).get("nodes", []), components):
+            for node, comp in zip(
+                flow_data.get("data", {}).get("nodes", []), components
+            ):
                 desc = node.get("data", {}).get("node", {}).get("description", "")
                 comp["description"] = desc
                 if comp.get("type") == "Unknown":
@@ -247,7 +287,11 @@ class WorkflowManager:
         # Next, try direct helper if available
         if hasattr(mgr, "get_flow_components"):
             comp_fn = mgr.get_flow_components
-            result = await comp_fn(flow_id) if asyncio.iscoroutinefunction(comp_fn) else comp_fn(flow_id)
+            result = (
+                await comp_fn(flow_id)
+                if asyncio.iscoroutinefunction(comp_fn)
+                else comp_fn(flow_id)
+            )
             # Ensure list structure
             if isinstance(result, list):
                 return result
@@ -260,7 +304,7 @@ class WorkflowManager:
         flow_id: str,
         input_component: Optional[str] = None,
         output_component: Optional[str] = None,
-        source_url: Optional[str] = None
+        source_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Sync a flow from a remote source.
 
@@ -275,15 +319,19 @@ class WorkflowManager:
         """
         if source_url:
             # If source URL is provided, use that source
-            source = (await self.session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == source_url)
-            )).scalar_one_or_none()
+            source = (
+                await self.session.execute(
+                    select(WorkflowSource).where(WorkflowSource.url == source_url)
+                )
+            ).scalar_one_or_none()
             if not source:
                 raise ValueError(f"No source found with URL {source_url}")
             sources = [source]
         else:
             # Get all sources
-            sources = (await self.session.execute(select(WorkflowSource))).scalars().all()
+            sources = (
+                (await self.session.execute(select(WorkflowSource))).scalars().all()
+            )
 
         # Try each source until we find the flow
         for source in sources:
@@ -298,7 +346,7 @@ class WorkflowManager:
                     source_type=source.source_type,
                     api_url=source.url,
                     api_key=api_key,
-                    source_id=source.id
+                    source_id=source.id,
                 )
             except ValueError as e:
                 logger.warning(f"No adapter for source type {source.source_type}: {e}")
@@ -307,7 +355,7 @@ class WorkflowManager:
             # Check if flow exists and get it
             try:
                 flows = adapter.list_flows_sync()
-                flow_exists = any(flow.get('id') == flow_id for flow in flows)
+                flow_exists = any(flow.get("id") == flow_id for flow in flows)
                 if not flow_exists:
                     continue
 
@@ -320,12 +368,14 @@ class WorkflowManager:
                 if not input_component or not output_component:
                     defaults = adapter.get_default_sync_params(flow_data)
                     input_component = input_component or defaults.get("input_component")
-                    output_component = output_component or defaults.get("output_component")
+                    output_component = output_component or defaults.get(
+                        "output_component"
+                    )
 
                 # Normalize flow data and save
                 flow_data = adapter.normalize_flow_data(flow_data)
-                flow_data['input_component'] = input_component
-                flow_data['output_component'] = output_component
+                flow_data["input_component"] = input_component
+                flow_data["output_component"] = output_component
 
                 # Store adapter for _create_or_update_workflow
                 self.source_manager = adapter
@@ -342,25 +392,25 @@ class WorkflowManager:
         """List all workflows from the local database."""
         query = select(Workflow)
         options = options or {}
-        
+
         # Always load schedules and tasks by default
-        if 'joinedload' not in options:
-            options['joinedload'] = []
-        if isinstance(options['joinedload'], list):
-            options['joinedload'].extend(['schedules', 'tasks'])
-        
+        if "joinedload" not in options:
+            options["joinedload"] = []
+        if isinstance(options["joinedload"], list):
+            options["joinedload"].extend(["schedules", "tasks"])
+
         # Add other relationships if requested
-        if options.get('with_source'):
-            if isinstance(options['joinedload'], list):
-                options['joinedload'].append('workflow_source')
+        if options.get("with_source"):
+            if isinstance(options["joinedload"], list):
+                options["joinedload"].append("workflow_source")
             else:
-                options['joinedload'] = ['workflow_source']
-        
+                options["joinedload"] = ["workflow_source"]
+
         # Apply joinedload options
-        if options.get('joinedload'):
-            for relationship in options['joinedload']:
+        if options.get("joinedload"):
+            for relationship in options["joinedload"]:
                 query = query.options(joinedload(getattr(Workflow, relationship)))
-        
+
         result = await self.session.execute(query)
         # Call unique() to handle collection relationships
         workflows = result.unique().scalars().all()
@@ -368,18 +418,22 @@ class WorkflowManager:
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
         """Get a workflow by ID.
-        
+
         Args:
             workflow_id: Can be either the local workflow ID or the remote flow ID
-            
+
         Returns:
             Optional[Workflow]: The workflow if found, None otherwise
         """
         # Try to find by local ID first
-        query = select(Workflow).options(joinedload(Workflow.workflow_source)).where(
-            or_(
-                cast(Workflow.id, String) == workflow_id,
-                Workflow.remote_flow_id == workflow_id
+        query = (
+            select(Workflow)
+            .options(joinedload(Workflow.workflow_source))
+            .where(
+                or_(
+                    cast(Workflow.id, String) == workflow_id,
+                    Workflow.remote_flow_id == workflow_id,
+                )
             )
         )
         result = await self.session.execute(query)
@@ -393,7 +447,9 @@ class WorkflowManager:
         # If no exact match and workflow_id looks like UUID prefix, search by prefix
         if not workflow and len(workflow_id) < 36:
             result = await self.session.execute(
-                select(Workflow).where(cast(Workflow.id, String).like(f"{workflow_id}%"))
+                select(Workflow).where(
+                    cast(Workflow.id, String).like(f"{workflow_id}%")
+                )
             )
             workflows = result.scalars().all()
             if len(workflows) > 1:
@@ -402,7 +458,7 @@ class WorkflowManager:
 
         # Try again with sanitized id (remove dashes) for SQLite UUID representation
         if not workflow:
-            sanitized = workflow_id.replace('-', '')
+            sanitized = workflow_id.replace("-", "")
             result = await self.session.execute(
                 select(Workflow).where(cast(Workflow.id, String) == sanitized)
             )
@@ -411,6 +467,7 @@ class WorkflowManager:
         if not workflow:
             # If the id string is not a valid UUID and neither matches remote_flow_id, raise
             import uuid
+
             try:
                 uuid.UUID(workflow_id)
             except ValueError:
@@ -420,9 +477,11 @@ class WorkflowManager:
         try:
             # Delete task logs first
             await self.session.execute(
-                delete(TaskLog).where(TaskLog.task_id.in_(
-                    select(Task.id).where(Task.workflow_id == workflow.id)
-                ))
+                delete(TaskLog).where(
+                    TaskLog.task_id.in_(
+                        select(Task.id).where(Task.workflow_id == workflow.id)
+                    )
+                )
             )
 
             # Delete tasks
@@ -437,7 +496,9 @@ class WorkflowManager:
 
             # Delete components
             await self.session.execute(
-                delete(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
+                delete(WorkflowComponent).where(
+                    WorkflowComponent.workflow_id == workflow.id
+                )
             )
 
             # Finally, delete workflow
@@ -461,16 +522,16 @@ class WorkflowManager:
         self,
         workflow_id: Optional[str] = None,
         status: Optional[str] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """List tasks from database."""
         query = select(Task).order_by(Task.created_at.desc()).limit(limit)
-        
+
         if workflow_id:
             query = query.where(cast(Task.workflow_id, String) == workflow_id)
         if status:
             query = query.where(Task.status == status)
-            
+
         result = await self.session.execute(query)
         tasks = result.scalars().all()
         return [task.to_dict() for task in tasks]
@@ -480,32 +541,30 @@ class WorkflowManager:
         task = await self.get_task(task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
-        
-        if task.status != 'failed':
+
+        if task.status != "failed":
             raise ValueError(f"Task {task_id} is not in failed state")
-        
+
         # Reset task status and error
-        task.status = 'pending'
+        task.status = "pending"
         task.error = None
         task.tries += 1
         task.started_at = datetime.now(timezone.utc)
         task.finished_at = None
-        
+
         await self.session.commit()
-        
+
         # Run the workflow again
         return await self.run_workflow(
-            workflow_id=task.workflow_id,
-            input_data=task.input_data,
-            existing_task=task
+            workflow_id=task.workflow_id, input_data=task.input_data, existing_task=task
         )
 
     def _format_result_for_logging(self, result: Any) -> str:
         """Format result for logging, keeping it concise."""
         if isinstance(result, dict):
             # For automagik-agents, show just the result/message
-            if 'result' in result:
-                return str(result['result'])
+            if "result" in result:
+                return str(result["result"])
             # For other responses, show a summary
             return f"Response with keys: {', '.join(result.keys())}"
         elif isinstance(result, str):
@@ -520,7 +579,7 @@ class WorkflowManager:
         self,
         workflow_id: str | UUID,
         input_data: str,
-        existing_task: Optional[Task] = None
+        existing_task: Optional[Task] = None,
     ) -> Optional[Task]:
         """Run a workflow with input data."""
         workflow = await self.get_workflow(str(workflow_id))
@@ -533,7 +592,7 @@ class WorkflowManager:
             workflow_id=workflow.id,  # Use the local workflow ID
             input_data=input_data,
             status="running",
-            started_at=datetime.now(timezone.utc)
+            started_at=datetime.now(timezone.utc),
         )
 
         if not existing_task:
@@ -555,22 +614,22 @@ class WorkflowManager:
                 source_type=source.source_type,
                 api_url=source.url,
                 api_key=api_key,
-                source_id=source.id
+                source_id=source.id,
             )
 
             # Execute workflow using adapter
             try:
                 with adapter:
                     execution_result = adapter.run_flow_sync(
-                        workflow.remote_flow_id,
-                        input_data,
-                        str(task.id)
+                        workflow.remote_flow_id, input_data, str(task.id)
                     )
 
                 # Handle execution result
                 if execution_result.success:
                     logger.info(f"Task {task.id} completed successfully")
-                    logger.info(f"Result: {self._format_result_for_logging(execution_result.result)}")
+                    logger.info(
+                        f"Result: {self._format_result_for_logging(execution_result.result)}"
+                    )
 
                     # Store the result appropriately based on its type
                     if isinstance(execution_result.result, (dict, list)):
@@ -578,11 +637,11 @@ class WorkflowManager:
                     else:
                         task.output_data = str(execution_result.result)
 
-                    task.status = 'completed'
+                    task.status = "completed"
                     task.finished_at = datetime.now(timezone.utc)
                 else:
                     logger.error(f"Task {task.id} failed: {execution_result.error}")
-                    task.status = 'failed'
+                    task.status = "failed"
                     task.error = execution_result.error or "No error details provided"
                     task.finished_at = datetime.now(timezone.utc)
 
@@ -597,21 +656,23 @@ class WorkflowManager:
             logger.error(f"Failed to run workflow: {str(e)}")
             if isinstance(e, httpx.HTTPStatusError):
                 logger.error(f"HTTP Status: {e.response.status_code}")
-            task.status = 'failed'
+            task.status = "failed"
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
 
         await self.session.commit()
         return task
 
-    async def create_task(self, workflow_id: str, input_data: Optional[str] = None, max_retries: int = 3) -> Optional[Task]:
+    async def create_task(
+        self, workflow_id: str, input_data: Optional[str] = None, max_retries: int = 3
+    ) -> Optional[Task]:
         """Create a new task for a workflow.
-        
+
         Args:
             workflow_id: ID of the workflow to create a task for
             input_data: Optional input data for the task
             max_retries: Maximum number of retries for the task
-            
+
         Returns:
             Optional[Task]: The created task if successful
         """
@@ -620,45 +681,50 @@ class WorkflowManager:
             "input_data": input_data if input_data else "",
             "max_retries": max_retries,
             "status": "pending",
-            "tries": 0
+            "tries": 0,
         }
         return await self.task.create_task(task_data)
 
-    async def _create_or_update_workflow(self, flow_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_or_update_workflow(
+        self, flow_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Create or update a workflow from flow data."""
         # Get existing workflow by remote flow ID
-        query = select(Workflow).where(
-            Workflow.remote_flow_id == flow_data['id']
-        )
+        query = select(Workflow).where(Workflow.remote_flow_id == flow_data["id"])
         result = await self.session.execute(query)
         workflow = result.scalar_one_or_none()
 
         # Get the source
-        source = (await self.session.execute(
-            select(WorkflowSource).where(WorkflowSource.url == self.source_manager.api_url)
-        )).scalar_one_or_none()
-        
+        source = (
+            await self.session.execute(
+                select(WorkflowSource).where(
+                    WorkflowSource.url == self.source_manager.api_url
+                )
+            )
+        ).scalar_one_or_none()
+
         if not source:
             raise ValueError(f"Source not found for URL: {self.source_manager.api_url}")
 
         # Extract workflow fields from flow data
         workflow_fields = {
-            'name': flow_data.get('name'),
-            'description': flow_data.get('description'),
-            'source': self.source_manager.api_url,
-            'remote_flow_id': flow_data['id'],
-            'data': flow_data.get('data'),
-            'flow_raw_data': flow_data,  # Store the complete flow data
-            'input_component': flow_data.get('input_component'),
-            'output_component': flow_data.get('output_component'),
-            'is_component': self.to_bool(flow_data.get('is_component', False)),
-            'folder_id': flow_data.get('folder_id') or flow_data.get('project_id'),
-            'folder_name': flow_data.get('folder_name') or flow_data.get('project_name'),
-            'icon': flow_data.get('icon'),
-            'icon_bg_color': flow_data.get('icon_bg_color'),
-            'liked': self.to_bool(flow_data.get('liked', False)),
-            'tags': flow_data.get('tags', []),
-            'workflow_source_id': source.id,  # Use the actual source ID
+            "name": flow_data.get("name"),
+            "description": flow_data.get("description"),
+            "source": self.source_manager.api_url,
+            "remote_flow_id": flow_data["id"],
+            "data": flow_data.get("data"),
+            "flow_raw_data": flow_data,  # Store the complete flow data
+            "input_component": flow_data.get("input_component"),
+            "output_component": flow_data.get("output_component"),
+            "is_component": self.to_bool(flow_data.get("is_component", False)),
+            "folder_id": flow_data.get("folder_id") or flow_data.get("project_id"),
+            "folder_name": flow_data.get("folder_name")
+            or flow_data.get("project_name"),
+            "icon": flow_data.get("icon"),
+            "icon_bg_color": flow_data.get("icon_bg_color"),
+            "liked": self.to_bool(flow_data.get("liked", False)),
+            "tags": flow_data.get("tags", []),
+            "workflow_source_id": source.id,  # Use the actual source ID
         }
 
         if workflow:
@@ -672,21 +738,23 @@ class WorkflowManager:
 
         # Delete existing components if any
         await self.session.execute(
-            delete(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
+            delete(WorkflowComponent).where(
+                WorkflowComponent.workflow_id == workflow.id
+            )
         )
 
         # Create components from flow data
-        if 'data' in flow_data and 'nodes' in flow_data['data']:
-            for node in flow_data['data']['nodes']:
+        if "data" in flow_data and "nodes" in flow_data["data"]:
+            for node in flow_data["data"]["nodes"]:
                 component = WorkflowComponent(
                     id=uuid4(),
                     workflow_id=workflow.id,
-                    component_id=node['id'],
-                    type=node.get('data', {}).get('type', 'genericNode'),
-                    template=node.get('data', {}),
-                    tweakable_params=node.get('data', {}).get('template', {}),
-                    is_input=workflow.input_component == node['id'],
-                    is_output=workflow.output_component == node['id']
+                    component_id=node["id"],
+                    type=node.get("data", {}).get("type", "genericNode"),
+                    template=node.get("data", {}),
+                    tweakable_params=node.get("data", {}).get("template", {}),
+                    is_input=workflow.input_component == node["id"],
+                    is_output=workflow.output_component == node["id"],
                 )
                 self.session.add(component)
 
@@ -694,27 +762,35 @@ class WorkflowManager:
         # Detach the workflow from the session to avoid greenlet errors
         self.session.expunge(workflow)
         return {
-            'id': str(workflow.id),
-            'name': workflow.name,
-            'description': workflow.description,
-            'data': workflow.data,
-            'flow_raw_data': workflow.flow_raw_data,
-            'source': workflow.source,
-            'remote_flow_id': workflow.remote_flow_id,
-            'flow_version': workflow.flow_version,
-            'input_component': workflow.input_component,
-            'output_component': workflow.output_component,
-            'is_component': workflow.is_component,
-            'folder_id': workflow.folder_id,
-            'folder_name': workflow.folder_name,
-            'icon': workflow.icon,
-            'icon_bg_color': workflow.icon_bg_color,
-            'liked': workflow.liked,
-            'tags': workflow.tags,
-            'workflow_source_id': str(workflow.workflow_source_id) if workflow.workflow_source_id else None,
-            'created_at': workflow.created_at.isoformat() if workflow.created_at else None,
-            'updated_at': workflow.updated_at.isoformat() if workflow.updated_at else None,
-            'schedules': []  # Don't load schedules in async context
+            "id": str(workflow.id),
+            "name": workflow.name,
+            "description": workflow.description,
+            "data": workflow.data,
+            "flow_raw_data": workflow.flow_raw_data,
+            "source": workflow.source,
+            "remote_flow_id": workflow.remote_flow_id,
+            "flow_version": workflow.flow_version,
+            "input_component": workflow.input_component,
+            "output_component": workflow.output_component,
+            "is_component": workflow.is_component,
+            "folder_id": workflow.folder_id,
+            "folder_name": workflow.folder_name,
+            "icon": workflow.icon,
+            "icon_bg_color": workflow.icon_bg_color,
+            "liked": workflow.liked,
+            "tags": workflow.tags,
+            "workflow_source_id": (
+                str(workflow.workflow_source_id)
+                if workflow.workflow_source_id
+                else None
+            ),
+            "created_at": (
+                workflow.created_at.isoformat() if workflow.created_at else None
+            ),
+            "updated_at": (
+                workflow.updated_at.isoformat() if workflow.updated_at else None
+            ),
+            "schedules": [],  # Don't load schedules in async context
         }
 
     @staticmethod
@@ -723,7 +799,7 @@ class WorkflowManager:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
-            return value.lower() in ('true', '1', 't', 'y', 'yes')
+            return value.lower() in ("true", "1", "t", "y", "yes")
         return bool(value)
 
 
@@ -740,7 +816,7 @@ class SyncWorkflowManager:
         workflow = self.get_workflow(workflow_id)
         if not workflow:
             return None
-        
+
         # Return the associated workflow source
         return workflow.workflow_source
 
@@ -751,10 +827,7 @@ class SyncWorkflowManager:
         return result.scalar_one_or_none()
 
     def run_workflow_sync(
-        self,
-        workflow: Workflow,
-        task: Task,
-        session: Session
+        self, workflow: Workflow, task: Task, session: Session
     ) -> Optional[Task]:
         """Run a workflow synchronously."""
         try:
@@ -774,15 +847,13 @@ class SyncWorkflowManager:
                 source_type=source.source_type,
                 api_url=source.url,
                 api_key=api_key,
-                source_id=source.id
+                source_id=source.id,
             )
 
             # Execute workflow using adapter
             with adapter:
                 execution_result = adapter.run_flow_sync(
-                    workflow.remote_flow_id,
-                    task.input_data,
-                    str(task.id)
+                    workflow.remote_flow_id, task.input_data, str(task.id)
                 )
 
             # Handle execution result
@@ -793,11 +864,11 @@ class SyncWorkflowManager:
                     task.output_data = json.dumps(execution_result.result)
                 else:
                     task.output_data = str(execution_result.result)
-                task.status = 'completed'
+                task.status = "completed"
                 task.finished_at = datetime.now(timezone.utc)
             else:
                 logger.error(f"Task {task.id} failed: {execution_result.error}")
-                task.status = 'failed'
+                task.status = "failed"
                 task.error = execution_result.error or "No error details provided"
                 task.finished_at = datetime.now(timezone.utc)
 
@@ -806,7 +877,7 @@ class SyncWorkflowManager:
             if isinstance(e, httpx.HTTPStatusError):
                 logger.error(f"HTTP Status: {e.response.status_code}")
                 logger.error(f"Response text: {e.response.text}")
-            task.status = 'failed'
+            task.status = "failed"
             task.error = str(e)
             task.finished_at = datetime.now(timezone.utc)
 

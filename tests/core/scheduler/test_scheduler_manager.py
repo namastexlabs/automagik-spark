@@ -1,4 +1,3 @@
-
 """Test cases for SchedulerManager."""
 
 import pytest
@@ -29,7 +28,7 @@ async def sample_workflow(session):
         remote_flow_id="test-workflow",
         input_component="input",
         output_component="output",
-        data={"test": "data"}
+        data={"test": "data"},
     )
     session.add(workflow)
     await session.commit()
@@ -43,7 +42,7 @@ async def test_create_schedule_with_valid_interval(scheduler_manager, sample_wor
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",  # 30 minutes
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is not None
@@ -62,7 +61,7 @@ async def test_create_schedule_with_valid_cron(scheduler_manager, sample_workflo
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr=cron_expr,
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is not None
@@ -70,7 +69,7 @@ async def test_create_schedule_with_valid_cron(scheduler_manager, sample_workflo
     assert schedule.schedule_type == "cron"
     assert schedule.schedule_expr == cron_expr
     assert schedule.params == {"input": "test"}
-    
+
     # Verify next_run_at is calculated correctly
     # Note: We need to use a timezone-aware datetime for both values
     now = datetime.now(timezone.utc)
@@ -82,13 +81,15 @@ async def test_create_schedule_with_valid_cron(scheduler_manager, sample_workflo
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_invalid_interval(scheduler_manager, sample_workflow):
+async def test_create_schedule_with_invalid_interval(
+    scheduler_manager, sample_workflow
+):
     """Test creating a schedule with an invalid interval."""
     schedule = await scheduler_manager.create_schedule(
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="invalid",
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is None
@@ -101,7 +102,7 @@ async def test_create_schedule_with_invalid_cron(scheduler_manager, sample_workf
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr="invalid",
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is None
@@ -114,58 +115,66 @@ async def test_create_schedule_with_nonexistent_workflow(scheduler_manager):
         workflow_id=uuid4(),
         schedule_type="interval",
         schedule_expr="30m",
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is None
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_invalid_interval_formats(scheduler_manager, sample_workflow):
+async def test_create_schedule_with_invalid_interval_formats(
+    scheduler_manager, sample_workflow
+):
     """Test creating schedules with various invalid interval formats."""
     invalid_intervals = [
-        "30",       # Missing unit
-        "1x",       # Invalid unit
-        "0m",       # Zero value
-        "-1m",      # Negative value
-        "1.5m",     # Non-integer value
-        "m",        # Missing value
-        "",         # Empty string
-        "1mm",      # Double unit
-        "m1",       # Unit before value
-        "one m",    # Non-numeric value
+        "30",  # Missing unit
+        "1x",  # Invalid unit
+        "0m",  # Zero value
+        "-1m",  # Negative value
+        "1.5m",  # Non-integer value
+        "m",  # Missing value
+        "",  # Empty string
+        "1mm",  # Double unit
+        "m1",  # Unit before value
+        "one m",  # Non-numeric value
     ]
-    
+
     for interval in invalid_intervals:
         schedule = await scheduler_manager.create_schedule(
             workflow_id=sample_workflow.id,
             schedule_type="interval",
             schedule_expr=interval,
-            params={"input": "test"}
+            params={"input": "test"},
         )
-        assert schedule is None, f"Schedule with invalid interval '{interval}' should not be created"
+        assert (
+            schedule is None
+        ), f"Schedule with invalid interval '{interval}' should not be created"
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_valid_interval_formats(scheduler_manager, sample_workflow):
+async def test_create_schedule_with_valid_interval_formats(
+    scheduler_manager, sample_workflow
+):
     """Test creating schedules with various valid interval formats."""
     valid_intervals = [
-        "1m",    # 1 minute
-        "30m",   # 30 minutes
-        "1h",    # 1 hour
-        "24h",   # 24 hours
-        "1d",    # 1 day
-        "7d",    # 7 days
+        "1m",  # 1 minute
+        "30m",  # 30 minutes
+        "1h",  # 1 hour
+        "24h",  # 24 hours
+        "1d",  # 1 day
+        "7d",  # 7 days
     ]
-    
+
     for interval in valid_intervals:
         schedule = await scheduler_manager.create_schedule(
             workflow_id=sample_workflow.id,
             schedule_type="interval",
             schedule_expr=interval,
-            params={"input": "test"}
+            params={"input": "test"},
         )
-        assert schedule is not None, f"Schedule with valid interval '{interval}' should be created"
+        assert (
+            schedule is not None
+        ), f"Schedule with valid interval '{interval}' should be created"
         assert schedule.schedule_expr == interval
         assert schedule.next_run_at is not None
 
@@ -178,7 +187,7 @@ async def test_update_schedule_status(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        params={"input": "test"}
+        params={"input": "test"},
     )
     assert schedule is not None
     assert schedule.status == "active"
@@ -203,14 +212,16 @@ async def test_update_schedule_status(scheduler_manager, sample_workflow):
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_status_invalid_action(scheduler_manager, sample_workflow):
+async def test_update_schedule_status_invalid_action(
+    scheduler_manager, sample_workflow
+):
     """Test updating schedule status with invalid action."""
     # Create a schedule
     schedule = await scheduler_manager.create_schedule(
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is not None
@@ -235,13 +246,13 @@ async def test_list_schedules(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        params={"input": "test1"}
+        params={"input": "test1"},
     )
     schedule2 = await scheduler_manager.create_schedule(
         workflow_id=sample_workflow.id,
         schedule_type="cron",
         schedule_expr="0 8 * * *",
-        params={"input": "test2"}
+        params={"input": "test2"},
     )
 
     # List schedules
@@ -262,7 +273,7 @@ async def test_delete_schedule(scheduler_manager, sample_workflow):
         workflow_id=sample_workflow.id,
         schedule_type="interval",
         schedule_expr="30m",
-        params={"input": "test"}
+        params={"input": "test"},
     )
 
     assert schedule is not None
@@ -281,5 +292,3 @@ async def test_delete_nonexistent_schedule(scheduler_manager):
     """Test deleting a schedule that doesn't exist."""
     result = await scheduler_manager.delete_schedule(uuid4())
     assert result is False
-
-

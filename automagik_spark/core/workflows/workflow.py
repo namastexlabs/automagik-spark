@@ -1,4 +1,3 @@
-
 """
 Local workflow management module.
 
@@ -17,9 +16,10 @@ from ..database.models import Workflow
 
 logger = logging.getLogger(__name__)
 
+
 class LocalWorkflowManager:
     """Local workflow management class."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize local workflow manager."""
         self.session = session
@@ -35,13 +35,13 @@ class LocalWorkflowManager:
                     return workflow
             except ValueError:
                 pass
-                
+
             # If not found, try by remote_flow_id
             result = await self.session.execute(
                 select(Workflow).where(Workflow.remote_flow_id == workflow_id)
             )
             return result.scalar_one_or_none()
-            
+
         except Exception as e:
             logger.error(f"Failed to get workflow: {str(e)}")
             return None
@@ -64,27 +64,27 @@ class LocalWorkflowManager:
                 exact_match = True
             except ValueError:
                 exact_match = False
-            
+
             # Build query based on match type
             query = select(Workflow).options(
                 joinedload(Workflow.components),
                 joinedload(Workflow.schedules),
-                joinedload(Workflow.tasks)
+                joinedload(Workflow.tasks),
             )
-            
+
             if exact_match:
                 query = query.where(Workflow.id == uuid_obj)
             else:
                 query = query.where(cast(Workflow.id, String).like(f"{workflow_id}%"))
-            
+
             # Execute query
             result = await self.session.execute(query)
             workflow = result.unique().scalar_one_or_none()
-            
+
             if not workflow:
                 logger.error(f"Workflow {workflow_id} not found in local database")
                 return False
-            
+
             # Delete all related objects first
             for component in workflow.components:
                 await self.session.delete(component)
@@ -92,15 +92,13 @@ class LocalWorkflowManager:
                 await self.session.delete(schedule)
             for task in workflow.tasks:
                 await self.session.delete(task)
-            
+
             # Now delete the workflow
             await self.session.delete(workflow)
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             logger.error(f"Error deleting workflow: {e}")
             await self.session.rollback()
             return False
-
-
