@@ -22,7 +22,7 @@ from .task import TaskManager
 from .source import WorkflowSource
 from .automagik_agents import AutoMagikAgentManager
 from .automagik_hive import AutomagikHiveManager
-from .adapters import AdapterRegistry, WorkflowExecutionResult
+from .adapters import AdapterRegistry
 
 import os
 import asyncio

@@ -185,7 +185,7 @@ class WorkflowSource(Base):
             return decrypted_bytes.decode()
         except Exception as e:
             logger.error(f"Failed to decrypt API key: {str(e)}")
-            logger.error(f"This usually indicates an encryption key mismatch. Check AUTOMAGIK_SPARK_ENCRYPTION_KEY environment variable.")
+            logger.error("This usually indicates an encryption key mismatch. Check AUTOMAGIK_SPARK_ENCRYPTION_KEY environment variable.")
             raise ValueError(f"Failed to decrypt API key: {str(e)}")
 
     def __str__(self):

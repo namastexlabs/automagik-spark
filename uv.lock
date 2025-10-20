@@ -170,8 +170,8 @@ wheels = [
 
 [[package]]
 name = "automagik-spark"
-version = "0.3.7"
-source = { virtual = "." }
+version = "0.3.8rc2"
+source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiosqlite" },

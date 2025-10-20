@@ -12,8 +12,7 @@ from ...core.schemas.source import (
     WorkflowSourceCreate,
     WorkflowSourceUpdate,
     WorkflowSourceResponse,
-    SourceType,
-    SourceStatus
+    SourceType
 )
 router = APIRouter(prefix="/sources", tags=["sources"])
 async def _validate_source(url: str, api_key: str, source_type: SourceType) -> dict:

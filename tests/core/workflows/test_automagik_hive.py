@@ -2,7 +2,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
-import json
 from uuid import uuid4
 from automagik_spark.core.workflows.automagik_hive import AutomagikHiveManager
 from automagik_spark.core.schemas.source import SourceType

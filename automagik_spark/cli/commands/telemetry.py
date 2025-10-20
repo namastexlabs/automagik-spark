@@ -4,7 +4,6 @@ import click
 from automagik_spark.core.telemetry import (
     disable_telemetry,
     enable_telemetry,
-    is_telemetry_enabled,
     get_telemetry_client
 )
 

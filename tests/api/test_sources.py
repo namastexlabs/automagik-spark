@@ -4,15 +4,8 @@ import uuid
 import pytest
 import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from fastapi.security.api_key import APIKeyHeader
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from automagik_spark.api.dependencies import verify_api_key
 from automagik_spark.core.database.models import WorkflowSource
-from automagik_spark.core.schemas.source import SourceType, SourceStatus
 from tests.conftest import TEST_API_KEY
 
 # Mark all tests to use session-scoped event loop
@@ -1024,6 +1017,6 @@ class TestErrorHandling:
             assert response.status_code in [400, 422]  # Accept both validation error types
         
         # Test empty string separately - routes to list endpoint
-        response = client.get(f"/api/v1/sources/", headers=auth_headers)
+        response = client.get("/api/v1/sources/", headers=auth_headers)
         assert response.status_code == 200
         assert isinstance(response.json(), list)

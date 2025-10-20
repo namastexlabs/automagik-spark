@@ -37,12 +37,12 @@ async def lifespan(app: FastAPI):
     env = os.getenv("ENVIRONMENT")
     print(f"[LIFESPAN] Environment: {env}")
     if env != "testing":
-        print(f"[LIFESPAN] Running auto-discovery...")
+        print("[LIFESPAN] Running auto-discovery...")
         # Startup - Auto-discover workflow sources
         await auto_discover_langflow()
         await auto_discover_automagik_agents()
     else:
-        print(f"[LIFESPAN] Skipping auto-discovery for testing environment")
+        print("[LIFESPAN] Skipping auto-discovery for testing environment")
     
     # Log telemetry status
     _log_telemetry_status()

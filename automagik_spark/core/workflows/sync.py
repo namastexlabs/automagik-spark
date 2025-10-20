@@ -234,7 +234,7 @@ class WorkflowSyncSync:
                 logger.info(f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}")
                 try:
                     self._manager = AutoMagikAgentManager(api_url=source.url, api_key=api_key)
-                    logger.info(f"AutoMagikAgentManager created successfully")
+                    logger.info("AutoMagikAgentManager created successfully")
                 except Exception as create_error:
                     logger.error(f"Failed to create AutoMagikAgentManager: {create_error}")
                     import traceback
@@ -243,7 +243,7 @@ class WorkflowSyncSync:
                 logger.info(f"Calling run_flow_sync with agent_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
                 try:
                     result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
-                    logger.info(f"AutoMagik run_flow_sync completed successfully")
+                    logger.info("AutoMagik run_flow_sync completed successfully")
                 except Exception as automagik_error:
                     logger.error(f"AutoMagik run_flow_sync failed with error: {automagik_error}")
                     logger.error(f"Error type: {type(automagik_error)}")
@@ -255,7 +255,7 @@ class WorkflowSyncSync:
                 logger.info(f"Creating AutomagikHiveManager with api_url={source.url}, api_key={'***' if api_key else None}")
                 try:
                     self._manager = AutomagikHiveManager(api_url=source.url, api_key=api_key)
-                    logger.info(f"AutomagikHiveManager created successfully")
+                    logger.info("AutomagikHiveManager created successfully")
                 except Exception as create_error:
                     logger.error(f"Failed to create AutomagikHiveManager: {create_error}")
                     import traceback
@@ -264,7 +264,7 @@ class WorkflowSyncSync:
                 logger.info(f"Calling run_flow_sync with flow_id={workflow.remote_flow_id}, input_data={repr(input_data)}")
                 try:
                     result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
-                    logger.info(f"AutoMagik Hive run_flow_sync completed successfully")
+                    logger.info("AutoMagik Hive run_flow_sync completed successfully")
                 except Exception as hive_error:
                     logger.error(f"AutoMagik Hive run_flow_sync failed with error: {hive_error}")
                     logger.error(f"Error type: {type(hive_error)}")

@@ -3,13 +3,11 @@
 
 import os
 import pytest
-import tempfile
 import atexit
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import text, create_engine
-from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
 # Use a fixed path for the test database to avoid multiple database files
