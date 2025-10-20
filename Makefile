@@ -264,6 +264,7 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)bump-patch     $(FONT_RESET) Bump patch version (0.1.0 → 0.1.1)"
 	@echo -e "  $(FONT_GREEN)bump-minor     $(FONT_RESET) Bump minor version (0.1.0 → 0.2.0)"
 	@echo -e "  $(FONT_GREEN)bump-major     $(FONT_RESET) Bump major version (0.1.0 → 1.0.0)"
+	@echo -e "  $(FONT_CYAN)bump-rc        $(FONT_RESET) Create/manage RC version (0.3.7 → 0.3.8rc1 → 0.3.8)"
 	@echo -e "  $(FONT_YELLOW)bump-dev       $(FONT_RESET) Create dev pre-release (0.1.0 → 0.1.0pre1)"
 	@echo -e "  $(FONT_CYAN)tag-current    $(FONT_RESET) Create git tag for current version"
 	@echo -e "  $(FONT_CYAN)commit-version $(FONT_RESET) Commit version changes"
@@ -273,6 +274,7 @@ help: ## Show this help message
 	@echo -e "  $(FONT_GREEN)release-patch  $(FONT_RESET) Full patch release (bump + commit + tag + test + build)"
 	@echo -e "  $(FONT_GREEN)release-minor  $(FONT_RESET) Full minor release (bump + commit + tag + test + build)"
 	@echo -e "  $(FONT_GREEN)release-major  $(FONT_RESET) Full major release (bump + commit + tag + test + build)"
+	@echo -e "  $(FONT_CYAN)release-rc     $(FONT_RESET) Full RC release (bump + commit + tag + test + build)"
 	@echo -e "  $(FONT_YELLOW)release-dev    $(FONT_RESET) Dev pre-release (bump + commit + tag + build)"
 	@echo -e "  $(FONT_PURPLE)deploy-release $(FONT_RESET) Deploy release (push tags + publish-all + auto GitHub release)"
 	@echo -e "  $(FONT_YELLOW)deploy-dev     $(FONT_RESET) Deploy dev release (push tags + Test PyPI + auto GitHub release)"
@@ -892,7 +894,7 @@ info: ## Show project information
 # ===========================================
 # 📈 Version Management & Git Automation
 # ===========================================
-.PHONY: bump-patch bump-minor bump-major bump-dev finalize-version tag-current release-patch release-minor release-major release-dev
+.PHONY: bump-patch bump-minor bump-major bump-dev bump-rc finalize-version tag-current release-patch release-minor release-major release-dev release-rc
 
 bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	$(call print_status,Bumping patch version...)
@@ -929,6 +931,38 @@ bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
 	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish-test$(FONT_RESET)"
+
+bump-rc: ## 🔖 Create RC version (0.3.7 -> 0.3.8rc1, 0.3.8rc1 -> 0.3.8rc2, 0.3.8rc2 -> 0.3.8)
+	$(call print_status,Managing release candidate version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if echo "$$CURRENT_VERSION" | grep -q "rc"; then \
+		echo -e "$(FONT_CYAN)Current version is RC: $$CURRENT_VERSION$(FONT_RESET)"; \
+		read -p "Action: [n]ext RC, [s]table, or [c]ancel? [n/s/c]: " action; \
+		if [ "$$action" = "s" ]; then \
+			BASE_VERSION=$$(echo "$$CURRENT_VERSION" | sed 's/rc[0-9]*//'); \
+			NEW_VERSION="$$BASE_VERSION"; \
+			echo -e "$(FONT_GREEN)✅ Finalizing to stable: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+			sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+		elif [ "$$action" = "n" ]; then \
+			BASE_VERSION=$$(echo "$$CURRENT_VERSION" | sed 's/rc[0-9]*//'); \
+			RC_NUM=$$(echo "$$CURRENT_VERSION" | sed 's/.*rc\([0-9]*\)/\1/'); \
+			NEW_RC_NUM=$$((RC_NUM + 1)); \
+			NEW_VERSION="$${BASE_VERSION}rc$${NEW_RC_NUM}"; \
+			echo -e "$(FONT_GREEN)✅ Next RC: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+			sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+		else \
+			echo -e "$(FONT_YELLOW)Cancelled$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
+	else \
+		PATCH_NUM=$$(echo "$$CURRENT_VERSION" | awk -F. '{print $$NF}'); \
+		NEW_PATCH=$$((PATCH_NUM + 1)); \
+		NEW_VERSION=$$(echo "$$CURRENT_VERSION" | awk -F. -v np=$$NEW_PATCH '{$$NF=np; print}' OFS=.); \
+		NEW_VERSION="$${NEW_VERSION}rc1"; \
+		echo -e "$(FONT_GREEN)✅ First RC: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+		sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	fi; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make release-rc$(FONT_RESET)"
 
 finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	$(call print_status,Finalizing version for release...)
@@ -1029,6 +1063,15 @@ release-dev: bump-dev commit-version tag-current build ## 🧪 Dev pre-release
 	echo -e "  • make push-tags (push to remote)"; \
 	echo -e "  • make publish-test (deploy to Test PyPI)"; \
 	echo -e "  • Or run: make deploy-dev"
+
+release-rc: bump-rc commit-version tag-current quality test build ## 🔖 Full RC release (bump + commit + tag + test + build)
+	$(call print_success_with_logo,Release candidate ready!)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)📦 Release v$$CURRENT_VERSION is ready$(FONT_RESET)"; \
+	echo -e "$(FONT_YELLOW)💡 Next steps:$(FONT_RESET)"; \
+	echo -e "  • make deploy-release (push tags + publish to PyPI)"; \
+	echo -e "  • Test and iterate with 'make bump-rc' for rc2, rc3, etc."; \
+	echo -e "  • When ready: 'make bump-rc' → [s]table → 'make deploy-release'"
 
 deploy-release: push-tags publish ## 🚀 Deploy release (push tags + publish to production)
 	$(call print_success_with_logo,Release deployed successfully!)
