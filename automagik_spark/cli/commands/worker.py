@@ -22,7 +22,7 @@ from ...core.database.models import Schedule, Task
 from ...core.database.session import get_session
 from ...core.celery_config import app as celery_app
 from ...core.tasks.workflow_tasks import execute_workflow
-from ...core.scheduler.manager import parse_interval
+from ...core.scheduler.utils import parse_interval
 from rich.console import Console
 from rich.table import Table
 

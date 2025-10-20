@@ -51,7 +51,14 @@ class TaskResponse(TaskBase):
     updated_at: datetime = Field(..., description="Task last update timestamp")
 
     @classmethod
-    def model_validate(cls, obj: Any) -> "TaskResponse":
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+    ) -> "TaskResponse":
         """Convert a Task object to TaskResponse."""
         if hasattr(obj, "__dict__"):
             # Convert input_data from string to dict if needed
@@ -93,8 +100,12 @@ class TaskResponse(TaskBase):
                 "created_at": obj.created_at,
                 "updated_at": obj.updated_at,
             }
-            return super().model_validate(data)
-        return super().model_validate(obj)
+            return super().model_validate(
+                data, strict=strict, from_attributes=from_attributes, context=context
+            )
+        return super().model_validate(
+            obj, strict=strict, from_attributes=from_attributes, context=context
+        )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -147,7 +158,14 @@ class WorkflowListResponse(WorkflowBase):
     failed_task_count: int = Field(0, description="Number of failed tasks")
 
     @classmethod
-    def model_validate(cls, obj: Any) -> "WorkflowListResponse":
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+    ) -> "WorkflowListResponse":
         """Convert a Workflow object to WorkflowListResponse."""
         if hasattr(obj, "__dict__"):
             # Get latest task
@@ -195,7 +213,14 @@ class WorkflowResponse(WorkflowWithData):
     updated_at: datetime = Field(..., description="Workflow last update timestamp")
 
     @classmethod
-    def model_validate(cls, obj: Any) -> "WorkflowResponse":
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+    ) -> "WorkflowResponse":
         """Convert a Workflow object to WorkflowResponse."""
         if hasattr(obj, "__dict__"):
             data = {
@@ -275,7 +300,14 @@ class ScheduleResponse(BaseModel):
     updated_at: datetime = Field(..., description="Schedule last update timestamp")
 
     @classmethod
-    def model_validate(cls, obj: Any) -> "ScheduleResponse":
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+    ) -> "ScheduleResponse":
         """Convert a Schedule object to ScheduleResponse."""
         if hasattr(obj, "__dict__"):
             data = {
@@ -293,8 +325,12 @@ class ScheduleResponse(BaseModel):
                 "created_at": obj.created_at,
                 "updated_at": obj.updated_at,
             }
-            return super().model_validate(data)
-        return super().model_validate(obj)
+            return super().model_validate(
+                data, strict=strict, from_attributes=from_attributes, context=context
+            )
+        return super().model_validate(
+            obj, strict=strict, from_attributes=from_attributes, context=context
+        )
 
     model_config = ConfigDict(from_attributes=True)
 

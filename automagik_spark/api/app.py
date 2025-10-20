@@ -322,7 +322,9 @@ def custom_openapi():
 
 
 # Set the custom OpenAPI schema
-app.openapi = custom_openapi
+# Type ignore: FastAPI allows dynamic method assignment for custom OpenAPI schema
+# This is the documented way to customize OpenAPI schema generation
+app.openapi = custom_openapi  # type: ignore[method-assign]
 
 
 @app.get("/health")

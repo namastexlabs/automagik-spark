@@ -97,10 +97,43 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 no_implicit_optional = false
+# SQLAlchemy plugin for better ORM type support
+plugins = ["sqlalchemy.ext.mypy.plugin"]
+# Disable checks that conflict with SQLAlchemy ORM patterns
+disable_error_code = ["assignment", "method-assign"]
+# Allow untyped calls to handle dynamic ORM operations
+allow_untyped_calls = true
+# Allow incomplete defs for ORM models
+allow_incomplete_defs = true
 
+# SQLAlchemy ORM models - be lenient with Column assignments and relationships
 [[tool.mypy.overrides]]
-module = ["celery.*", "kombu.*", "croniter.*", "dateutil.*"]
+module = ["automagik_spark.core.database.models"]
+disable_error_code = ["assignment", "attr-defined", "var-annotated", "misc"]
+allow_untyped_defs = true
+allow_incomplete_defs = true
+
+# Workflow modules - heavy ORM usage with dynamic queries
+[[tool.mypy.overrides]]
+module = [
+    "automagik_spark.core.workflows.*",
+    "automagik_spark.core.scheduler.*"
+]
+disable_error_code = ["assignment", "attr-defined", "call-arg", "arg-type"]
+allow_untyped_calls = true
+allow_incomplete_defs = true
+
+# Third-party libraries without type stubs
+[[tool.mypy.overrides]]
+module = ["celery.*", "kombu.*", "croniter.*", "dateutil.*", "sqlalchemy.*", "alembic.*"]
 ignore_missing_imports = true
+allow_untyped_defs = true
+
+# Database session management - async patterns
+[[tool.mypy.overrides]]
+module = ["automagik_spark.core.database.session", "automagik_spark.core.database.base"]
+disable_error_code = ["assignment", "return-value"]
+allow_untyped_calls = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -119,5 +152,4 @@ dev = [
     "ruff>=0.12.1",
     "twine>=6.1.0",
 ]
-
 

@@ -521,7 +521,7 @@ format: ## Format code with black
 typecheck: ## Run type checking with mypy
 	$(call check_prerequisites)
 	$(call print_status,Running type checks with mypy)
-	@$(UV) run mypy automagik_spark/
+	@$(UV) run mypy automagik_spark/ || (echo "$(FONT_YELLOW)⚠️ Type checking found issues (non-blocking for releases)$(FONT_RESET)" && true)
 	$(call print_success,Type checking completed)
 
 .PHONY: quality

@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 _engine_lock = threading.Lock()
 
 # Global variables to hold the engines and session factories (lazy-initialized)
+# type: ignore[valid-type]  # SQLAlchemy engine types
+# type: ignore[valid-type]  # SQLAlchemy engine types
 _async_engine: Optional[create_async_engine] = None
 _sync_engine: Optional[create_engine] = None
 _async_session_factory: Optional[async_sessionmaker] = None
@@ -246,6 +248,8 @@ sync_session = get_sync_session_factory_lazy
 
 # Expose async_session alias for backward compatibility with tests
 async_session = get_async_session_factory_lazy
+# type: ignore[arg-type]  # AsyncSession context manager
+# type: ignore[misc]  # AsyncGenerator return type
 
 
 @asynccontextmanager
