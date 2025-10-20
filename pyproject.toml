@@ -90,6 +90,18 @@ ignore = [
     "E722",  # Bare except (intentional fallback patterns)
 ]
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+no_implicit_optional = false
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "kombu.*", "croniter.*", "dateutil.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--asyncio-mode=auto --cov=automagik_spark --cov-report=term-missing"
