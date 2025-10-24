@@ -10,12 +10,8 @@ app = Celery("automagik_spark")
 
 # Configure celery
 app.conf.update(
-    broker_url=os.getenv(
-        "AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0"
-    ),
-    result_backend=os.getenv(
-        "AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-    ),
+    broker_url=os.getenv("AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0"),
+    result_backend=os.getenv("AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
     task_queues=(
         Queue("default", Exchange("default"), routing_key="default"),
         Queue("high_priority", Exchange("high_priority"), routing_key="high_priority"),
@@ -23,9 +19,7 @@ app.conf.update(
     ),
     task_default_queue="default",
     task_routes={
-        "automagik_spark.core.tasks.workflow_tasks.execute_workflow": {
-            "queue": "default"
-        },
+        "automagik_spark.core.tasks.workflow_tasks.execute_workflow": {"queue": "default"},
     },
     worker_concurrency=int(os.getenv("CELERY_WORKER_CONCURRENCY", 2)),
     task_acks_late=True,
@@ -36,9 +30,7 @@ app.conf.update(
     beat_schedule={},  # Will be populated dynamically
     beat_max_loop_interval=60,  # Check for new schedules every minute
     beat_scheduler="automagik_spark.core.celery.scheduler:DatabaseScheduler",
-    beat_schedule_filename=os.path.join(
-        os.path.dirname(get_settings().worker_log), "celerybeat-schedule"
-    ),
+    beat_schedule_filename=os.path.join(os.path.dirname(get_settings().worker_log), "celerybeat-schedule"),
     imports=("automagik_spark.core.tasks.workflow_tasks",),
     worker_prefetch_multiplier=1,  # Disable prefetching
     worker_max_tasks_per_child=100,  # Restart worker after 100 tasks

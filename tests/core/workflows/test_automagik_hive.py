@@ -14,9 +14,7 @@ class TestAutomagikHiveManager:
     @pytest.fixture
     def manager(self):
         """Create AutoMagik Hive manager for testing."""
-        return AutomagikHiveManager(
-            api_url="http://localhost:8886", api_key="test_key", source_id=uuid4()
-        )
+        return AutomagikHiveManager(api_url="http://localhost:8886", api_key="test_key", source_id=uuid4())
 
     @pytest.fixture
     def mock_agents_response(self):
@@ -117,10 +115,7 @@ class TestAutomagikHiveManager:
 
             assert result["status"] == "success"
             assert result["name"] == "Automagik Hive Multi-Agent System"
-            assert (
-                result["description"]
-                == "AutoMagik Hive Multi-Agent System with agents, teams, and workflows"
-            )
+            assert result["description"] == "AutoMagik Hive Multi-Agent System with agents, teams, and workflows"
             assert result["environment"] == "production"
 
     @pytest.mark.asyncio
@@ -222,11 +217,8 @@ class TestAutomagikHiveManager:
         with (
             patch.object(manager, "list_agents", return_value=mock_agents_response),
             patch.object(manager, "list_teams", return_value=mock_teams_response),
-            patch.object(
-                manager, "list_workflows", return_value=mock_workflows_response
-            ),
+            patch.object(manager, "list_workflows", return_value=mock_workflows_response),
         ):
-
             flows = await manager.list_flows()
 
             # Should combine all three types
@@ -250,7 +242,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "list_teams", return_value=[]),
             patch.object(manager, "list_workflows", return_value=[]),
         ):
-
             flow = await manager.get_flow("master-genie")
 
             assert flow is not None
@@ -265,7 +256,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "list_teams", return_value=[]),
             patch.object(manager, "list_workflows", return_value=[]),
         ):
-
             flow = await manager.get_flow("nonexistent")
 
             assert flow is None
@@ -286,7 +276,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "get_flow", return_value=mock_flow),
             patch("httpx.AsyncClient") as mock_client_class,
         ):
-
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
@@ -323,7 +312,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "get_flow", return_value=mock_flow),
             patch("httpx.AsyncClient") as mock_client_class,
         ):
-
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
@@ -368,7 +356,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "get_flow", return_value=mock_flow),
             patch("httpx.AsyncClient") as mock_client_class,
         ):
-
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
@@ -377,9 +364,7 @@ class TestAutomagikHiveManager:
             mock_resp.json = MagicMock(return_value=mock_response)
             mock_client.post.return_value = mock_resp
 
-            result = await manager.run_flow(
-                "test-workflow", "Build feature", "session123"
-            )
+            result = await manager.run_flow("test-workflow", "Build feature", "session123")
 
             assert result["result"] == "Workflow completed successfully"
             assert result["session_id"] == "session123"
@@ -390,7 +375,6 @@ class TestAutomagikHiveManager:
     async def test_run_flow_not_found(self, manager):
         """Test running non-existent flow."""
         with patch.object(manager, "get_flow", return_value=None):
-
             with pytest.raises(ValueError, match="Flow .* not found in AutoMagik Hive"):
                 await manager.run_flow("nonexistent", "test")
 
@@ -436,9 +420,7 @@ class TestAutomagikHiveManager:
 
     def test_sync_get_flow(self, manager):
         """Test synchronous get flow."""
-        mock_flows = [
-            {"id": "test-agent", "name": "Test Agent", "data": {"type": "hive_agent"}}
-        ]
+        mock_flows = [{"id": "test-agent", "name": "Test Agent", "data": {"type": "hive_agent"}}]
 
         with patch.object(manager, "list_flows_sync", return_value=mock_flows):
             flow = manager.get_flow_sync("test-agent")
@@ -460,7 +442,6 @@ class TestAutomagikHiveManager:
             patch.object(manager, "get_flow_sync", return_value=mock_flow),
             patch("httpx.Client") as mock_client_class,
         ):
-
             mock_client = MagicMock()
             mock_client_class.return_value.__enter__.return_value = mock_client
 

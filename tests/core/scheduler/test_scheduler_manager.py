@@ -81,9 +81,7 @@ async def test_create_schedule_with_valid_cron(scheduler_manager, sample_workflo
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_invalid_interval(
-    scheduler_manager, sample_workflow
-):
+async def test_create_schedule_with_invalid_interval(scheduler_manager, sample_workflow):
     """Test creating a schedule with an invalid interval."""
     schedule = await scheduler_manager.create_schedule(
         workflow_id=sample_workflow.id,
@@ -122,9 +120,7 @@ async def test_create_schedule_with_nonexistent_workflow(scheduler_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_invalid_interval_formats(
-    scheduler_manager, sample_workflow
-):
+async def test_create_schedule_with_invalid_interval_formats(scheduler_manager, sample_workflow):
     """Test creating schedules with various invalid interval formats."""
     invalid_intervals = [
         "30",  # Missing unit
@@ -146,15 +142,11 @@ async def test_create_schedule_with_invalid_interval_formats(
             schedule_expr=interval,
             params={"input": "test"},
         )
-        assert (
-            schedule is None
-        ), f"Schedule with invalid interval '{interval}' should not be created"
+        assert schedule is None, f"Schedule with invalid interval '{interval}' should not be created"
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_with_valid_interval_formats(
-    scheduler_manager, sample_workflow
-):
+async def test_create_schedule_with_valid_interval_formats(scheduler_manager, sample_workflow):
     """Test creating schedules with various valid interval formats."""
     valid_intervals = [
         "1m",  # 1 minute
@@ -172,9 +164,7 @@ async def test_create_schedule_with_valid_interval_formats(
             schedule_expr=interval,
             params={"input": "test"},
         )
-        assert (
-            schedule is not None
-        ), f"Schedule with valid interval '{interval}' should be created"
+        assert schedule is not None, f"Schedule with valid interval '{interval}' should be created"
         assert schedule.schedule_expr == interval
         assert schedule.next_run_at is not None
 
@@ -212,9 +202,7 @@ async def test_update_schedule_status(scheduler_manager, sample_workflow):
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_status_invalid_action(
-    scheduler_manager, sample_workflow
-):
+async def test_update_schedule_status_invalid_action(scheduler_manager, sample_workflow):
     """Test updating schedule status with invalid action."""
     # Create a schedule
     schedule = await scheduler_manager.create_schedule(

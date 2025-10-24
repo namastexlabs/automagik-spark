@@ -73,9 +73,7 @@ async def test_delete_workflow_with_truncated_uuid(workflow_manager, session):
 async def test_delete_workflow_with_related_objects(workflow_manager, session):
     """Test deleting a workflow with related objects."""
     # Create test workflow
-    workflow = Workflow(
-        id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4())
-    )
+    workflow = Workflow(id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4()))
     session.add(workflow)
 
     # Create related task
@@ -99,9 +97,7 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
     session.add(schedule)
 
     # Create related component
-    component = WorkflowComponent(
-        id=uuid4(), workflow_id=workflow.id, component_id="test-component", type="test"
-    )
+    component = WorkflowComponent(id=uuid4(), workflow_id=workflow.id, component_id="test-component", type="test")
     session.add(component)
     await session.commit()
 
@@ -110,22 +106,16 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
     assert deleted is True
 
     # Verify workflow and related objects are deleted
-    workflow_result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow.id)
-    )
+    workflow_result = await session.execute(select(Workflow).where(Workflow.id == workflow.id))
     assert workflow_result.scalar_one_or_none() is None
 
     task_result = await session.execute(select(Task).where(Task.id == task.id))
     assert task_result.scalar_one_or_none() is None
 
-    schedule_result = await session.execute(
-        select(Schedule).where(Schedule.id == schedule.id)
-    )
+    schedule_result = await session.execute(select(Schedule).where(Schedule.id == schedule.id))
     assert schedule_result.scalar_one_or_none() is None
 
-    component_result = await session.execute(
-        select(WorkflowComponent).where(WorkflowComponent.id == component.id)
-    )
+    component_result = await session.execute(select(WorkflowComponent).where(WorkflowComponent.id == component.id))
     assert component_result.scalar_one_or_none() is None
 
 
@@ -133,9 +123,7 @@ async def test_delete_workflow_with_related_objects(workflow_manager, session):
 async def test_delete_workflow_with_task_logs(workflow_manager, session):
     """Test deleting a workflow that has tasks with logs."""
     # Create test workflow
-    workflow = Workflow(
-        id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4())
-    )
+    workflow = Workflow(id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4()))
     session.add(workflow)
 
     # Create related task
@@ -173,17 +161,13 @@ async def test_delete_workflow_with_task_logs(workflow_manager, session):
     assert deleted is True
 
     # Verify workflow, task and logs are deleted
-    workflow_result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow.id)
-    )
+    workflow_result = await session.execute(select(Workflow).where(Workflow.id == workflow.id))
     assert workflow_result.scalar_one_or_none() is None
 
     task_result = await session.execute(select(Task).where(Task.id == task.id))
     assert task_result.scalar_one_or_none() is None
 
-    task_log_result = await session.execute(
-        select(TaskLog).where(TaskLog.task_id == task.id)
-    )
+    task_log_result = await session.execute(select(TaskLog).where(TaskLog.task_id == task.id))
     assert task_log_result.scalars().all() == []
 
 

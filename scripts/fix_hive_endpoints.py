@@ -8,9 +8,9 @@ for listing and running agents, teams, and workflows from Hive.
 Issue: https://github.com/namastexlabs/automagik-spark/issues/16
 """
 
-import os
 import sys
 from pathlib import Path
+
 
 def main():
     # Get the project root
@@ -25,12 +25,12 @@ def main():
     print(f"Fixing Hive endpoints in: {file_path}")
 
     # Read the file
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         content = f.read()
 
     # Create backup
-    backup_path = str(file_path) + '.bak'
-    with open(backup_path, 'w') as f:
+    backup_path = str(file_path) + ".bak"
+    with open(backup_path, "w") as f:
         f.write(content)
     print(f"Backup created: {backup_path}")
 
@@ -55,15 +55,16 @@ def main():
             print(f"  ✓ Replaced '{old}' ({count} occurrences)")
 
     # Write the fixed content
-    with open(file_path, 'w') as f:
+    with open(file_path, "w") as f:
         f.write(content)
 
-    print(f"\n✓ Fix completed successfully!")
+    print("\n✓ Fix completed successfully!")
     print(f"✓ Total changes: {changes_made}")
-    print(f"\nNext steps:")
+    print("\nNext steps:")
     print(f"  1. Review the changes: diff {backup_path} {file_path}")
-    print(f"  2. Run tests: pytest tests/core/workflows/test_automagik_hive.py")
-    print(f"  3. Test sync: automagik workflow sync <flow-id> --source http://localhost:8886")
+    print("  2. Run tests: pytest tests/core/workflows/test_automagik_hive.py")
+    print("  3. Test sync: automagik workflow sync <flow-id> --source http://localhost:8886")
+
 
 if __name__ == "__main__":
     main()

@@ -39,23 +39,17 @@ def get_database_url_runtime():
     if env == "testing":
         database_url = get_database_url()
         if not database_url:
-            raise ValueError(
-                "AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set"
-            )
+            raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
 
         # Debug: Log what URL we're actually using in testing
-        logger.info(
-            f"[LAZY INIT] Testing mode - using fresh database URL: {database_url}"
-        )
+        logger.info(f"[LAZY INIT] Testing mode - using fresh database URL: {database_url}")
         return database_url
 
     # In non-testing environments, use cached value for performance
     if _database_url is None:
         database_url = get_database_url()
         if not database_url:
-            raise ValueError(
-                "AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set"
-            )
+            raise ValueError("AUTOMAGIK_SPARK_DATABASE_URL environment variable is not set")
 
         # Only enforce PostgreSQL check in non-testing environments
         if not database_url.startswith("postgresql+asyncpg://"):
@@ -67,9 +61,7 @@ def get_database_url_runtime():
                 )
 
         # Debug: Log what URL we're actually using
-        logger.info(
-            f"[LAZY INIT] Environment: {env}, Using database URL: {database_url}"
-        )
+        logger.info(f"[LAZY INIT] Environment: {env}, Using database URL: {database_url}")
         _database_url = database_url
     return _database_url
 
@@ -83,9 +75,7 @@ def get_async_engine_lazy():
     # In testing mode, always recreate engines to pick up database URL changes
     if env == "testing":
         database_url = get_database_url_runtime()
-        logger.info(
-            f"[LAZY ENGINE] Testing mode - creating fresh engines with URL: {database_url}"
-        )
+        logger.info(f"[LAZY ENGINE] Testing mode - creating fresh engines with URL: {database_url}")
 
         if "sqlite" in database_url.lower():
             # SQLite-specific configuration for testing
@@ -127,19 +117,13 @@ def get_async_engine_lazy():
                 from ..database.base import Base
 
                 Base.metadata.create_all(sync_engine)
-                logger.info(
-                    "[LAZY ENGINE] Created tables for testing database using sync engine"
-                )
+                logger.info("[LAZY ENGINE] Created tables for testing database using sync engine")
             except Exception as e:
-                logger.warning(
-                    f"[LAZY ENGINE] Could not create tables in testing mode: {e}"
-                )
+                logger.warning(f"[LAZY ENGINE] Could not create tables in testing mode: {e}")
 
             return async_engine
         else:
-            logger.warning(
-                f"[LAZY ENGINE] Testing mode but non-SQLite URL: {database_url}"
-            )
+            logger.warning(f"[LAZY ENGINE] Testing mode but non-SQLite URL: {database_url}")
 
     # Production mode - use cached engines with double-check locking
     if _async_engine is None:
@@ -147,17 +131,11 @@ def get_async_engine_lazy():
             if _async_engine is None:  # Double-check locking pattern
                 database_url = get_database_url_runtime()
 
-                logger.info(
-                    f"[LAZY ENGINE] Creating engines - Environment: {env}, URL: {database_url}"
-                )
+                logger.info(f"[LAZY ENGINE] Creating engines - Environment: {env}, URL: {database_url}")
 
                 # PostgreSQL configuration for production
-                logger.info(
-                    "[LAZY ENGINE] Using PostgreSQL configuration for production"
-                )
-                _async_engine = create_async_engine(
-                    database_url, echo=False, future=True
-                )
+                logger.info("[LAZY ENGINE] Using PostgreSQL configuration for production")
+                _async_engine = create_async_engine(database_url, echo=False, future=True)
 
                 # Create sync engine for CLI commands
                 _sync_engine = create_engine(
@@ -173,13 +151,9 @@ def get_async_engine_lazy():
                     expire_on_commit=False,
                 )
 
-                _sync_session_factory = sessionmaker(
-                    _sync_engine, expire_on_commit=False
-                )
+                _sync_session_factory = sessionmaker(_sync_engine, expire_on_commit=False)
 
-                logger.info(
-                    f"[LAZY ENGINE] Created engines successfully. Async engine URL: {_async_engine.url}"
-                )
+                logger.info(f"[LAZY ENGINE] Created engines successfully. Async engine URL: {_async_engine.url}")
 
     return _async_engine
 

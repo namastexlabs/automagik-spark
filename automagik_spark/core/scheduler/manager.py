@@ -138,9 +138,7 @@ class SchedulerManager:
         except (ValueError, TypeError):
             return False
 
-    def _calculate_next_run(
-        self, schedule_type: str, schedule_expr: str
-    ) -> Optional[datetime]:
+    def _calculate_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
         """Calculate next run time based on schedule type and expression."""
         now = datetime.now(timezone.utc)
 
@@ -205,9 +203,7 @@ class SchedulerManager:
             if not self._validate_cron(schedule_expr):
                 return None
         elif schedule_type == "one-time":
-            if schedule_expr.lower() != "now" and not self._validate_datetime(
-                schedule_expr
-            ):
+            if schedule_expr.lower() != "now" and not self._validate_datetime(schedule_expr):
                 return None
         else:
             return None
@@ -232,9 +228,7 @@ class SchedulerManager:
     async def list_schedules(self) -> List[Schedule]:
         """List all schedules from database."""
         result = await self.session.execute(
-            select(Schedule)
-            .options(joinedload(Schedule.workflow))
-            .order_by(Schedule.created_at)
+            select(Schedule).options(joinedload(Schedule.workflow)).order_by(Schedule.created_at)
         )
         return list(result.scalars().all())
 
@@ -254,9 +248,7 @@ class SchedulerManager:
                 logger.error(f"Invalid schedule ID: {schedule_id}")
                 return False
 
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_uuid)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_uuid))
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
@@ -271,9 +263,7 @@ class SchedulerManager:
             await self.session.rollback()
             return False
 
-    async def update_schedule_next_run(
-        self, schedule_id: str, next_run: datetime
-    ) -> bool:
+    async def update_schedule_next_run(self, schedule_id: str, next_run: datetime) -> bool:
         """Update schedule next run time."""
         try:
             try:
@@ -282,9 +272,7 @@ class SchedulerManager:
                 logger.error(f"Invalid schedule ID: {schedule_id}")
                 return False
 
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_uuid)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_uuid))
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
@@ -303,9 +291,7 @@ class SchedulerManager:
             await self.session.rollback()
             return False
 
-    async def update_schedule_expression(
-        self, schedule_id: UUID, schedule_expr: str
-    ) -> bool:
+    async def update_schedule_expression(self, schedule_id: UUID, schedule_expr: str) -> bool:
         """
         Update a schedule's expression.
 
@@ -318,9 +304,7 @@ class SchedulerManager:
         """
         try:
             # Get schedule
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_id)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
             schedule = result.scalar_one()
 
             # Validate new expression
@@ -341,9 +325,7 @@ class SchedulerManager:
             if next_run:
                 schedule.next_run_at = next_run
             else:
-                logger.error(
-                    f"Failed to calculate next run time for expression: {schedule_expr}"
-                )
+                logger.error(f"Failed to calculate next run time for expression: {schedule_expr}")
                 return False
 
             await self.session.commit()
@@ -356,9 +338,7 @@ class SchedulerManager:
     async def delete_schedule(self, schedule_id: UUID) -> bool:
         """Delete a schedule."""
         try:
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_id)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
             schedule = result.scalar_one_or_none()
 
             if not schedule:
@@ -375,7 +355,5 @@ class SchedulerManager:
 
     async def get_schedule(self, schedule_id: UUID) -> Optional[Schedule]:
         """Get a schedule by ID."""
-        result = await self.session.execute(
-            select(Schedule).where(Schedule.id == schedule_id)
-        )
+        result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
         return result.scalar_one_or_none()

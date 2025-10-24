@@ -93,9 +93,7 @@ class AutomagikHiveManager:
                 # Return health info from AgentOS v2
                 return {
                     "version": health_data.get("utc", "unknown"),
-                    "name": health_data.get(
-                        "service", "Automagik Hive Multi-Agent System"
-                    ),
+                    "name": health_data.get("service", "Automagik Hive Multi-Agent System"),
                     "description": "AutoMagik Hive Multi-Agent System with agents, teams, and workflows",
                     "status": health_data.get("status", "unknown"),
                     "timestamp": health_data.get("utc"),
@@ -132,18 +130,12 @@ class AutomagikHiveManager:
                 transformed_agents = []
                 for agent in agents:
                     # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
-                    agent_id = (
-                        agent.get("id")
-                        or agent.get("agent_id")
-                        or agent.get("name", "unknown")
-                    )
+                    agent_id = agent.get("id") or agent.get("agent_id") or agent.get("name", "unknown")
                     transformed_agents.append(
                         {
                             "id": agent_id,
                             "name": agent.get("name", agent_id),
-                            "description": agent.get(
-                                "description", f"AutoMagik Hive Agent: {agent_id}"
-                            ),
+                            "description": agent.get("description", f"AutoMagik Hive Agent: {agent_id}"),
                             "data": {
                                 "type": "hive_agent",
                                 "model": agent.get("model", {}),
@@ -191,11 +183,7 @@ class AutomagikHiveManager:
                 transformed_teams = []
                 for team in teams:
                     # Prioritize 'id' field, then 'team_id', then 'name' as fallback
-                    team_id = (
-                        team.get("id")
-                        or team.get("team_id")
-                        or team.get("name", "unknown")
-                    )
+                    team_id = team.get("id") or team.get("team_id") or team.get("name", "unknown")
                     members_count = len(team.get("members", []))
                     transformed_teams.append(
                         {
@@ -252,18 +240,12 @@ class AutomagikHiveManager:
                 transformed_workflows = []
                 for workflow in workflows:
                     # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
-                    workflow_id = (
-                        workflow.get("id")
-                        or workflow.get("workflow_id")
-                        or workflow.get("name", "unknown")
-                    )
+                    workflow_id = workflow.get("id") or workflow.get("workflow_id") or workflow.get("name", "unknown")
                     transformed_workflows.append(
                         {
                             "id": workflow_id,
                             "name": workflow.get("name", workflow_id),
-                            "description": workflow.get(
-                                "description", f"AutoMagik Hive Workflow: {workflow_id}"
-                            ),
+                            "description": workflow.get("description", f"AutoMagik Hive Workflow: {workflow_id}"),
                             "data": {
                                 "type": "hive_workflow",
                                 "steps": workflow.get("steps", []),
@@ -341,9 +323,7 @@ class AutomagikHiveManager:
                 return None
             raise
 
-    async def run_flow(
-        self, flow_id: str, input_data, session_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    async def run_flow(self, flow_id: str, input_data, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Run a flow (agent, team, or workflow) with input data.
 
         Args:
@@ -385,9 +365,7 @@ class AutomagikHiveManager:
                 elif flow_type == "hive_team":
                     return await self._run_team(client, flow_id, message, session_id)
                 elif flow_type == "hive_workflow":
-                    return await self._run_workflow(
-                        client, flow_id, message, session_id
-                    )
+                    return await self._run_workflow(client, flow_id, message, session_id)
                 else:
                     raise ValueError(f"Unknown flow type: {flow_type}")
             finally:
@@ -453,10 +431,7 @@ class AutomagikHiveManager:
         combined_result = coordinator_content
         if member_responses:
             combined_result += "\n\n" + "\n".join(
-                [
-                    f"**{resp.get('agent_id', 'Agent')}**: {resp.get('response', '')}"
-                    for resp in member_responses
-                ]
+                [f"**{resp.get('agent_id', 'Agent')}**: {resp.get('response', '')}" for resp in member_responses]
             )
 
         return {
@@ -564,18 +539,12 @@ class AutomagikHiveManager:
                 # Transform agents
                 for agent in agents:
                     # Prioritize 'id' field, then 'agent_id', then 'name' as fallback
-                    agent_id = (
-                        agent.get("id")
-                        or agent.get("agent_id")
-                        or agent.get("name", "unknown")
-                    )
+                    agent_id = agent.get("id") or agent.get("agent_id") or agent.get("name", "unknown")
                     all_flows.append(
                         {
                             "id": agent_id,
                             "name": agent.get("name", agent_id),
-                            "description": agent.get(
-                                "description", f"AutoMagik Hive Agent: {agent_id}"
-                            ),
+                            "description": agent.get("description", f"AutoMagik Hive Agent: {agent_id}"),
                             "data": {
                                 "type": "hive_agent",
                                 "model": agent.get("model", {}),
@@ -600,11 +569,7 @@ class AutomagikHiveManager:
                 # Transform teams
                 for team in teams:
                     # Prioritize 'id' field, then 'team_id', then 'name' as fallback
-                    team_id = (
-                        team.get("id")
-                        or team.get("team_id")
-                        or team.get("name", "unknown")
-                    )
+                    team_id = team.get("id") or team.get("team_id") or team.get("name", "unknown")
                     members_count = len(team.get("members", []))
                     all_flows.append(
                         {
@@ -638,18 +603,12 @@ class AutomagikHiveManager:
                 # Transform workflows
                 for workflow in workflows:
                     # Prioritize 'id' field, then 'workflow_id', then 'name' as fallback
-                    workflow_id = (
-                        workflow.get("id")
-                        or workflow.get("workflow_id")
-                        or workflow.get("name", "unknown")
-                    )
+                    workflow_id = workflow.get("id") or workflow.get("workflow_id") or workflow.get("name", "unknown")
                     all_flows.append(
                         {
                             "id": workflow_id,
                             "name": workflow.get("name", workflow_id),
-                            "description": workflow.get(
-                                "description", f"AutoMagik Hive Workflow: {workflow_id}"
-                            ),
+                            "description": workflow.get("description", f"AutoMagik Hive Workflow: {workflow_id}"),
                             "data": {
                                 "type": "hive_workflow",
                                 "steps": workflow.get("steps", []),
@@ -686,9 +645,7 @@ class AutomagikHiveManager:
                 return None
             raise
 
-    def run_flow_sync(
-        self, flow_id: str, input_data, session_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def run_flow_sync(self, flow_id: str, input_data, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Synchronous version of run_flow."""
         try:
             logger.info(
@@ -804,10 +761,7 @@ class AutomagikHiveManager:
         combined_result = coordinator_content
         if member_responses:
             combined_result += "\n\n" + "\n".join(
-                [
-                    f"**{resp.get('agent_id', 'Agent')}**: {resp.get('response', '')}"
-                    for resp in member_responses
-                ]
+                [f"**{resp.get('agent_id', 'Agent')}**: {resp.get('response', '')}" for resp in member_responses]
             )
 
         return {

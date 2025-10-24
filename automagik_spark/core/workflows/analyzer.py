@@ -61,13 +61,8 @@ class FlowAnalyzer:
             params = FlowAnalyzer.analyze_component(node)
             node_info = {
                 "id": node.get("id"),
-                "name": node.get("data", {})
-                .get("node", {})
-                .get("display_name", "Unnamed"),
-                "type": node.get("data", {})
-                .get("node", {})
-                .get("template", {})
-                .get("_type", "Unknown"),
+                "name": node.get("data", {}).get("node", {}).get("display_name", "Unnamed"),
+                "type": node.get("data", {}).get("node", {}).get("template", {}).get("_type", "Unknown"),
                 "tweakable_params": params,
             }
             components.append(node_info)

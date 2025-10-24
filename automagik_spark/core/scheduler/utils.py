@@ -30,7 +30,7 @@ def validate_interval(interval: str) -> bool:
             return False
 
         # Must end with valid unit (m, h, d)
-        if len(interval) < 2 or interval[-1].lower() not in ["m", "h", "d"]:
+        if len(interval) < 2 or interval[-1] not in ["m", "h", "d"]:
             return False
 
         # Must have a value before the unit
@@ -80,11 +80,10 @@ def parse_interval(interval: str) -> timedelta:
     value = int(interval[:-1])
     unit = interval[-1].lower()
 
+    # Unit is already validated by validate_interval()
     if unit == "m":
         return timedelta(minutes=value)
     elif unit == "h":
         return timedelta(hours=value)
-    elif unit == "d":
+    else:  # unit == "d"
         return timedelta(days=value)
-    else:
-        raise ValueError("Invalid interval unit")

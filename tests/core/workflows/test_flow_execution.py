@@ -73,9 +73,7 @@ async def test_successful_flow_execution(
     async with workflow_sync as sync:
         sync._manager = mock_manager
         # Execute workflow
-        result = await sync.execute_workflow(
-            workflow=test_flow, task=test_task, input_data="test input"
-        )
+        result = await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify result
         assert result == {"result": "success"}
@@ -107,9 +105,7 @@ async def test_failed_flow_execution(
         sync._manager = mock_manager
         # Execute workflow and expect error
         with pytest.raises(httpx.HTTPStatusError):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -134,9 +130,7 @@ async def test_input_value_handling(
     async with workflow_sync as sync:
         sync._manager = mock_manager
         # Test with different input types
-        await sync.execute_workflow(
-            workflow=test_flow, task=test_task, input_data="string input"
-        )
+        await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="string input")
         assert test_task.status == "completed"
 
 
@@ -157,9 +151,7 @@ async def test_network_error_handling(
         sync._manager = mock_manager
         # Execute workflow and expect error
         with pytest.raises(httpx.NetworkError):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -183,9 +175,7 @@ async def test_invalid_input_data(
         sync._manager = mock_manager
         # Execute workflow with invalid input
         with pytest.raises(ValueError):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data=None
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data=None)
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -209,9 +199,7 @@ async def test_timeout_handling(
         sync._manager = mock_manager
         # Execute workflow and expect timeout
         with pytest.raises(httpx.TimeoutException):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -239,9 +227,7 @@ async def test_missing_components(
         sync._manager = mock_manager
         # Execute workflow and expect error
         with pytest.raises(ValueError, match="Missing input/output components"):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -265,9 +251,7 @@ async def test_malformed_response(
         sync._manager = mock_manager
         # Execute workflow and expect JSON error
         with pytest.raises(TypeError):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error handling
         assert test_task.status == "failed"
@@ -310,14 +294,10 @@ async def test_error_logging_with_traceback(
         sync._manager = mock_manager
         # Execute workflow and expect error
         with pytest.raises(Exception):
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         # Verify error log was created
-        error_log = await session.execute(
-            select(TaskLog).where(TaskLog.task_id == test_task.id)
-        )
+        error_log = await session.execute(select(TaskLog).where(TaskLog.task_id == test_task.id))
         error_log = error_log.scalar_one()
         assert error_log.level == "error"
         assert "Test error" in error_log.message
@@ -345,9 +325,7 @@ async def test_api_key_handling(
         sync._manager = mock_manager
         # Execute workflow and expect auth error
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
-            await sync.execute_workflow(
-                workflow=test_flow, task=test_task, input_data="test input"
-            )
+            await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
 
         assert exc_info.value.response.status_code == 401
         assert test_task.status == "failed"
@@ -391,9 +369,7 @@ async def test_manager_initialization(
         # Manager should be initialized
         assert sync._manager is not None
         assert sync._initialized is True
-        result = await sync.execute_workflow(
-            workflow=test_flow, task=test_task, input_data="test input"
-        )
+        result = await sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")
         assert result is not None
 
 
@@ -407,6 +383,4 @@ async def test_manager_not_initialized_error(
     """Test that using WorkflowSync without context manager raises appropriate error."""
     # Don't use context manager, should raise error
     with pytest.raises(RuntimeError, match="Manager not initialized"):
-        await workflow_sync.execute_workflow(
-            workflow=test_flow, task=test_task, input_data="test input"
-        )
+        await workflow_sync.execute_workflow(workflow=test_flow, task=test_task, input_data="test input")

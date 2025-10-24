@@ -50,11 +50,7 @@ class DatabaseScheduler(Scheduler):
 
             # Get all active schedules
             with get_sync_session() as session:
-                stmt = (
-                    select(Schedule)
-                    .where(Schedule.status == "active")
-                    .with_for_update()
-                )
+                stmt = select(Schedule).where(Schedule.status == "active").with_for_update()
                 result = session.execute(stmt)
                 schedules = result.scalars().all()
                 for schedule in schedules:
@@ -107,14 +103,10 @@ class DatabaseScheduler(Scheduler):
                         elif schedule.schedule_type == "cron":
                             cron_parts = schedule.schedule_expr.split()
                             if len(cron_parts) != 5:
-                                logger.error(
-                                    f"Invalid cron expression for schedule {schedule_id}"
-                                )
+                                logger.error(f"Invalid cron expression for schedule {schedule_id}")
                                 continue
 
-                            minute, hour, day_of_month, month_of_year, day_of_week = (
-                                cron_parts
-                            )
+                            minute, hour, day_of_month, month_of_year, day_of_week = cron_parts
 
                             entry = ScheduleEntry(
                                 name=schedule_name,
@@ -137,9 +129,7 @@ class DatabaseScheduler(Scheduler):
                             # Parse datetime
                             if schedule.schedule_expr.lower() == "now":
                                 # Add 2 seconds to avoid race conditions
-                                run_time = datetime.now(timezone.utc) + timedelta(
-                                    seconds=2
-                                )
+                                run_time = datetime.now(timezone.utc) + timedelta(seconds=2)
                             else:
                                 run_time = parser.parse(schedule.schedule_expr)
                                 # If the parsed datetime is naive, assume it is local time
@@ -152,18 +142,13 @@ class DatabaseScheduler(Scheduler):
                             now = datetime.now(timezone.utc)
 
                             # For 'now' schedules or future schedules
-                            if (
-                                schedule.schedule_expr.lower() == "now"
-                                or run_time > now
-                            ):
+                            if schedule.schedule_expr.lower() == "now" or run_time > now:
                                 # Calculate delay in seconds
                                 delay = (run_time - now).total_seconds()
 
                                 entry = ScheduleEntry(
                                     name=schedule_name,
-                                    schedule=celery_schedule(
-                                        timedelta(seconds=delay), relative=True
-                                    ),
+                                    schedule=celery_schedule(timedelta(seconds=delay), relative=True),
                                     task="automagik_spark.core.tasks.workflow_tasks.execute_workflow",
                                     args=(schedule_id,),
                                     kwargs={},
@@ -206,9 +191,7 @@ def get_scheduler_instance():
 def notify_scheduler_change():
     """Notify the scheduler that schedules have changed."""
     global _scheduler_instance
-    logger.info(
-        f"Notifying scheduler change, scheduler instance: {_scheduler_instance}"
-    )
+    logger.info(f"Notifying scheduler change, scheduler instance: {_scheduler_instance}")
     if _scheduler_instance is not None:
         _scheduler_instance.update_from_database()
     else:

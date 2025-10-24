@@ -43,9 +43,7 @@ async def test_workflow(session: AsyncSession) -> Workflow:
 
 
 @pytest.fixture
-async def test_workflow_with_relations(
-    session: AsyncSession, test_workflow: Workflow
-) -> Workflow:
+async def test_workflow_with_relations(session: AsyncSession, test_workflow: Workflow) -> Workflow:
     """Create a test workflow with related objects."""
     # Add component
     component = WorkflowComponent(
@@ -89,9 +87,7 @@ async def test_workflow_with_relations(
 
 
 @pytest.mark.asyncio
-async def test_get_workflow_by_id(
-    workflow_manager: LocalWorkflowManager, test_workflow: Workflow
-):
+async def test_get_workflow_by_id(workflow_manager: LocalWorkflowManager, test_workflow: Workflow):
     """Test getting a workflow by ID."""
     # Test with full UUID
     workflow = await workflow_manager.get_workflow(str(test_workflow.id))
@@ -110,9 +106,7 @@ async def test_get_workflow_by_id(
 @pytest.mark.asyncio
 async def test_get_workflow_by_remote_id(session: AsyncSession):
     """Test getting workflow by remote ID."""
-    workflow = Workflow(
-        id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4())
-    )
+    workflow = Workflow(id=uuid4(), name="Test Workflow", source="test", remote_flow_id=str(uuid4()))
     session.add(workflow)
     await session.commit()
 
@@ -133,18 +127,14 @@ async def test_get_workflow_by_remote_id(session: AsyncSession):
     await session.commit()
 
     # Get workflow by remote ID
-    result = await session.execute(
-        select(Workflow).where(Workflow.remote_flow_id == workflow.remote_flow_id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.remote_flow_id == workflow.remote_flow_id))
     found_workflow = result.scalar_one_or_none()
     assert found_workflow is not None
     assert found_workflow.id == workflow.id
 
 
 @pytest.mark.asyncio
-async def test_list_workflows(
-    workflow_manager: LocalWorkflowManager, test_workflow: Workflow
-):
+async def test_list_workflows(workflow_manager: LocalWorkflowManager, test_workflow: Workflow):
     """Test listing workflows."""
     workflows = await workflow_manager.list_workflows()
     assert len(workflows) > 0
@@ -183,14 +173,10 @@ async def test_delete_workflow_by_id(
     result = await session.execute(select(Workflow).where(Workflow.id == workflow.id))
     assert result.scalar_one_or_none() is None
 
-    result = await session.execute(
-        select(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id)
-    )
+    result = await session.execute(select(WorkflowComponent).where(WorkflowComponent.workflow_id == workflow.id))
     assert result.scalar_one_or_none() is None
 
-    result = await session.execute(
-        select(Schedule).where(Schedule.workflow_id == workflow.id)
-    )
+    result = await session.execute(select(Schedule).where(Schedule.workflow_id == workflow.id))
     assert result.scalar_one_or_none() is None
 
     result = await session.execute(select(Task).where(Task.workflow_id == workflow.id))
@@ -209,9 +195,7 @@ async def test_delete_workflow_by_prefix(
     assert success is True
 
     # Verify deletion
-    result = await session.execute(
-        select(Workflow).where(Workflow.id == test_workflow.id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.id == test_workflow.id))
     assert result.scalar_one_or_none() is None
 
 

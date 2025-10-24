@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Update mypy configuration in pyproject.toml to handle SQLAlchemy ORM typing"""
 
+
 def main():
-    filepath = '/home/cezar/automagik/automagik-spark/pyproject.toml'
+    filepath = "/home/cezar/automagik/automagik-spark/pyproject.toml"
 
     # Read the entire file
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         lines = f.readlines()
 
     # Find where [tool.mypy] section starts
@@ -13,9 +14,9 @@ def main():
     next_section = None
 
     for i, line in enumerate(lines):
-        if line.strip() == '[tool.mypy]':
+        if line.strip() == "[tool.mypy]":
             mypy_start = i
-        elif mypy_start is not None and line.strip().startswith('[') and i > mypy_start:
+        elif mypy_start is not None and line.strip().startswith("[") and i > mypy_start:
             next_section = i
             break
 
@@ -75,7 +76,7 @@ allow_untyped_calls = true
     new_lines = lines[:mypy_start] + [new_config] + (lines[next_section:] if next_section else [])
 
     # Write back
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         f.writelines(new_lines)
 
     print("✓ Successfully updated mypy configuration in pyproject.toml")
@@ -91,6 +92,7 @@ allow_untyped_calls = true
     print("  - Extended library overrides to include sqlalchemy.* and alembic.*")
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     success = main()
     exit(0 if success else 1)

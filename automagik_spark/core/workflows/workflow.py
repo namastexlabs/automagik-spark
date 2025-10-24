@@ -37,9 +37,7 @@ class LocalWorkflowManager:
                 pass
 
             # If not found, try by remote_flow_id
-            result = await self.session.execute(
-                select(Workflow).where(Workflow.remote_flow_id == workflow_id)
-            )
+            result = await self.session.execute(select(Workflow).where(Workflow.remote_flow_id == workflow_id))
             return result.scalar_one_or_none()
 
         except Exception as e:
@@ -49,9 +47,7 @@ class LocalWorkflowManager:
     async def list_workflows(self) -> List[Workflow]:
         """List all workflows from the local database."""
         result = await self.session.execute(
-            select(Workflow)
-            .options(joinedload(Workflow.schedules))
-            .order_by(Workflow.name)
+            select(Workflow).options(joinedload(Workflow.schedules)).order_by(Workflow.name)
         )
         return list(result.scalars().unique().all())
 

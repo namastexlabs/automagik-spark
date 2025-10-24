@@ -20,9 +20,7 @@ class HiveAdapter(BaseWorkflowAdapter):
             source_id: Optional source ID for tracking
         """
         super().__init__(api_url, api_key, source_id)
-        self.manager = AutomagikHiveManager(
-            api_url=api_url, api_key=api_key, source_id=source_id
-        )
+        self.manager = AutomagikHiveManager(api_url=api_url, api_key=api_key, source_id=source_id)
 
     @property
     def source_type(self) -> str:
@@ -56,9 +54,7 @@ class HiveAdapter(BaseWorkflowAdapter):
             logger.error(f"Failed to get Hive flow {flow_id}: {str(e)}")
             raise
 
-    def run_flow_sync(
-        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
-    ) -> WorkflowExecutionResult:
+    def run_flow_sync(self, flow_id: str, input_data: Any, session_id: Optional[str] = None) -> WorkflowExecutionResult:
         """Execute a Hive flow and return normalized result.
 
         Args:
@@ -107,9 +103,7 @@ class HiveAdapter(BaseWorkflowAdapter):
             logger.error(f"Hive validation failed: {str(e)}")
             raise
 
-    def get_default_sync_params(
-        self, flow_data: Dict[str, Any]
-    ) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
         """Get default sync parameters for Hive flows.
 
         Hive flows don't use component IDs like LangFlow. They follow a simple

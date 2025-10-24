@@ -47,12 +47,8 @@ def _log_telemetry_status():
 
     if is_telemetry_enabled():
         logger.info("📊 Telemetry is ENABLED - helps us improve Automagik Spark")
-        logger.info(
-            "   • We collect anonymous usage analytics (commands, API usage, performance)"
-        )
-        logger.info(
-            "   • No personal data, credentials, or workflow content is collected"
-        )
+        logger.info("   • We collect anonymous usage analytics (commands, API usage, performance)")
+        logger.info("   • No personal data, credentials, or workflow content is collected")
         logger.info("   • Disable: export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true")
         logger.info("   • More info: automagik-spark telemetry info")
     else:

@@ -1,5 +1,6 @@
 """Test configuration and fixtures."""
 
+import tempfile
 import os
 import pytest
 import atexit
@@ -10,7 +11,7 @@ from sqlalchemy import text, create_engine
 from fastapi.testclient import TestClient
 
 # Use a fixed path for the test database to avoid multiple database files
-_test_db_path = "/tmp/test_automagik_spark.db"
+_test_db_path = os.path.join(tempfile.gettempdir(), "test_automagik_spark.db")
 TEST_DATABASE_URL = f"sqlite+aiosqlite:///{_test_db_path}"
 TEST_SYNC_DATABASE_URL = f"sqlite:///{_test_db_path}"
 
@@ -110,9 +111,7 @@ async def test_engine(setup_test_env):
 
     # Verify tables were created
     async with engine.connect() as conn:
-        result = await conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table'")
-        )
+        result = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
         tables = result.fetchall()
         table_names = [table[0] for table in tables]
         print(f"[TEST ENGINE] Verified tables exist: {table_names}")

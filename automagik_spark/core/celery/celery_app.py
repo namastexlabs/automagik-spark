@@ -15,12 +15,8 @@ def get_celery_config():
     get_settings()
 
     # Default broker and backend URLs
-    broker_url = os.getenv(
-        "AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0"
-    )
-    result_backend = os.getenv(
-        "AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-    )
+    broker_url = os.getenv("AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0")
+    result_backend = os.getenv("AUTOMAGIK_SPARK_CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
     # Get timezone from AUTOMAGIK_TIMEZONE setting
     timezone = os.getenv("AUTOMAGIK_TIMEZONE", "UTC")

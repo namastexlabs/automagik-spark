@@ -23,18 +23,14 @@ def source_group():
 @click.option("--type", "-t", required=True, help="Source type (e.g., langflow)")
 @click.option("--url", "-u", required=True, help="Source URL")
 @click.option("--api-key", "-k", required=True, help="API key for authentication")
-@click.option(
-    "--status", "-s", default="active", help="Source status (active/inactive)"
-)
+@click.option("--status", "-s", default="active", help="Source status (active/inactive)")
 def add(name: str, type: str, url: str, api_key: str, status: str):
     """Add a new workflow source."""
 
     async def _add():
         async with get_session() as session:
             # Check if source with URL already exists
-            result = await session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == url)
-            )
+            result = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url))
             existing = result.scalar_one_or_none()
             if existing:
                 click.echo(f"Source with URL {url} already exists. Updating instead...")
@@ -70,9 +66,7 @@ def add(name: str, type: str, url: str, api_key: str, status: str):
                     # For langflow, status should be 'ok'
                     expected_status = "healthy" if type == "automagik-agents" else "ok"
                     if health_data.get("status") != expected_status:
-                        click.echo(
-                            f"Warning: Source health check failed: {health_data}"
-                        )
+                        click.echo(f"Warning: Source health check failed: {health_data}")
                         source.status = "inactive"
                     else:
                         source.status = "active"
@@ -86,9 +80,7 @@ def add(name: str, type: str, url: str, api_key: str, status: str):
                         root_response.raise_for_status()
                         root_data = root_response.json()
                         version_info = {
-                            "version": root_data.get(
-                                "version", health_data.get("version", "unknown")
-                            ),
+                            "version": root_data.get("version", health_data.get("version", "unknown")),
                             "name": root_data.get("name", "AutoMagik Agents"),
                             "description": root_data.get("description", ""),
                             "status": health_data.get("status", "unknown"),
@@ -97,34 +89,26 @@ def add(name: str, type: str, url: str, api_key: str, status: str):
                         }
                     else:
                         # For langflow, use /api/v1/version endpoint
-                        version_response = await client.get(
-                            f"{url}/api/v1/version", headers=headers
-                        )
+                        version_response = await client.get(f"{url}/api/v1/version", headers=headers)
                         version_response.raise_for_status()
                         version_info = version_response.json()
 
                     if version_info:
                         source.version_info = version_info
-                        click.echo(
-                            f"Version check passed: {version_info.get('version')}"
-                        )
+                        click.echo(f"Version check passed: {version_info.get('version')}")
             except Exception as e:
                 click.echo(f"Warning: Source validation failed: {str(e)}")
                 source.status = "inactive"
 
             await session.commit()
-            click.echo(
-                f"Successfully {'updated' if existing else 'added'} source: {url}"
-            )
+            click.echo(f"Successfully {'updated' if existing else 'added'} source: {url}")
 
     asyncio.run(_add())
 
 
 @source_group.command()
 @click.argument("id_or_url")
-@click.option(
-    "--force", "-f", is_flag=True, help="Force deletion even if workflows exist"
-)
+@click.option("--force", "-f", is_flag=True, help="Force deletion even if workflows exist")
 def delete(id_or_url: str, force: bool = False):
     """Delete a workflow source by ID or URL."""
 
@@ -135,14 +119,10 @@ def delete(id_or_url: str, force: bool = False):
 
             try:
                 uuid = UUID(id_or_url)
-                result = await session.execute(
-                    select(WorkflowSource).where(WorkflowSource.id == uuid)
-                )
+                result = await session.execute(select(WorkflowSource).where(WorkflowSource.id == uuid))
             except ValueError:
                 # If not a valid UUID, try URL
-                result = await session.execute(
-                    select(WorkflowSource).where(WorkflowSource.url == id_or_url)
-                )
+                result = await session.execute(select(WorkflowSource).where(WorkflowSource.url == id_or_url))
 
             source = result.scalar_one_or_none()
             if not source:
@@ -155,15 +135,9 @@ def delete(id_or_url: str, force: bool = False):
             # Check for associated workflows
             if source.workflows and not force:
                 workflow_count = len(source.workflows)
-                click.echo(
-                    f"Error: Cannot delete source {source.url} (ID: {source.id})"
-                )
-                click.echo(
-                    f"There are {workflow_count} workflow(s) associated with this source."
-                )
-                click.echo(
-                    "Use --force to delete anyway or delete the workflows first."
-                )
+                click.echo(f"Error: Cannot delete source {source.url} (ID: {source.id})")
+                click.echo(f"There are {workflow_count} workflow(s) associated with this source.")
+                click.echo("Use --force to delete anyway or delete the workflows first.")
                 return
 
             await session.delete(source)
@@ -192,9 +166,7 @@ def list(status: Optional[str] = None):
                 return
 
             # Create table with consistent styling
-            table = Table(
-                title="Workflow Sources", caption=f"Total: {len(sources)} source(s)"
-            )
+            table = Table(title="Workflow Sources", caption=f"Total: {len(sources)} source(s)")
             table.add_column("ID", justify="left", style="bright_blue", no_wrap=True)
             table.add_column("URL", justify="left", style="green", no_wrap=True)
             table.add_column("Type", justify="left", style="magenta")
@@ -234,9 +206,7 @@ def update(url: str, status: Optional[str] = None, api_key: Optional[str] = None
 
     async def _update():
         async with get_session() as session:
-            result = await session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == url)
-            )
+            result = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url))
             source = result.scalar_one_or_none()
             if not source:
                 click.echo(f"Source not found: {url}")
@@ -251,15 +221,11 @@ def update(url: str, status: Optional[str] = None, api_key: Optional[str] = None
                 try:
                     async with httpx.AsyncClient(verify=False) as client:
                         headers = {"accept": "application/json", "x-api-key": api_key}
-                        response = await client.get(
-                            f"{url}/api/v1/version", headers=headers
-                        )
+                        response = await client.get(f"{url}/api/v1/version", headers=headers)
                         response.raise_for_status()
                         source.version_info = response.json()
                 except Exception as e:
-                    click.echo(
-                        f"Warning: Failed to fetch version info with new API key: {str(e)}"
-                    )
+                    click.echo(f"Warning: Failed to fetch version info with new API key: {str(e)}")
 
             await session.commit()
             click.echo(f"Successfully updated source: {url}")
@@ -284,9 +250,7 @@ def run_agent(source_id, agent_name, input, session_id):
                 return
 
             if source.source_type != "automagik-agents":
-                click.echo(
-                    f"Source with ID {source_id} is not an automagik-agents source."
-                )
+                click.echo(f"Source with ID {source_id} is not an automagik-agents source.")
                 return
 
             api_key = WorkflowSource.decrypt_api_key(source.encrypted_api_key)

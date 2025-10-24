@@ -113,9 +113,7 @@ async def test_get_workflow_by_id(
 
 
 @pytest.mark.asyncio
-async def test_get_nonexistent_workflow(
-    session: AsyncSession, workflow_manager: LocalWorkflowManager
-):
+async def test_get_nonexistent_workflow(session: AsyncSession, workflow_manager: LocalWorkflowManager):
     """Test getting a nonexistent workflow."""
     # Try with random UUID
     workflow = await workflow_manager.get_workflow(str(uuid4()))
@@ -175,20 +173,14 @@ async def test_delete_workflow_by_id(
 
     # Check that related objects are deleted
     result = await session.execute(
-        text(
-            f"SELECT COUNT(*) FROM workflow_components WHERE workflow_id = '{test_workflow.id}'"
-        )
+        text(f"SELECT COUNT(*) FROM workflow_components WHERE workflow_id = '{test_workflow.id}'")
     )
     assert result.scalar() == 0
 
-    result = await session.execute(
-        text(f"SELECT COUNT(*) FROM schedules WHERE workflow_id = '{test_workflow.id}'")
-    )
+    result = await session.execute(text(f"SELECT COUNT(*) FROM schedules WHERE workflow_id = '{test_workflow.id}'"))
     assert result.scalar() == 0
 
-    result = await session.execute(
-        text(f"SELECT COUNT(*) FROM tasks WHERE workflow_id = '{test_workflow.id}'")
-    )
+    result = await session.execute(text(f"SELECT COUNT(*) FROM tasks WHERE workflow_id = '{test_workflow.id}'"))
     assert result.scalar() == 0
 
 
@@ -210,9 +202,7 @@ async def test_delete_workflow_by_partial_id(
 
 
 @pytest.mark.asyncio
-async def test_delete_nonexistent_workflow(
-    session: AsyncSession, workflow_manager: LocalWorkflowManager
-):
+async def test_delete_nonexistent_workflow(session: AsyncSession, workflow_manager: LocalWorkflowManager):
     """Test deleting a nonexistent workflow."""
     # Try with random UUID
     success = await workflow_manager.delete_workflow(str(uuid4()))

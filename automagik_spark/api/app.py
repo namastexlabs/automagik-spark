@@ -62,12 +62,8 @@ def _log_telemetry_status():
 
     if is_telemetry_enabled():
         logger.info("📊 Telemetry is ENABLED - helps us improve Automagik Spark")
-        logger.info(
-            "   • We collect anonymous usage analytics (commands, API usage, performance)"
-        )
-        logger.info(
-            "   • No personal data, credentials, or workflow content is collected"
-        )
+        logger.info("   • We collect anonymous usage analytics (commands, API usage, performance)")
+        logger.info("   • No personal data, credentials, or workflow content is collected")
         logger.info("   • Disable: export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true")
         logger.info("   • More info: automagik-spark telemetry info")
     else:
@@ -92,16 +88,12 @@ async def auto_discover_langflow():
                     from sqlalchemy import select
 
                     async with get_async_session() as session:
-                        existing_source = await session.execute(
-                            select(WorkflowSource).where(WorkflowSource.url == url)
-                        )
+                        existing_source = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url))
                         if not existing_source.scalar_one_or_none():
                             # Get version info
                             version_info = None
                             try:
-                                version_response = await client.get(
-                                    f"{url}/api/v1/version"
-                                )
+                                version_response = await client.get(f"{url}/api/v1/version")
                                 if version_response.status_code == 200:
                                     version_info = version_response.json()
                             except:
@@ -155,9 +147,7 @@ async def auto_discover_automagik_agents():
                 from sqlalchemy import select
 
                 async with get_async_session() as session:
-                    existing_source = await session.execute(
-                        select(WorkflowSource).where(WorkflowSource.url == url)
-                    )
+                    existing_source = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url))
                     if not existing_source.scalar_one_or_none():
                         # Get version info from root endpoint
                         version_info = None
@@ -165,9 +155,7 @@ async def auto_discover_automagik_agents():
                             root_response = await client.get(url)
                             if root_response.status_code == 200:
                                 root_data = root_response.json()
-                                version_info = {
-                                    "version": root_data.get("version", "unknown")
-                                }
+                                version_info = {"version": root_data.get("version", "unknown")}
                         except:
                             pass
 
@@ -195,9 +183,7 @@ async def auto_discover_automagik_agents():
                         logger.info(f"AutoMagik Agents source already exists at {url}")
 
                         # Try to sync the "simple" agent if it doesn't exist yet
-                        await auto_sync_simple_agent(
-                            session, existing_source.scalar_one_or_none()
-                        )
+                        await auto_sync_simple_agent(session, existing_source.scalar_one_or_none())
             else:
                 logger.info(f"AutoMagik Agents not available on {host}:{port}")
     except Exception as e:
@@ -235,9 +221,7 @@ async def auto_sync_simple_agent(session, source):
                 output_component="",  # AutoMagik Agents don't use components
                 source_url=source.url,
             )
-            logger.info(
-                f"Auto-synced 'simple' agent from AutoMagik Agents: {workflow_data.get('id')}"
-            )
+            logger.info(f"Auto-synced 'simple' agent from AutoMagik Agents: {workflow_data.get('id')}")
         except Exception as sync_error:
             # This is expected if no API key is configured or agent doesn't exist
             logger.debug(f"Could not auto-sync 'simple' agent: {sync_error}")
@@ -309,13 +293,9 @@ def custom_openapi():
 
                 # Add authentication description to each endpoint
                 if "description" in operation:
-                    operation[
-                        "description"
-                    ] += "\n\n**Requires Authentication**: This endpoint requires an API key."
+                    operation["description"] += "\n\n**Requires Authentication**: This endpoint requires an API key."
                 else:
-                    operation["description"] = (
-                        "**Requires Authentication**: This endpoint requires an API key."
-                    )
+                    operation["description"] = "**Requires Authentication**: This endpoint requires an API key."
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -368,9 +348,7 @@ async def health():
     # Check Redis connectivity (Celery broker)
     redis_status = "unknown"
     try:
-        broker_url = os.getenv(
-            "AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0"
-        )
+        broker_url = os.getenv("AUTOMAGIK_SPARK_CELERY_BROKER_URL", "redis://localhost:6379/0")
         # Parse Redis URL
         if broker_url.startswith("redis://"):
             redis_client = redis.from_url(broker_url)

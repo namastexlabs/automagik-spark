@@ -106,9 +106,7 @@ class TaskManager:
         await self.session.refresh(task_obj)
         return task_obj
 
-    async def update_task(
-        self, task_id: Union[str, UUID], task: Dict[str, Any]
-    ) -> Optional[Task]:
+    async def update_task(self, task_id: Union[str, UUID], task: Dict[str, Any]) -> Optional[Task]:
         """Update a task.
 
         Args:
@@ -178,9 +176,7 @@ class TaskManager:
             )
 
             # Delete related task logs first
-            await self.session.execute(
-                delete(TaskLog).where(TaskLog.task_id == task_id)
-            )
+            await self.session.execute(delete(TaskLog).where(TaskLog.task_id == task_id))
 
             # Delete the task
             await self.session.execute(delete(Task).where(Task.id == task_id))
@@ -213,18 +209,14 @@ class TaskManager:
     async def get_completed_tasks(self) -> List[Task]:
         """Get completed tasks."""
         result = await self.session.execute(
-            select(Task)
-            .where(Task.status == "completed")
-            .order_by(Task.created_at.desc())
+            select(Task).where(Task.status == "completed").order_by(Task.created_at.desc())
         )
         return result.scalars().all()
 
     async def get_running_tasks(self) -> List[Task]:
         """Get running tasks."""
         result = await self.session.execute(
-            select(Task)
-            .where(Task.status == "running")
-            .order_by(Task.created_at.desc())
+            select(Task).where(Task.status == "running").order_by(Task.created_at.desc())
         )
         return result.scalars().all()
 
@@ -232,9 +224,7 @@ class TaskManager:
         """Get tasks by workflow ID."""
         workflow_id = self._to_uuid(workflow_id)
         result = await self.session.execute(
-            select(Task)
-            .where(Task.workflow_id == workflow_id)
-            .order_by(Task.created_at.desc())
+            select(Task).where(Task.workflow_id == workflow_id).order_by(Task.created_at.desc())
         )
         return result.scalars().all()
 
@@ -279,7 +269,7 @@ class TaskManager:
                 id=uuid4(),
                 task_id=task_id,
                 level="info",
-                message=f"Retrying task after {2 ** task.tries} seconds",
+                message=f"Retrying task after {2**task.tries} seconds",
                 created_at=datetime.now(timezone.utc),
             )
             self.session.add(retry_log)
@@ -289,8 +279,7 @@ class TaskManager:
                 "status": "pending",
                 "tries": task.tries + 1,
                 "error": None,
-                "next_retry_at": datetime.now(timezone.utc)
-                + timedelta(seconds=2**task.tries),
+                "next_retry_at": datetime.now(timezone.utc) + timedelta(seconds=2**task.tries),
                 "updated_at": datetime.now(timezone.utc),
             }
 

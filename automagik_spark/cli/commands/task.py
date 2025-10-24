@@ -54,11 +54,7 @@ async def _list_tasks(
 ) -> int:
     """List tasks."""
     async with get_session() as session:
-        stmt = (
-            select(Task)
-            .order_by(Task.created_at.asc())
-            .options(joinedload(Task.workflow))
-        )
+        stmt = select(Task).order_by(Task.created_at.asc()).options(joinedload(Task.workflow))
         if workflow_id:
             stmt = stmt.where(Task.workflow_id == workflow_id)
         if status:
@@ -97,21 +93,11 @@ async def _list_tasks(
 
         for task in tasks:
             # Style the status
-            status_display = status_styles.get(
-                task.status.lower(), f"[bold white]{task.status.upper()}[/bold white]"
-            )
+            status_display = status_styles.get(task.status.lower(), f"[bold white]{task.status.upper()}[/bold white]")
 
             # Format timestamps
-            created_at = (
-                task.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                if task.created_at
-                else "N/A"
-            )
-            updated_at = (
-                task.updated_at.strftime("%Y-%m-%d %H:%M:%S")
-                if task.updated_at
-                else "N/A"
-            )
+            created_at = task.created_at.strftime("%Y-%m-%d %H:%M:%S") if task.created_at else "N/A"
+            updated_at = task.updated_at.strftime("%Y-%m-%d %H:%M:%S") if task.updated_at else "N/A"
 
             # Add row with styling
             table.add_row(
@@ -131,9 +117,7 @@ async def _list_tasks(
             for task in tasks:
                 if task.logs:
                     console.print(f"[bold blue]Logs for task {task.id}:[/bold blue]")
-                    console.print(
-                        Panel(task.logs, title="Task Logs", border_style="blue")
-                    )
+                    console.print(Panel(task.logs, title="Task Logs", border_style="blue"))
                     console.print()  # Add spacing between logs
 
     return 0
@@ -144,9 +128,7 @@ async def _list_tasks(
 @click.option("--status", help="Filter by status")
 @click.option("--limit", default=50, help="Limit number of results")
 @click.option("--show-logs", is_flag=True, help="Show task logs")
-def list(
-    workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool
-):
+def list(workflow_id: Optional[str], status: Optional[str], limit: int, show_logs: bool):
     """List tasks."""
     return asyncio.run(_list_tasks(workflow_id, status, limit, show_logs))
 
@@ -178,18 +160,12 @@ async def _view_task(task_id: str) -> int:
             if task.started_at:
                 click.echo(f"Started: {task.started_at.strftime('%Y-%m-%d %H:%M:%S')}")
             if task.finished_at:
-                click.echo(
-                    f"Finished: {task.finished_at.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
+                click.echo(f"Finished: {task.finished_at.strftime('%Y-%m-%d %H:%M:%S')}")
             if task.next_retry_at:
-                click.echo(
-                    f"Next retry: {task.next_retry_at.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
+                click.echo(f"Next retry: {task.next_retry_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
             click.echo("\nInput:")
-            click.echo(
-                json.dumps(task.input_data, indent=2) if task.input_data else "None"
-            )
+            click.echo(json.dumps(task.input_data, indent=2) if task.input_data else "None")
 
             if task.output_data:
                 click.echo("\nOutput:")
@@ -265,9 +241,7 @@ async def _create_task(
         session: AsyncSession
         async with get_session() as session:
             # Get workflow by ID or prefix
-            stmt = select(Workflow).where(
-                cast(Workflow.id, String).startswith(workflow_id.lower())
-            )
+            stmt = select(Workflow).where(cast(Workflow.id, String).startswith(workflow_id.lower()))
             result = await session.execute(stmt)
             workflow = result.scalar_one_or_none()
 

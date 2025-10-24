@@ -26,10 +26,7 @@ async def sync_hive_workflows():
 
         # Get or create Hive source
         result = await session.execute(
-            select(Source).where(
-                Source.source_type == SourceType.AUTOMAGIK_HIVE,
-                Source.url == hive_url
-            )
+            select(Source).where(Source.source_type == SourceType.AUTOMAGIK_HIVE, Source.url == hive_url)
         )
         source = result.scalar_one_or_none()
 
@@ -40,7 +37,7 @@ async def sync_hive_workflows():
                 name="AutoMagik Hive",
                 url=hive_url,
                 api_key="test_key",  # Replace with actual key if needed
-                config={}
+                config={},
             )
             session.add(source)
             await session.commit()
@@ -50,11 +47,7 @@ async def sync_hive_workflows():
             print(f"✅ Found Hive source: {source.id}")
 
         # Initialize Hive manager
-        hive_manager = AutomagikHiveManager(
-            api_url=source.url,
-            api_key=source.api_key,
-            source_id=source.id
-        )
+        hive_manager = AutomagikHiveManager(api_url=source.url, api_key=source.api_key, source_id=source.id)
 
         # List all flows from Hive
         print("\n📥 Fetching flows from Hive...")
@@ -64,16 +57,13 @@ async def sync_hive_workflows():
         # Sync each flow
         synced = 0
         for flow in flows:
-            flow_id = flow['id']
-            flow_name = flow['name']
-            flow_type = flow['data']['type']
+            flow_id = flow["id"]
+            flow_name = flow["name"]
+            flow_type = flow["data"]["type"]
 
             # Check if workflow already exists
             result = await session.execute(
-                select(Workflow).where(
-                    Workflow.flow_id == flow_id,
-                    Workflow.source_id == source.id
-                )
+                select(Workflow).where(Workflow.flow_id == flow_id, Workflow.source_id == source.id)
             )
             existing = result.scalar_one_or_none()
 
@@ -85,11 +75,11 @@ async def sync_hive_workflows():
             workflow = Workflow(
                 flow_id=flow_id,
                 name=flow_name,
-                description=flow.get('description', ''),
+                description=flow.get("description", ""),
                 source_id=source.id,
                 source_data=flow,
                 input_component="message",  # Default for Hive flows
-                output_component="result"  # Default for Hive flows
+                output_component="result",  # Default for Hive flows
             )
             session.add(workflow)
             synced += 1

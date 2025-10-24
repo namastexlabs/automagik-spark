@@ -40,9 +40,7 @@ def create():
         async with get_session() as session:
             workflow_manager = WorkflowManager(session)
             scheduler = WorkflowScheduler(session, workflow_manager)
-            workflows = await workflow_manager.list_workflows(
-                options={"joinedload": ["schedules"]}
-            )
+            workflows = await workflow_manager.list_workflows(options={"joinedload": ["schedules"]})
 
             if not workflows:
                 click.echo("No workflows available")
@@ -55,15 +53,9 @@ def create():
                 schedule_count = (
                     len(workflow.get("schedules", []))
                     if isinstance(workflow, dict)
-                    else (
-                        len(workflow.schedules) if hasattr(workflow, "schedules") else 0
-                    )
+                    else (len(workflow.schedules) if hasattr(workflow, "schedules") else 0)
                 )
-                name = (
-                    workflow.get("name", "Unnamed")
-                    if isinstance(workflow, dict)
-                    else workflow.name
-                )
+                name = workflow.get("name", "Unnamed") if isinstance(workflow, dict) else workflow.name
                 click.echo(f"{i}: {name} ({schedule_count} schedules)")
 
             # Get workflow selection
@@ -73,9 +65,7 @@ def create():
                 return
 
             workflow = workflows[workflow_idx]
-            workflow_id = (
-                workflow.get("id") if isinstance(workflow, dict) else workflow.id
-            )
+            workflow_id = workflow.get("id") if isinstance(workflow, dict) else workflow.id
 
             # Get schedule type
             click.echo("\nSchedule Type:")
@@ -88,11 +78,7 @@ def create():
                 click.echo("Invalid schedule type")
                 return
 
-            schedule_type = (
-                "interval"
-                if schedule_type == 0
-                else "cron" if schedule_type == 1 else "one-time"
-            )
+            schedule_type = "interval" if schedule_type == 0 else "cron" if schedule_type == 1 else "one-time"
 
             # Get schedule expression
             if schedule_type == "one-time":
@@ -104,9 +90,7 @@ def create():
                 if option == 1:
                     schedule_expr = "now"
                 else:
-                    click.echo(
-                        "\nEnter date and time (e.g., '2025-02-15 08:00' or '2025-02-15T08:00:00')"
-                    )
+                    click.echo("\nEnter date and time (e.g., '2025-02-15 08:00' or '2025-02-15T08:00:00')")
                     schedule_expr = click.prompt("Enter datetime")
 
                     # Validate datetime format
@@ -176,9 +160,7 @@ def create():
                     workflow_id, schedule_type, schedule_expr, input_data=input_value
                 )
                 if schedule:
-                    click.echo(
-                        f"\nSchedule created successfully with ID: {schedule.id}"
-                    )
+                    click.echo(f"\nSchedule created successfully with ID: {schedule.id}")
                 else:
                     click.echo("\nFailed to create schedule")
             except Exception as e:
@@ -226,13 +208,9 @@ def list():
             for schedule in schedules:
                 # Get workflow name safely without lazy loading
                 workflow_id = schedule.workflow_id
-                workflow_result = await session.execute(
-                    select(Workflow).where(Workflow.id == workflow_id)
-                )
+                workflow_result = await session.execute(select(Workflow).where(Workflow.id == workflow_id))
                 workflow = workflow_result.scalar_one_or_none()
-                workflow_name = (
-                    workflow.name if workflow else "[dim italic]Unknown[/dim italic]"
-                )
+                workflow_name = workflow.name if workflow else "[dim italic]Unknown[/dim italic]"
 
                 # Get task statistics
                 task_stats = await session.execute(
@@ -242,9 +220,7 @@ def list():
                     ).where(Task.schedule_id == schedule.id)
                 )
                 stats = task_stats.first()
-                task_stats_str = (
-                    f"[white]{stats.total}[/white] ([red]{stats.failed}[/red])"
-                )
+                task_stats_str = f"[white]{stats.total}[/white] ([red]{stats.failed}[/red])"
 
                 # Format input parameters
                 input_params = schedule.input_data
@@ -263,9 +239,7 @@ def list():
                     input_display = "[dim]none[/dim]"
 
                 # Format schedule type
-                schedule_type = (
-                    f"[magenta italic]{schedule.schedule_type}[/magenta italic]"
-                )
+                schedule_type = f"[magenta italic]{schedule.schedule_type}[/magenta italic]"
 
                 # Format expression based on type
                 if schedule.schedule_type == "interval":
@@ -274,11 +248,7 @@ def list():
                     expr = f"[cyan]{schedule.schedule_expr}[/cyan]"
 
                 # Format next run
-                next_run = (
-                    format_timestamp(schedule.next_run_at)
-                    if schedule.next_run_at
-                    else "[dim]N/A[/dim]"
-                )
+                next_run = format_timestamp(schedule.next_run_at) if schedule.next_run_at else "[dim]N/A[/dim]"
 
                 # Get status with icon
                 status_map = {
@@ -341,9 +311,7 @@ def set_expression(schedule_id: str, expression: str):
             result = await scheduler.update_schedule_expression(schedule_id, expression)
 
             if result:
-                click.echo(
-                    f"Schedule {schedule_id} expression updated to '{expression}'"
-                )
+                click.echo(f"Schedule {schedule_id} expression updated to '{expression}'")
             else:
                 click.echo(f"Failed to update schedule {schedule_id} expression")
 
