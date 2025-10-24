@@ -81,9 +81,7 @@ class AutoMagikAgentManager:
 
                 # Combine health and root data
                 return {
-                    "version": root_data.get(
-                        "version", health_data.get("version", "unknown")
-                    ),
+                    "version": root_data.get("version", health_data.get("version", "unknown")),
                     "name": root_data.get("name", "AutoMagik Agents"),
                     "description": root_data.get("description", ""),
                     "status": health_data.get("status", "unknown"),
@@ -190,9 +188,7 @@ class AutoMagikAgentManager:
         """Alias for get_agent to maintain interface compatibility with LangFlowManager."""
         return await self.get_agent(flow_id)
 
-    async def run_flow(
-        self, agent_id: str, input_data, session_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    async def run_flow(self, agent_id: str, input_data, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Run an agent with input data.
 
         Args:
@@ -259,9 +255,7 @@ class AutoMagikAgentManager:
             logger.error(f"Failed to run agent {agent_id}: {str(e)}")
             raise
 
-    def run_flow_sync(
-        self, agent_id: str, input_data: str, session_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def run_flow_sync(self, agent_id: str, input_data: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Run an agent with input data synchronously.
 
         Args:

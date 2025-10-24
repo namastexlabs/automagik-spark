@@ -139,9 +139,7 @@ class TelemetryClient:
                                     "spanId": span_id,
                                     "name": event_type,
                                     "kind": "SPAN_KIND_INTERNAL",
-                                    "startTimeUnixNano": int(
-                                        time.time() * 1_000_000_000
-                                    ),
+                                    "startTimeUnixNano": int(time.time() * 1_000_000_000),
                                     "endTimeUnixNano": int(time.time() * 1_000_000_000),
                                     "attributes": self._create_attributes(data),
                                     "status": {"code": "STATUS_CODE_OK"},
@@ -162,9 +160,7 @@ class TelemetryClient:
 
             with urlopen(request, timeout=self.timeout) as response:
                 if response.status != 200:
-                    logger.debug(
-                        f"Telemetry event failed with status {response.status}"
-                    )
+                    logger.debug(f"Telemetry event failed with status {response.status}")
 
         except URLError as e:
             logger.debug(f"Telemetry event failed: {e}")
@@ -178,32 +174,22 @@ class TelemetryClient:
         # Add system info
         system_info = self._get_system_info()
         for key, value in system_info.items():
-            attributes.append(
-                {"key": f"system.{key}", "value": {"stringValue": str(value)}}
-            )
+            attributes.append({"key": f"system.{key}", "value": {"stringValue": str(value)}})
 
         # Add event data
         for key, value in data.items():
             if isinstance(value, bool):
-                attributes.append(
-                    {"key": f"event.{key}", "value": {"boolValue": value}}
-                )
+                attributes.append({"key": f"event.{key}", "value": {"boolValue": value}})
             elif isinstance(value, (int, float)):
-                attributes.append(
-                    {"key": f"event.{key}", "value": {"doubleValue": float(value)}}
-                )
+                attributes.append({"key": f"event.{key}", "value": {"doubleValue": float(value)}})
             else:
-                attributes.append(
-                    {"key": f"event.{key}", "value": {"stringValue": str(value)}}
-                )
+                attributes.append({"key": f"event.{key}", "value": {"stringValue": str(value)}})
 
         return attributes
 
     def track_installation(self, install_type: str = "pip") -> None:
         """Track installation event."""
-        self._send_event(
-            "installation", {"install_type": install_type, "first_run": True}
-        )
+        self._send_event("installation", {"install_type": install_type, "first_run": True})
 
     def track_command(
         self,
@@ -256,9 +242,7 @@ class TelemetryClient:
 
         self._send_event("workflow_execution", data)
 
-    def track_feature_usage(
-        self, feature: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def track_feature_usage(self, feature: str, metadata: Optional[Dict[str, Any]] = None) -> None:
         """Track feature usage."""
         data = {"feature": feature}
 
@@ -326,9 +310,7 @@ def track_command(
     get_telemetry_client().track_command(command, duration, success, error)
 
 
-def track_api_request(
-    endpoint: str, method: str, status_code: int, duration: Optional[float] = None
-) -> None:
+def track_api_request(endpoint: str, method: str, status_code: int, duration: Optional[float] = None) -> None:
     """Track API request."""
     get_telemetry_client().track_api_request(endpoint, method, status_code, duration)
 
@@ -340,13 +322,9 @@ def track_workflow_execution(
     error: Optional[str] = None,
 ) -> None:
     """Track workflow execution."""
-    get_telemetry_client().track_workflow_execution(
-        workflow_type, duration, success, error
-    )
+    get_telemetry_client().track_workflow_execution(workflow_type, duration, success, error)
 
 
-def track_feature_usage(
-    feature: str, metadata: Optional[Dict[str, Any]] = None
-) -> None:
+def track_feature_usage(feature: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     """Track feature usage."""
     get_telemetry_client().track_feature_usage(feature, metadata)

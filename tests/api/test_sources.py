@@ -114,9 +114,7 @@ async def created_source(client, clean_env, auth_headers):
 
         mock_client.get.side_effect = [health_mock, version_mock]
 
-        response = client.post(
-            "/api/v1/sources/", json=unique_source_data, headers=auth_headers
-        )
+        response = client.post("/api/v1/sources/", json=unique_source_data, headers=auth_headers)
         assert response.status_code == 201
         return response.json()
 
@@ -124,9 +122,7 @@ async def created_source(client, clean_env, auth_headers):
 class TestSourcesCreate:
     """Test cases for POST /sources/."""
 
-    async def test_create_langflow_source_success(
-        self, client, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_create_langflow_source_success(self, client, clean_env, auth_headers, mock_langflow_response):
         """Test successful creation of LangFlow source."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -154,9 +150,7 @@ class TestSourcesCreate:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
 
             assert response.status_code == 201
             data = response.json()
@@ -202,9 +196,7 @@ class TestSourcesCreate:
                 "api_key": "agents-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
 
             assert response.status_code == 201
             data = response.json()
@@ -244,9 +236,7 @@ class TestSourcesCreate:
                 "api_key": "hive-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
 
             assert response.status_code == 201
             data = response.json()
@@ -255,9 +245,7 @@ class TestSourcesCreate:
             assert data["status"] == "active"
             assert data["version_info"]["agents_loaded"] == 5
 
-    async def test_create_source_duplicate_url(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_create_source_duplicate_url(self, client, created_source, clean_env, auth_headers):
         """Test creating source with duplicate URL fails."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -268,9 +256,7 @@ class TestSourcesCreate:
             "api_key": "test-key",
         }
 
-        response = client.post(
-            "/api/v1/sources/", json=source_data, headers=auth_headers
-        )
+        response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
 
@@ -285,14 +271,10 @@ class TestSourcesCreate:
             "api_key": "test-key",
         }
 
-        response = client.post(
-            "/api/v1/sources/", json=source_data, headers=auth_headers
-        )
+        response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
         assert response.status_code == 422  # Validation error
 
-    async def test_create_source_health_check_fails(
-        self, client, clean_env, auth_headers
-    ):
+    async def test_create_source_health_check_fails(self, client, clean_env, auth_headers):
         """Test creating source when health check fails."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -311,9 +293,7 @@ class TestSourcesCreate:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 400
             assert "Failed to validate source" in response.json()["detail"]
 
@@ -331,9 +311,7 @@ class TestSourcesCreate:
         response = client.post("/api/v1/sources/", json=source_data)
         assert response.status_code == 401
 
-    async def test_create_source_empty_api_key(
-        self, client, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_create_source_empty_api_key(self, client, clean_env, auth_headers, mock_langflow_response):
         """Test creating source with empty API key succeeds."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -364,9 +342,7 @@ class TestSourcesCreate:
                 "api_key": "",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
 
             assert response.status_code == 201
 
@@ -374,9 +350,7 @@ class TestSourcesCreate:
 class TestSourcesList:
     """Test cases for GET /sources/."""
 
-    async def test_list_sources_success(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_list_sources_success(self, client, created_source, clean_env, auth_headers):
         """Test successful listing of sources."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -388,9 +362,7 @@ class TestSourcesList:
         assert len(data) >= 1
         assert any(source["id"] == created_source["id"] for source in data)
 
-    async def test_list_sources_with_status_filter(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_list_sources_with_status_filter(self, client, created_source, clean_env, auth_headers):
         """Test listing sources with status filter."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -413,15 +385,11 @@ class TestSourcesList:
 class TestSourcesGet:
     """Test cases for GET /sources/{source_id}."""
 
-    async def test_get_source_success(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_get_source_success(self, client, created_source, clean_env, auth_headers):
         """Test successful retrieval of specific source."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
-        response = client.get(
-            f"/api/v1/sources/{created_source['id']}", headers=auth_headers
-        )
+        response = client.get(f"/api/v1/sources/{created_source['id']}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -454,9 +422,7 @@ class TestSourcesGet:
 class TestSourcesUpdate:
     """Test cases for PATCH /sources/{source_id}."""
 
-    async def test_update_source_name(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_update_source_name(self, client, created_source, clean_env, auth_headers):
         """Test updating source name."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -473,9 +439,7 @@ class TestSourcesUpdate:
         assert data["name"] == "Updated Source Name"
         assert data["id"] == created_source["id"]
 
-    async def test_update_source_url(
-        self, client, created_source, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_update_source_url(self, client, created_source, clean_env, auth_headers, mock_langflow_response):
         """Test updating source URL."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -509,9 +473,7 @@ class TestSourcesUpdate:
             # URL might have trailing slash handled by API
             assert data["url"] in ["http://localhost:8860", "http://localhost:8860/"]
 
-    async def test_update_source_api_key(
-        self, client, created_source, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_update_source_api_key(self, client, created_source, clean_env, auth_headers, mock_langflow_response):
         """Test updating source API key validates source."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -544,9 +506,7 @@ class TestSourcesUpdate:
             data = response.json()
             assert data["version_info"]["version"] == "1.1.0"
 
-    async def test_update_source_status(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_update_source_status(self, client, created_source, clean_env, auth_headers):
         """Test updating source status."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -562,9 +522,7 @@ class TestSourcesUpdate:
         data = response.json()
         assert data["status"] == "inactive"
 
-    async def test_update_source_type(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_update_source_type(self, client, created_source, clean_env, auth_headers):
         """Test updating source type."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -604,9 +562,7 @@ class TestSourcesUpdate:
 
             another_source_data = {**sample_source_data, "url": "http://localhost:9860"}
 
-            response = client.post(
-                "/api/v1/sources/", json=another_source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=another_source_data, headers=auth_headers)
             assert response.status_code == 201
             another_source = response.json()
 
@@ -629,9 +585,7 @@ class TestSourcesUpdate:
         fake_id = str(uuid.uuid4())
         update_data = {"name": "Updated Name"}
 
-        response = client.patch(
-            f"/api/v1/sources/{fake_id}", json=update_data, headers=auth_headers
-        )
+        response = client.patch(f"/api/v1/sources/{fake_id}", json=update_data, headers=auth_headers)
         assert response.status_code == 404
 
     async def test_update_source_unauthorized(self, client, created_source, clean_env):
@@ -640,9 +594,7 @@ class TestSourcesUpdate:
 
         update_data = {"name": "Updated Name"}
 
-        response = client.patch(
-            f"/api/v1/sources/{created_source['id']}", json=update_data
-        )
+        response = client.patch(f"/api/v1/sources/{created_source['id']}", json=update_data)
         assert response.status_code == 401
 
     async def test_update_source_multiple_fields(
@@ -695,15 +647,11 @@ class TestSourcesUpdate:
 class TestSourcesDelete:
     """Test cases for DELETE /sources/{source_id}."""
 
-    async def test_delete_source_success(
-        self, client, created_source, clean_env, auth_headers
-    ):
+    async def test_delete_source_success(self, client, created_source, clean_env, auth_headers):
         """Test successful deletion of source."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
-        response = client.delete(
-            f"/api/v1/sources/{created_source['id']}", headers=auth_headers
-        )
+        response = client.delete(f"/api/v1/sources/{created_source['id']}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -711,9 +659,7 @@ class TestSourcesDelete:
         assert "deleted successfully" in data["message"]
 
         # Verify source is actually deleted
-        get_response = client.get(
-            f"/api/v1/sources/{created_source['id']}", headers=auth_headers
-        )
+        get_response = client.get(f"/api/v1/sources/{created_source['id']}", headers=auth_headers)
         assert get_response.status_code == 404
 
     async def test_delete_source_not_found(self, client, clean_env, auth_headers):
@@ -761,15 +707,11 @@ class TestSourceValidation:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 400
             assert "health check failed" in response.json()["detail"]
 
-    async def test_automagik_hive_fallback_status(
-        self, client, clean_env, auth_headers
-    ):
+    async def test_automagik_hive_fallback_status(self, client, clean_env, auth_headers):
         """Test AutoMagik Hive fallback when status endpoint fails."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -789,9 +731,7 @@ class TestSourceValidation:
 
             # Mock status endpoint failure (raises exception)
             status_mock = MagicMock()
-            status_mock.raise_for_status.side_effect = httpx.RequestError(
-                "Status endpoint failed"
-            )
+            status_mock.raise_for_status.side_effect = httpx.RequestError("Status endpoint failed")
 
             mock_client.get.side_effect = [health_mock, status_mock]
 
@@ -803,9 +743,7 @@ class TestSourceValidation:
                 "api_key": "hive-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
 
             # Should still succeed with fallback data
             assert response.status_code == 201
@@ -816,9 +754,7 @@ class TestSourceValidation:
 class TestEncryption:
     """Test cases for API key encryption/decryption."""
 
-    async def test_api_key_encryption(
-        self, client, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_api_key_encryption(self, client, clean_env, auth_headers, mock_langflow_response):
         """Test that API keys are properly encrypted in database."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -846,9 +782,7 @@ class TestEncryption:
                 "api_key": "secret-api-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 201
 
             # Test encryption and decryption work correctly
@@ -875,9 +809,7 @@ class TestEncryption:
 class TestURLHandling:
     """Test cases for URL handling and normalization."""
 
-    async def test_url_trailing_slash_removed(
-        self, client, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_url_trailing_slash_removed(self, client, clean_env, auth_headers, mock_langflow_response):
         """Test that trailing slashes are removed from URLs."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -905,23 +837,16 @@ class TestURLHandling:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 201
 
             data = response.json()
             # URL might retain or remove trailing slash - both are acceptable
             # Check that trailing slash handling works properly
             expected_url_base = f"http://localhost:7860/test-{unique_id}"
-            assert (
-                data["url"] in [expected_url_base, expected_url_base + "/"]
-                or data["url"] == expected_url_base
-            )
+            assert data["url"] in [expected_url_base, expected_url_base + "/"] or data["url"] == expected_url_base
 
-    async def test_url_validation_with_ports(
-        self, client, clean_env, auth_headers, mock_langflow_response
-    ):
+    async def test_url_validation_with_ports(self, client, clean_env, auth_headers, mock_langflow_response):
         """Test URL validation works with different ports."""
         os.environ["AUTOMAGIK_SPARK_API_KEY"] = TEST_API_KEY
 
@@ -965,9 +890,7 @@ class TestURLHandling:
                     "api_key": "test-key",
                 }
 
-                response = client.post(
-                    "/api/v1/sources/", json=source_data, headers=auth_headers
-                )
+                response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
                 assert response.status_code == 201
                 data = response.json()
                 # URL normalization may remove default ports (443 for https, 80 for http)
@@ -1003,9 +926,7 @@ class TestErrorHandling:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 400
             assert "Failed to validate source" in response.json()["detail"]
 
@@ -1032,9 +953,7 @@ class TestErrorHandling:
                 "api_key": "test-key",
             }
 
-            response = client.post(
-                "/api/v1/sources/", json=source_data, headers=auth_headers
-            )
+            response = client.post("/api/v1/sources/", json=source_data, headers=auth_headers)
             assert response.status_code == 400
 
     async def test_missing_required_fields(self, client, clean_env, auth_headers):
@@ -1091,9 +1010,7 @@ class TestErrorHandling:
             # Test GET - API returns 422 for malformed UUIDs
             response = client.get(f"/api/v1/sources/{invalid_id}", headers=auth_headers)
             if response.status_code not in [400, 422]:
-                print(
-                    f"GET {invalid_id}: got {response.status_code}: {response.json()}"
-                )
+                print(f"GET {invalid_id}: got {response.status_code}: {response.json()}")
             assert response.status_code in [
                 400,
                 422,
@@ -1111,9 +1028,7 @@ class TestErrorHandling:
             ]  # Accept both validation error types
 
             # Test DELETE - API returns 422 for malformed UUIDs
-            response = client.delete(
-                f"/api/v1/sources/{invalid_id}", headers=auth_headers
-            )
+            response = client.delete(f"/api/v1/sources/{invalid_id}", headers=auth_headers)
             assert response.status_code in [
                 400,
                 422,

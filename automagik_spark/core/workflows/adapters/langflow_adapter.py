@@ -54,9 +54,7 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             logger.error(f"Failed to get LangFlow flow {flow_id}: {str(e)}")
             raise
 
-    def run_flow_sync(
-        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
-    ) -> WorkflowExecutionResult:
+    def run_flow_sync(self, flow_id: str, input_data: Any, session_id: Optional[str] = None) -> WorkflowExecutionResult:
         """Execute a LangFlow flow and return normalized result.
 
         Args:
@@ -72,9 +70,7 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             # Note: LangFlow's run_workflow_sync returns the result directly
             result = self.manager.run_workflow_sync(flow_id, input_data)
 
-            return WorkflowExecutionResult(
-                success=True, result=result, session_id=session_id, metadata={}
-            )
+            return WorkflowExecutionResult(success=True, result=result, session_id=session_id, metadata={})
         except Exception as e:
             logger.error(f"Failed to execute LangFlow flow {flow_id}: {str(e)}")
             return WorkflowExecutionResult(success=False, result=None, error=str(e))
@@ -93,9 +89,7 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             logger.error(f"LangFlow validation failed: {str(e)}")
             raise
 
-    def get_default_sync_params(
-        self, flow_data: Dict[str, Any]
-    ) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
         """Get default sync parameters for LangFlow flows.
 
         LangFlow flows use component IDs (ChatInput, ChatOutput, etc.).
@@ -115,9 +109,7 @@ class LangFlowAdapter(BaseWorkflowAdapter):
             nodes = flow_data["data"]["nodes"]
 
             # Look for ChatInput component
-            input_node = next(
-                (n for n in nodes if n.get("data", {}).get("type") == "ChatInput"), None
-            )
+            input_node = next((n for n in nodes if n.get("data", {}).get("type") == "ChatInput"), None)
             if input_node:
                 input_component = input_node.get("id")
 

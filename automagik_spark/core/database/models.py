@@ -105,14 +105,10 @@ class Workflow(Base):
             "icon_bg_color": self.icon_bg_color,
             "liked": self.liked,
             "tags": self.tags,
-            "workflow_source_id": (
-                str(self.workflow_source_id) if self.workflow_source_id else None
-            ),
+            "workflow_source_id": (str(self.workflow_source_id) if self.workflow_source_id else None),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "schedules": (
-                [s.to_dict() for s in self.schedules] if self.schedules else []
-            ),
+            "schedules": ([s.to_dict() for s in self.schedules] if self.schedules else []),
             "latest_run": "NEW" if not latest_task else latest_task.status.upper(),
             "task_count": task_count,
             "failed_task_count": failed_task_count,
@@ -162,9 +158,7 @@ class WorkflowSource(Base):
             # First try to decode as URL-safe base64
             decoded = base64.urlsafe_b64decode(key.encode())
             if len(decoded) == 32:
-                logger.info(
-                    f"Successfully using environment key - base64 decoded length: {len(decoded)}"
-                )
+                logger.info(f"Successfully using environment key - base64 decoded length: {len(decoded)}")
                 return key  # Return as string, not bytes
         except Exception as e:
             logger.warning(f"Failed to decode as base64: {e}")
@@ -182,9 +176,7 @@ class WorkflowSource(Base):
             logger.error(f"Invalid encryption key format: {str(e)}")
 
         # If we reach here, the key doesn't match any expected format
-        logger.error(
-            f"Environment key '{key}' doesn't match any expected format. Falling back to test key."
-        )
+        logger.error(f"Environment key '{key}' doesn't match any expected format. Falling back to test key.")
         test_key = "S1JwNXY2Z1hrY1NhcUxXR3VZM3pNMHh3cU1mWWVEejVQYk09"
         logger.info(f"Returning fallback test key: {repr(test_key)}")
         return test_key
@@ -234,9 +226,7 @@ class WorkflowComponent(Base):
     workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
 
     # Component info
-    component_id = Column(
-        String(255), nullable=False
-    )  # ID in source system (e.g., "ChatOutput-WHzRB")
+    component_id = Column(String(255), nullable=False)  # ID in source system (e.g., "ChatOutput-WHzRB")
     type = Column(String(50), nullable=False)
     template = Column(JSON)  # Component template/configuration
     tweakable_params = Column(JSON)  # Parameters that can be modified
@@ -289,9 +279,7 @@ class Task(Base):
             "input_data": self.input_data,
             "output_data": self.output_data,
             "error": self.error,
-            "next_retry_at": (
-                self.next_retry_at.isoformat() if self.next_retry_at else None
-            ),
+            "next_retry_at": (self.next_retry_at.isoformat() if self.next_retry_at else None),
             "tries": self.tries,
             "max_retries": self.max_retries,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -326,9 +314,7 @@ class Schedule(Base):
     schedule_type = Column(String, nullable=False)  # cron, interval, or one-time
     schedule_expr = Column(String, nullable=False)
     # Optional parameters to be passed when running the workflow
-    params = Column(
-        JSON, nullable=True, comment="JSON parameters for workflow execution"
-    )
+    params = Column(JSON, nullable=True, comment="JSON parameters for workflow execution")
     # Provide backward compatibility alias for code/tests using 'workflow_params'
     workflow_params = synonym("params")
     # Back-compat: keep old field name but mark deprecated
@@ -340,9 +326,7 @@ class Schedule(Base):
     status = Column(String, nullable=False, default="active")
     next_run_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="schedules")
@@ -372,9 +356,7 @@ class Worker(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     hostname = Column(String(255), nullable=False)
     pid = Column(Integer, nullable=False)
-    status = Column(
-        String(50), nullable=False, default="active"
-    )  # active, paused, stopped
+    status = Column(String(50), nullable=False, default="active")  # active, paused, stopped
     current_task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"))
     stats = Column(JSON)  # Worker statistics
 

@@ -3,10 +3,11 @@
 
 import re
 
+
 def fix_model_validate_signatures(file_path: str) -> None:
     """Fix all model_validate method signatures to match BaseModel."""
 
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         content = f.read()
 
     # Pattern to match the old signature
@@ -35,7 +36,7 @@ def fix_model_validate_signatures(file_path: str) -> None:
         from_attributes: bool | None = None,
         context: dict[str, Any] | None = None,
     ) -> "{class_name}":
-        """Convert a {class_name.replace('Response', '')} object to {class_name}."""'''
+        """Convert a {class_name.replace("Response", "")} object to {class_name}."""'''
 
         return new_signature
 
@@ -52,20 +53,20 @@ def fix_model_validate_signatures(file_path: str) -> None:
         context: dict[str, Any] | None = None,
     ) -> "TaskResponse":
         """Convert a Task object to TaskResponse."""''',
-        content
+        content,
     )
 
     # Replace super().model_validate(data) calls for TaskResponse
     content = re.sub(
-        r'(            return super\(\)\.model_validate\(data\))\n(        return super\(\)\.model_validate\(obj\))',
-        r'''            return super().model_validate(
+        r"(            return super\(\)\.model_validate\(data\))\n(        return super\(\)\.model_validate\(obj\))",
+        r"""            return super().model_validate(
                 data, strict=strict, from_attributes=from_attributes, context=context
             )
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
-        )''',
+        )""",
         content,
-        count=1
+        count=1,
     )
 
     # Replace WorkflowListResponse signature (line 150)
@@ -81,7 +82,7 @@ def fix_model_validate_signatures(file_path: str) -> None:
         context: dict[str, Any] | None = None,
     ) -> "WorkflowListResponse":
         """Convert a Workflow object to WorkflowListResponse."""''',
-        content
+        content,
     )
 
     # Replace WorkflowResponse signature (line 198)
@@ -97,7 +98,7 @@ def fix_model_validate_signatures(file_path: str) -> None:
         context: dict[str, Any] | None = None,
     ) -> "WorkflowResponse":
         """Convert a Workflow object to WorkflowResponse."""''',
-        content
+        content,
     )
 
     # Replace ScheduleResponse signature (line 278)
@@ -113,29 +114,33 @@ def fix_model_validate_signatures(file_path: str) -> None:
         context: dict[str, Any] | None = None,
     ) -> "ScheduleResponse":
         """Convert a Schedule object to ScheduleResponse."""''',
-        content
+        content,
     )
 
     # Replace super().model_validate calls for ScheduleResponse (the second occurrence)
     # Find the ScheduleResponse class and replace its super() calls
-    schedule_response_pattern = r'(class ScheduleResponse.*?)(return super\(\)\.model_validate\(data\))\n(\s+return super\(\)\.model_validate\(obj\))'
+    schedule_response_pattern = r"(class ScheduleResponse.*?)(return super\(\)\.model_validate\(data\))\n(\s+return super\(\)\.model_validate\(obj\))"
 
     def replace_schedule_super(match):
         class_content = match.group(1)
-        return class_content + '''return super().model_validate(
+        return (
+            class_content
+            + """return super().model_validate(
                 data, strict=strict, from_attributes=from_attributes, context=context
             )
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
-        )'''
+        )"""
+        )
 
     content = re.sub(schedule_response_pattern, replace_schedule_super, content, flags=re.DOTALL)
 
     # Write back
-    with open(file_path, 'w') as f:
+    with open(file_path, "w") as f:
         f.write(content)
 
     print(f"Fixed model_validate signatures in {file_path}")
 
-if __name__ == '__main__':
-    fix_model_validate_signatures('/home/cezar/automagik/automagik-spark/automagik_spark/api/models.py')
+
+if __name__ == "__main__":
+    fix_model_validate_signatures("/home/cezar/automagik/automagik-spark/automagik_spark/api/models.py")

@@ -38,9 +38,7 @@ class WorkflowScheduler:
         """Stop the scheduler."""
         await self.session.close()
 
-    def _get_next_run(
-        self, schedule_type: str, schedule_expr: str
-    ) -> Optional[datetime]:
+    def _get_next_run(self, schedule_type: str, schedule_expr: str) -> Optional[datetime]:
         """Get next run time for a schedule."""
         try:
             now = datetime.now(timezone.utc)
@@ -75,9 +73,7 @@ class WorkflowScheduler:
         """Create a schedule for a workflow."""
         try:
             # Check if workflow exists
-            result = await self.session.execute(
-                select(Workflow).where(Workflow.id == workflow_id)
-            )
+            result = await self.session.execute(select(Workflow).where(Workflow.id == workflow_id))
             workflow = result.scalar_one_or_none()
             if not workflow:
                 logger.error(f"Workflow {workflow_id} not found")
@@ -137,9 +133,7 @@ class WorkflowScheduler:
     ) -> Optional[Schedule]:
         """Update a schedule."""
         try:
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_id)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
@@ -162,9 +156,7 @@ class WorkflowScheduler:
 
             # Update next run time if schedule type or expression changed
             if schedule_type is not None or schedule_expr is not None:
-                next_run = self._get_next_run(
-                    schedule.schedule_type, schedule.schedule_expr
-                )
+                next_run = self._get_next_run(schedule.schedule_type, schedule.schedule_expr)
                 if not next_run:
                     return None
                 schedule.next_run_at = next_run
@@ -179,9 +171,7 @@ class WorkflowScheduler:
     async def delete_schedule(self, schedule_id: UUID) -> bool:
         """Delete a schedule."""
         try:
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_id)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
             schedule = result.scalar_one_or_none()
             if not schedule:
                 logger.error(f"Schedule {schedule_id} not found")
@@ -198,9 +188,7 @@ class WorkflowScheduler:
     async def get_schedule(self, schedule_id: UUID) -> Optional[Schedule]:
         """Get a schedule by ID."""
         try:
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.id == schedule_id)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.id == schedule_id))
             return result.scalar_one_or_none()
         except Exception as e:
             logger.error(f"Error getting schedule: {e}")
@@ -209,9 +197,7 @@ class WorkflowScheduler:
     async def list_schedules(self) -> List[Schedule]:
         """List all schedules."""
         try:
-            result = await self.session.execute(
-                select(Schedule).join(Workflow).options(joinedload(Schedule.workflow))
-            )
+            result = await self.session.execute(select(Schedule).join(Workflow).options(joinedload(Schedule.workflow)))
             return list(result.scalars().all())
         except Exception as e:
             logger.error(f"Error listing schedules: {e}")
@@ -222,20 +208,14 @@ class WorkflowScheduler:
         try:
             now = datetime.now(timezone.utc)
             # Query all active schedules
-            result = await self.session.execute(
-                select(Schedule).where(Schedule.active)
-            )
+            result = await self.session.execute(select(Schedule).where(Schedule.active))
             schedules = list(result.scalars().all())
 
             for schedule in schedules:
                 # Only process schedules that are due
                 if schedule.next_run_at and schedule.next_run_at <= now:
                     # Create and run task
-                    input_data = (
-                        str(schedule.workflow_params)
-                        if schedule.workflow_params
-                        else ""
-                    )
+                    input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
                     task = Task(
                         id=uuid4(),
                         workflow_id=schedule.workflow_id,
@@ -256,9 +236,7 @@ class WorkflowScheduler:
                 )
 
                 # Update next run time
-                next_run = self._get_next_run(
-                    schedule.schedule_type, schedule.schedule_expr
-                )
+                next_run = self._get_next_run(schedule.schedule_type, schedule.schedule_expr)
                 if next_run:
                     schedule.next_run_at = next_run
                     await self.session.commit()
@@ -280,11 +258,7 @@ class WorkflowScheduler:
                     # Check if it's time to run
                     if schedule.next_run_at <= datetime.now(timezone.utc):
                         # Create and run task
-                        input_data = (
-                            str(schedule.workflow_params)
-                            if schedule.workflow_params
-                            else ""
-                        )
+                        input_data = str(schedule.workflow_params) if schedule.workflow_params else ""
                         task = Task(
                             id=uuid4(),
                             workflow_id=schedule.workflow_id,
@@ -305,9 +279,7 @@ class WorkflowScheduler:
                         )
 
                         # Update next run time
-                        next_run = self._get_next_run(
-                            schedule.schedule_type, schedule.schedule_expr
-                        )
+                        next_run = self._get_next_run(schedule.schedule_type, schedule.schedule_expr)
                         if next_run:
                             schedule.next_run_at = next_run
                             await self.session.commit()

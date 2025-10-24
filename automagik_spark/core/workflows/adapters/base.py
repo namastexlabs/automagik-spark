@@ -60,9 +60,7 @@ class BaseWorkflowAdapter(ABC):
         pass
 
     @abstractmethod
-    def run_flow_sync(
-        self, flow_id: str, input_data: Any, session_id: Optional[str] = None
-    ) -> WorkflowExecutionResult:
+    def run_flow_sync(self, flow_id: str, input_data: Any, session_id: Optional[str] = None) -> WorkflowExecutionResult:
         """Execute a flow and return normalized result (synchronous).
 
         Args:
@@ -84,9 +82,7 @@ class BaseWorkflowAdapter(ABC):
         """
         pass
 
-    def get_default_sync_params(
-        self, flow_data: Dict[str, Any]
-    ) -> Dict[str, Optional[str]]:
+    def get_default_sync_params(self, flow_data: Dict[str, Any]) -> Dict[str, Optional[str]]:
         """Get default parameters for syncing this flow type.
 
         Override this in subclasses for source-specific defaults.

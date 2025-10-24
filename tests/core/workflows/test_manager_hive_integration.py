@@ -67,9 +67,7 @@ class TestWorkflowManagerHiveIntegration:
         ]
 
     @patch("automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key")
-    async def test_get_source_manager_hive(
-        self, mock_decrypt, workflow_manager, mock_hive_source
-    ):
+    async def test_get_source_manager_hive(self, mock_decrypt, workflow_manager, mock_hive_source):
         """Test getting AutoMagik Hive source manager."""
         mock_decrypt.return_value = "decrypted_key"
 
@@ -81,9 +79,7 @@ class TestWorkflowManagerHiveIntegration:
         assert manager.source_id == mock_hive_source.id
 
     @patch("automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key")
-    async def test_list_remote_flows_hive(
-        self, mock_decrypt, workflow_manager, mock_hive_source, mock_hive_flows
-    ):
+    async def test_list_remote_flows_hive(self, mock_decrypt, workflow_manager, mock_hive_source, mock_hive_flows):
         """Test listing remote flows from Hive source."""
         mock_decrypt.return_value = "decrypted_key"
 
@@ -92,17 +88,13 @@ class TestWorkflowManagerHiveIntegration:
         mock_manager.list_flows_sync.return_value = mock_hive_flows
         mock_manager.api_url = mock_hive_source.url
 
-        with patch.object(
-            workflow_manager, "_get_source_manager", return_value=mock_manager
-        ):
+        with patch.object(workflow_manager, "_get_source_manager", return_value=mock_manager):
             # Mock session query for sources
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_hive_source]
             workflow_manager.session.execute.return_value = mock_result
 
-            flows = await workflow_manager.list_remote_flows(
-                source_url=mock_hive_source.url
-            )
+            flows = await workflow_manager.list_remote_flows(source_url=mock_hive_source.url)
 
             assert len(flows) == 3
             assert flows[0]["id"] == "master-genie"
@@ -115,9 +107,7 @@ class TestWorkflowManagerHiveIntegration:
                 assert "instance" in flow
 
     @patch("automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key")
-    async def test_get_remote_flow_hive(
-        self, mock_decrypt, workflow_manager, mock_hive_source, mock_hive_flows
-    ):
+    async def test_get_remote_flow_hive(self, mock_decrypt, workflow_manager, mock_hive_source, mock_hive_flows):
         """Test getting specific remote flow from Hive source."""
         mock_decrypt.return_value = "decrypted_key"
 
@@ -126,17 +116,13 @@ class TestWorkflowManagerHiveIntegration:
         mock_manager.get_flow.return_value = mock_hive_flows[0]  # Return master-genie
         mock_manager.api_url = mock_hive_source.url
 
-        with patch.object(
-            workflow_manager, "_get_source_manager", return_value=mock_manager
-        ):
+        with patch.object(workflow_manager, "_get_source_manager", return_value=mock_manager):
             # Mock session query for source
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = mock_hive_source
             workflow_manager.session.execute.return_value = mock_result
 
-            flow = await workflow_manager.get_remote_flow(
-                "master-genie", mock_hive_source.url
-            )
+            flow = await workflow_manager.get_remote_flow("master-genie", mock_hive_source.url)
 
             assert flow is not None
             assert flow["id"] == "master-genie"
@@ -173,9 +159,7 @@ class TestWorkflowManagerHiveIntegration:
         mock_source_result.scalar_one_or_none.return_value = mock_hive_source
         mock_source_result.scalars.return_value.all.return_value = [mock_hive_source]
 
-        with patch.object(
-            workflow_manager.session, "execute", return_value=mock_source_result
-        ):
+        with patch.object(workflow_manager.session, "execute", return_value=mock_source_result):
             # Mock _create_or_update_workflow
             expected_workflow_data = {
                 "id": "workflow_123",
@@ -186,7 +170,6 @@ class TestWorkflowManagerHiveIntegration:
                 "_create_or_update_workflow",
                 return_value=expected_workflow_data,
             ) as mock_create:
-
                 result = await workflow_manager.sync_flow(
                     flow_id="master-genie",
                     input_component="input",
@@ -211,9 +194,7 @@ class TestWorkflowManagerHiveIntegration:
         mock_source = MagicMock(spec=WorkflowSource)
         mock_source.source_type = "unsupported-type"
 
-        with pytest.raises(
-            ValueError, match="Unsupported source type: unsupported-type"
-        ):
+        with pytest.raises(ValueError, match="Unsupported source type: unsupported-type"):
             await workflow_manager._get_source_manager(source=mock_source)
 
     def test_source_type_enum_values(self):
@@ -223,9 +204,7 @@ class TestWorkflowManagerHiveIntegration:
         assert SourceType.AUTOMAGIK_HIVE == "automagik-hive"
 
     @patch("automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key")
-    async def test_hive_source_handles_empty_flows(
-        self, mock_decrypt, workflow_manager, mock_hive_source
-    ):
+    async def test_hive_source_handles_empty_flows(self, mock_decrypt, workflow_manager, mock_hive_source):
         """Test Hive source handles empty flows gracefully."""
         mock_decrypt.return_value = "decrypted_key"
 
@@ -234,24 +213,18 @@ class TestWorkflowManagerHiveIntegration:
         mock_manager.list_flows_sync.return_value = []
         mock_manager.api_url = mock_hive_source.url
 
-        with patch.object(
-            workflow_manager, "_get_source_manager", return_value=mock_manager
-        ):
+        with patch.object(workflow_manager, "_get_source_manager", return_value=mock_manager):
             # Mock session query for sources
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_hive_source]
             workflow_manager.session.execute.return_value = mock_result
 
-            flows = await workflow_manager.list_remote_flows(
-                source_url=mock_hive_source.url
-            )
+            flows = await workflow_manager.list_remote_flows(source_url=mock_hive_source.url)
 
             assert flows == []
 
     @patch("automagik_spark.core.workflows.manager.WorkflowSource.decrypt_api_key")
-    async def test_hive_source_connection_error(
-        self, mock_decrypt, workflow_manager, mock_hive_source
-    ):
+    async def test_hive_source_connection_error(self, mock_decrypt, workflow_manager, mock_hive_source):
         """Test Hive source handles connection errors gracefully."""
         mock_decrypt.return_value = "decrypted_key"
 
@@ -260,17 +233,13 @@ class TestWorkflowManagerHiveIntegration:
         mock_manager.list_flows_sync.side_effect = Exception("Connection failed")
         mock_manager.api_url = mock_hive_source.url
 
-        with patch.object(
-            workflow_manager, "_get_source_manager", return_value=mock_manager
-        ):
+        with patch.object(workflow_manager, "_get_source_manager", return_value=mock_manager):
             # Mock session query for sources
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_hive_source]
             workflow_manager.session.execute.return_value = mock_result
 
-            flows = await workflow_manager.list_remote_flows(
-                source_url=mock_hive_source.url
-            )
+            flows = await workflow_manager.list_remote_flows(source_url=mock_hive_source.url)
 
             # Should return empty list on error (errors are logged but not raised)
             assert flows == []

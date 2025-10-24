@@ -8,9 +8,7 @@ from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(
-    prefix="/tasks", tags=["tasks"], responses={401: {"model": ErrorResponse}}
-)
+router = APIRouter(prefix="/tasks", tags=["tasks"], responses={401: {"model": ErrorResponse}})
 
 
 async def get_flow_manager(
@@ -20,9 +18,7 @@ async def get_flow_manager(
     return WorkflowManager(session)
 
 
-@router.get(
-    "", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)]
-)
+@router.get("", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)])
 async def list_tasks(
     workflow_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -37,12 +33,8 @@ async def list_tasks(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get(
-    "/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)]
-)
-async def get_task(
-    task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)
-):
+@router.get("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
+async def get_task(task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)):
     """Get a specific task by ID."""
     try:
         task = await flow_manager.get_task(task_id)
@@ -55,12 +47,8 @@ async def get_task(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete(
-    "/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)]
-)
-async def delete_task(
-    task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)
-):
+@router.delete("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_api_key)])
+async def delete_task(task_id: str, flow_manager: WorkflowManager = Depends(get_flow_manager)):
     """Delete a task by ID."""
     try:
         deleted_task = await flow_manager.task.delete_task(task_id)

@@ -64,9 +64,7 @@ def get_status_style(status: str) -> str:
         "active": "[bold green]●[/bold green] ACTIVE",
         "inactive": "[bold red]○[/bold red] INACTIVE",
     }
-    return status_styles.get(
-        status.lower(), f"[bold white]{status.upper()}[/bold white]"
-    )
+    return status_styles.get(status.lower(), f"[bold white]{status.upper()}[/bold white]")
 
 
 def print_table(table: Table) -> None:

@@ -21,9 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add flow_raw_data column to workflows table
-    op.add_column(
-        "workflows", sa.Column("flow_raw_data", postgresql.JSON(), nullable=True)
-    )
+    op.add_column("workflows", sa.Column("flow_raw_data", postgresql.JSON(), nullable=True))
 
 
 def downgrade() -> None:
