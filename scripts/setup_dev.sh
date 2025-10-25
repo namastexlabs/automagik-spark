@@ -204,7 +204,7 @@ setup_database() {
 }
 
 # Check if Python 3.10 or higher is installed
-PYTHON_VERSION=$(python3 -c 'import sys; print("".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "0")
+PYTHON_VERSION=$(python3.12 -c 'import sys; print("".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "0")
 if [ "$PYTHON_VERSION" = "0" ] || [ "$PYTHON_VERSION" -lt "310" ]; then
     print_warning "Python 3.10 or higher is required but not found."
     
