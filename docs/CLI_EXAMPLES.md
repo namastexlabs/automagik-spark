@@ -4,8 +4,6 @@
 This guide provides practical examples for using the `automagik-spark` CLI to manage and schedule your workflows.
 # Prerequisites & Setup
 
-# Prerequisites & Setup
-
 Before using the CLI, make sure you have run the development setup script:
 
 ```bash
@@ -19,7 +17,7 @@ chmod +x ./scripts/setup_dev.sh
 # Windows PowerShell (if provided)
 # ./scripts/setup_dev.ps1
 
-
+```
 ## Getting Started
 
 1)First, ensure `automagik-spark` is installed and accessible. You can verify this with the `--help` command.
@@ -214,13 +212,14 @@ export AUTOMAGIK_SPARK_DISABLE_TELEMETRY=true
 setx AUTOMAGIK_SPARK_DISABLE_TELEMETRY true
 
 7️⃣ Common Cron Patterns
-Description	Expression
-Every 5 minutes	*/5 * * * *
-Every hour	0 * * * *
-Every day at midnight	0 0 * * *
-Weekdays at 9 AM	0 9 * * 1-5
-Sundays at 2 AM	0 2 * * 0
-First day of month	0 0 1 * *
+| Description | Expression |
+|-------------|------------|
+| Every 5 minutes | `*/5 * * * *` |
+| Every hour | `0 * * * *` |
+| Every day at midnight | `0 0 * * *` |
+| Weekdays at 9 AM | `0 9 * * 1-5` |
+| Sundays at 2 AM | `0 2 * * 0` |
+| First day of month | `0 0 1 * *` |
 
 8️⃣ Troubleshooting (Cross-Platform)
 Symptom	Cause	Fix
