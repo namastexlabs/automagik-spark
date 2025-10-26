@@ -87,9 +87,7 @@ async def process_schedule(session, schedule, workflow_manager, now=None):
 
     try:
         # Log schedule parameters
-        logger.debug(
-            f"Processing schedule {schedule.id} for workflow {schedule.workflow_id}"
-        )
+        logger.debug(f"Processing schedule {schedule.id} for workflow {schedule.workflow_id}")
         logger.debug(f"Schedule parameters: {schedule.workflow_params}")
 
         # Create task
@@ -196,9 +194,7 @@ def print_active_schedules():
                 return
 
             # Create table
-            table = Table(
-                title="Active Schedules", caption=f"Total: {len(schedules)} schedule(s)"
-            )
+            table = Table(title="Active Schedules", caption=f"Total: {len(schedules)} schedule(s)")
             table.add_column("ID", justify="left", style="bright_blue", no_wrap=True)
             table.add_column("Workflow", justify="left", style="green")
             table.add_column("Type", justify="left", style="magenta")
@@ -207,13 +203,9 @@ def print_active_schedules():
 
             for schedule in schedules:
                 next_run = (
-                    schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    if schedule.next_run_at
-                    else "Not scheduled"
+                    schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S UTC") if schedule.next_run_at else "Not scheduled"
                 )
-                workflow_name = (
-                    schedule.workflow.name if schedule.workflow else "Unknown"
-                )
+                workflow_name = schedule.workflow.name if schedule.workflow else "Unknown"
                 table.add_row(
                     str(schedule.id),
                     workflow_name,
@@ -245,9 +237,7 @@ worker_group = click.Group(name="worker", help="Worker management commands")
 
 @worker_group.command()
 @click.option("--threads", default=2, type=int, help="Number of worker threads")
-@click.option(
-    "--daemon", is_flag=True, default=False, help="Run in daemon mode (background)"
-)
+@click.option("--daemon", is_flag=True, default=False, help="Run in daemon mode (background)")
 def start(threads: int = 2, daemon: bool = False):
     """Start the worker."""
     try:
@@ -324,12 +314,8 @@ def start(threads: int = 2, daemon: bool = False):
             # In foreground mode (default), run worker directly
             # This will block and show logs directly to console
             click.echo("Starting worker and beat scheduler in foreground mode...")
-            worker_process = subprocess.Popen(
-                worker_cmd, env=dict(os.environ, PYTHONUNBUFFERED="1")
-            )
-            beat_process = subprocess.Popen(
-                beat_cmd, env=dict(os.environ, PYTHONUNBUFFERED="1")
-            )
+            worker_process = subprocess.Popen(worker_cmd, env=dict(os.environ, PYTHONUNBUFFERED="1"))
+            beat_process = subprocess.Popen(beat_cmd, env=dict(os.environ, PYTHONUNBUFFERED="1"))
 
             # Wait for either process to exit
             while True:
@@ -337,16 +323,12 @@ def start(threads: int = 2, daemon: bool = False):
                 beat_status = beat_process.poll()
 
                 if worker_status is not None:
-                    click.echo(
-                        "Worker process exited with status: " + str(worker_status)
-                    )
+                    click.echo("Worker process exited with status: " + str(worker_status))
                     beat_process.terminate()
                     sys.exit(worker_status)
 
                 if beat_status is not None:
-                    click.echo(
-                        "Beat scheduler process exited with status: " + str(beat_status)
-                    )
+                    click.echo("Beat scheduler process exited with status: " + str(beat_status))
                     worker_process.terminate()
                     sys.exit(beat_status)
 

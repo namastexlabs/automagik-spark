@@ -82,8 +82,7 @@ async def list_remote_flows(
                 for node in flow["data"]["nodes"]:
                     component = {
                         "id": node.get("id"),
-                        "name": node.get("data", {}).get("name")
-                        or node.get("data", {}).get("type"),
+                        "name": node.get("data", {}).get("name") or node.get("data", {}).get("type"),
                         "description": node.get("data", {}).get("description", ""),
                     }
                     simplified_flow["components"].append(component)
@@ -191,9 +190,7 @@ async def sync_flow(
 )
 async def run_workflow(
     workflow_id: str,
-    input_data: str = Body(
-        ..., description="Input string to be passed to the workflow's input component"
-    ),
+    input_data: str = Body(..., description="Input string to be passed to the workflow's input component"),
     workflow_manager: WorkflowManager = Depends(get_workflow_manager),
 ) -> TaskResponse:
     """Run a workflow with input data.

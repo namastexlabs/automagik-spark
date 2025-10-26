@@ -84,9 +84,7 @@ class WorkflowSync:
 
     def _get_workflow_source(self, workflow_id: str) -> Optional[WorkflowSource]:
         """Get the workflow source for a given workflow ID."""
-        workflow = self.session.execute(
-            select(Workflow).where(Workflow.id == workflow_id)
-        ).scalar_one_or_none()
+        workflow = self.session.execute(select(Workflow).where(Workflow.id == workflow_id)).scalar_one_or_none()
         if not workflow:
             return None
         return workflow.workflow_source
@@ -157,9 +155,7 @@ class WorkflowSync:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _mark_task_failed(
-        self, task: Task, error_msg: str, *, log_traceback: bool = False
-    ):
+    async def _mark_task_failed(self, task: Task, error_msg: str, *, log_traceback: bool = False):
         """Utility to set task to failed & optionally add TaskLog."""
         task.status = "failed"
         task.error = error_msg
@@ -172,9 +168,7 @@ class WorkflowSync:
             tb = traceback.format_exc()
             from ..database.models import TaskLog
 
-            log_entry = TaskLog(
-                task_id=task.id, level="error", message=f"{error_msg}\nTraceback:\n{tb}"
-            )
+            log_entry = TaskLog(task_id=task.id, level="error", message=f"{error_msg}\nTraceback:\n{tb}")
             self.session.add(log_entry)
 
         await self.session.commit()
@@ -210,9 +204,7 @@ class WorkflowSyncSync:
         """Get the workflow source for a given workflow ID."""
         from sqlalchemy import select
 
-        result = self.session.execute(
-            select(Workflow).where(Workflow.id == workflow_id)
-        )
+        result = self.session.execute(select(Workflow).where(Workflow.id == workflow_id))
         workflow = result.scalar_one_or_none()
         if not workflow:
             return None
@@ -220,9 +212,7 @@ class WorkflowSyncSync:
         # Return the associated workflow source
         return workflow.workflow_source
 
-    def execute_workflow(
-        self, workflow: Workflow, input_data: str
-    ) -> Optional[Dict[str, Any]]:
+    def execute_workflow(self, workflow: Workflow, input_data: str) -> Optional[Dict[str, Any]]:
         """Execute a workflow with the given input data."""
         try:
             logger.info(
@@ -249,14 +239,10 @@ class WorkflowSyncSync:
                     f"Creating AutoMagikAgentManager with api_url={source.url}, api_key={'***' if api_key else None}"
                 )
                 try:
-                    self._manager = AutoMagikAgentManager(
-                        api_url=source.url, api_key=api_key
-                    )
+                    self._manager = AutoMagikAgentManager(api_url=source.url, api_key=api_key)
                     logger.info("AutoMagikAgentManager created successfully")
                 except Exception as create_error:
-                    logger.error(
-                        f"Failed to create AutoMagikAgentManager: {create_error}"
-                    )
+                    logger.error(f"Failed to create AutoMagikAgentManager: {create_error}")
                     import traceback
 
                     logger.error(f"Create manager traceback: {traceback.format_exc()}")
@@ -265,14 +251,10 @@ class WorkflowSyncSync:
                     f"Calling run_flow_sync with agent_id={workflow.remote_flow_id}, input_data={repr(input_data)}"
                 )
                 try:
-                    result = self._manager.run_flow_sync(
-                        workflow.remote_flow_id, input_data
-                    )
+                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
                     logger.info("AutoMagik run_flow_sync completed successfully")
                 except Exception as automagik_error:
-                    logger.error(
-                        f"AutoMagik run_flow_sync failed with error: {automagik_error}"
-                    )
+                    logger.error(f"AutoMagik run_flow_sync failed with error: {automagik_error}")
                     logger.error(f"Error type: {type(automagik_error)}")
                     import traceback
 
@@ -284,14 +266,10 @@ class WorkflowSyncSync:
                     f"Creating AutomagikHiveManager with api_url={source.url}, api_key={'***' if api_key else None}"
                 )
                 try:
-                    self._manager = AutomagikHiveManager(
-                        api_url=source.url, api_key=api_key
-                    )
+                    self._manager = AutomagikHiveManager(api_url=source.url, api_key=api_key)
                     logger.info("AutomagikHiveManager created successfully")
                 except Exception as create_error:
-                    logger.error(
-                        f"Failed to create AutomagikHiveManager: {create_error}"
-                    )
+                    logger.error(f"Failed to create AutomagikHiveManager: {create_error}")
                     import traceback
 
                     logger.error(f"Create manager traceback: {traceback.format_exc()}")
@@ -300,14 +278,10 @@ class WorkflowSyncSync:
                     f"Calling run_flow_sync with flow_id={workflow.remote_flow_id}, input_data={repr(input_data)}"
                 )
                 try:
-                    result = self._manager.run_flow_sync(
-                        workflow.remote_flow_id, input_data
-                    )
+                    result = self._manager.run_flow_sync(workflow.remote_flow_id, input_data)
                     logger.info("AutoMagik Hive run_flow_sync completed successfully")
                 except Exception as hive_error:
-                    logger.error(
-                        f"AutoMagik Hive run_flow_sync failed with error: {hive_error}"
-                    )
+                    logger.error(f"AutoMagik Hive run_flow_sync failed with error: {hive_error}")
                     logger.error(f"Error type: {type(hive_error)}")
                     import traceback
 
@@ -315,12 +289,8 @@ class WorkflowSyncSync:
                     raise
             else:
                 # Default to LangFlow manager for other sources
-                self._manager = LangFlowManager(
-                    self.session, api_url=source.url, api_key=api_key
-                )
-                result = self._manager.run_workflow_sync(
-                    workflow.remote_flow_id, input_data
-                )
+                self._manager = LangFlowManager(self.session, api_url=source.url, api_key=api_key)
+                result = self._manager.run_workflow_sync(workflow.remote_flow_id, input_data)
             if not result:
                 raise ValueError("No result from workflow execution")
 

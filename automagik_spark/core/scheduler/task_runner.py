@@ -63,9 +63,7 @@ class TaskRunner:
 
             try:
                 # Execute workflow
-                output = await self.workflow_manager.run_workflow(
-                    task.workflow_id, task.input_data
-                )
+                output = await self.workflow_manager.run_workflow(task.workflow_id, task.input_data)
                 if not output:
                     raise Exception("Workflow execution failed - no output returned")
 
@@ -87,17 +85,13 @@ class TaskRunner:
                 # Check if should retry
                 if task.tries < task.max_retries:
                     task.status = "pending"  # Will be retried
-                    logger.info(
-                        f"Task {task_id} will be retried ({task.tries}/{task.max_retries})"
-                    )
+                    logger.info(f"Task {task_id} will be retried ({task.tries}/{task.max_retries})")
                 else:
                     task.status = "failed"  # Max retries exceeded
                     logger.info(f"Task {task_id} failed after {task.tries} attempts")
 
                 task.error = error_msg  # Store error message
-                task.completed_at = datetime.now(
-                    timezone.utc
-                )  # Mark completion time even for failures
+                task.completed_at = datetime.now(timezone.utc)  # Mark completion time even for failures
                 task.updated_at = datetime.now(timezone.utc)
                 await self.session.commit()
                 return None
@@ -154,9 +148,7 @@ class TaskRunner:
                 return False
 
             if task.tries >= task.max_retries:
-                logger.error(
-                    f"Task {task_id} has exceeded maximum retries ({task.tries}/{task.max_retries})"
-                )
+                logger.error(f"Task {task_id} has exceeded maximum retries ({task.tries}/{task.max_retries})")
                 return False
 
             # Reset task status for retry

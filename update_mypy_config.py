@@ -4,7 +4,7 @@
 import sys
 
 # Read the file
-with open('/home/cezar/automagik/automagik-spark/pyproject.toml', 'r') as f:
+with open("/home/cezar/automagik/automagik-spark/pyproject.toml", "r") as f:
     content = f.read()
 
 # Find and replace the mypy section
@@ -67,7 +67,7 @@ allow_untyped_calls = true"""
 
 if old_mypy in content:
     content = content.replace(old_mypy, new_mypy)
-    with open('/home/cezar/automagik/automagik-spark/pyproject.toml', 'w') as f:
+    with open("/home/cezar/automagik/automagik-spark/pyproject.toml", "w") as f:
         f.write(content)
     print("Successfully updated mypy configuration!")
 else:

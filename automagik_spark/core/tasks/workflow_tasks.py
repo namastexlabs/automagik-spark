@@ -22,11 +22,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
     try:
         with get_sync_session() as session:
             # Get schedule and lock it for update
-            schedule_query = (
-                select(Schedule)
-                .where(Schedule.id == UUID(schedule_id))
-                .with_for_update()
-            )
+            schedule_query = select(Schedule).where(Schedule.id == UUID(schedule_id)).with_for_update()
             schedule = session.execute(schedule_query).scalar()
             if not schedule:
                 logger.info(f"Schedule {schedule_id} not found")
@@ -40,9 +36,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
             if schedule.schedule_type == "one-time":
                 schedule.status = "completed"
                 session.commit()
-                logger.info(
-                    f"Marked one-time schedule {schedule_id} as completed before execution"
-                )
+                logger.info(f"Marked one-time schedule {schedule_id} as completed before execution")
 
             # Create task with input data as string
             input_data = ""
@@ -75,9 +69,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
 
             try:
                 # Get workflow
-                workflow_query = select(Workflow).where(
-                    Workflow.id == schedule.workflow_id
-                )
+                workflow_query = select(Workflow).where(Workflow.id == schedule.workflow_id)
                 workflow = session.execute(workflow_query).scalar()
                 if not workflow:
                     logger.error(f"Workflow {schedule.workflow_id} not found")
@@ -95,9 +87,7 @@ def _execute_workflow_sync(schedule_id: str) -> Optional[Task]:
                         # Extract and log only the result message
                         result_message = output.get("result", "")
                         if isinstance(result_message, dict):
-                            result_message = result_message.get(
-                                "response", str(result_message)
-                            )
+                            result_message = result_message.get("response", str(result_message))
                         logger.info(f"Workflow result: {result_message}")
 
                         # Store the full output in the task

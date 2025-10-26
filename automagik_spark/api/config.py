@@ -9,9 +9,7 @@ load_dotenv()
 
 def get_cors_origins() -> List[str]:
     """Get CORS origins from environment variable."""
-    cors_origins = os.getenv(
-        "AUTOMAGIK_SPARK_API_CORS", "http://localhost:3000,http://localhost:8883"
-    )
+    cors_origins = os.getenv("AUTOMAGIK_SPARK_API_CORS", "http://localhost:3000,http://localhost:8883")
     return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 

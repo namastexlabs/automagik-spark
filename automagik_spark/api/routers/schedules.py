@@ -10,9 +10,7 @@ from ...core.workflows.manager import WorkflowManager
 from ...core.scheduler.manager import SchedulerManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(
-    prefix="/schedules", tags=["schedules"], responses={401: {"model": ErrorResponse}}
-)
+router = APIRouter(prefix="/schedules", tags=["schedules"], responses={401: {"model": ErrorResponse}})
 
 
 async def get_workflow_manager(
@@ -30,9 +28,7 @@ async def get_scheduler_manager(
     return SchedulerManager(session, workflow_manager)
 
 
-@router.post(
-    "", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)]
-)
+@router.post("", response_model=ScheduleResponse, dependencies=[Depends(verify_api_key)])
 async def create_schedule(
     schedule: ScheduleCreate,
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager),
@@ -45,11 +41,7 @@ async def create_schedule(
             workflow_id=workflow_id,
             schedule_type=schedule.schedule_type,
             schedule_expr=schedule.schedule_expr,
-            params=(
-                {"value": schedule.input_value}
-                if schedule.input_value is not None
-                else None
-            ),
+            params=({"value": schedule.input_value} if schedule.input_value is not None else None),
         )
         if not created_schedule:
             raise HTTPException(status_code=400, detail="Failed to create schedule")
@@ -60,9 +52,7 @@ async def create_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get(
-    "", response_model=List[ScheduleResponse], dependencies=[Depends(verify_api_key)]
-)
+@router.get("", response_model=List[ScheduleResponse], dependencies=[Depends(verify_api_key)])
 async def list_schedules(
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager),
 ):
@@ -118,33 +108,23 @@ async def update_schedule(
 
         # Update schedule expression if changed
         if existing_schedule.schedule_expr != schedule.schedule_expr:
-            success = await scheduler_manager.update_schedule_expression(
-                schedule_uuid, schedule.schedule_expr
-            )
+            success = await scheduler_manager.update_schedule_expression(schedule_uuid, schedule.schedule_expr)
             if not success:
-                raise HTTPException(
-                    status_code=400, detail="Failed to update schedule expression"
-                )
+                raise HTTPException(status_code=400, detail="Failed to update schedule expression")
 
         # Update schedule status if changed
         # Type ignore: ScheduleCreate doesn't have status attribute in schema
         # but it's accessed here for update operations - this is a design choice
         if existing_schedule.status != schedule.status:  # type: ignore[attr-defined]
             action = "resume" if schedule.status == "active" else "pause"  # type: ignore[attr-defined]
-            success = await scheduler_manager.update_schedule_status(
-                str(schedule_uuid), action
-            )
+            success = await scheduler_manager.update_schedule_status(str(schedule_uuid), action)
             if not success:
-                raise HTTPException(
-                    status_code=400, detail="Failed to update schedule status"
-                )
+                raise HTTPException(status_code=400, detail="Failed to update schedule status")
 
         # Get updated schedule
         updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
         if not updated_schedule:
-            raise HTTPException(
-                status_code=404, detail="Schedule not found after update"
-            )
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
 
         return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:
@@ -202,18 +182,14 @@ async def enable_schedule(
             raise HTTPException(status_code=404, detail="Schedule not found")
 
         # Enable the schedule
-        success = await scheduler_manager.update_schedule_status(
-            str(schedule_uuid), "resume"
-        )
+        success = await scheduler_manager.update_schedule_status(str(schedule_uuid), "resume")
         if not success:
             raise HTTPException(status_code=400, detail="Failed to enable schedule")
 
         # Get updated schedule
         updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
         if not updated_schedule:
-            raise HTTPException(
-                status_code=404, detail="Schedule not found after update"
-            )
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
 
         return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:
@@ -241,18 +217,14 @@ async def disable_schedule(
             raise HTTPException(status_code=404, detail="Schedule not found")
 
         # Disable the schedule
-        success = await scheduler_manager.update_schedule_status(
-            str(schedule_uuid), "pause"
-        )
+        success = await scheduler_manager.update_schedule_status(str(schedule_uuid), "pause")
         if not success:
             raise HTTPException(status_code=400, detail="Failed to disable schedule")
 
         # Get updated schedule
         updated_schedule = await scheduler_manager.get_schedule(schedule_uuid)
         if not updated_schedule:
-            raise HTTPException(
-                status_code=404, detail="Schedule not found after update"
-            )
+            raise HTTPException(status_code=404, detail="Schedule not found after update")
 
         return ScheduleResponse.model_validate(updated_schedule)
     except ValueError as e:

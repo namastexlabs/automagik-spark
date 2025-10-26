@@ -28,9 +28,7 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 headers["x-api-key"] = api_key
             # Check health first - different endpoints for different source types
             if source_type == SourceType.AUTOMAGIK_HIVE:
-                health_response = await client.get(
-                    f"{url}/api/v1/health", headers=headers
-                )
+                health_response = await client.get(f"{url}/api/v1/health", headers=headers)
             else:
                 health_response = await client.get(f"{url}/health", headers=headers)
             health_response.raise_for_status()
@@ -45,9 +43,7 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 expected_status = "ok"
 
             if health_data.get("status") != expected_status:
-                raise HTTPException(
-                    status_code=400, detail=f"Source health check failed: {health_data}"
-                )
+                raise HTTPException(status_code=400, detail=f"Source health check failed: {health_data}")
             # Get version info based on source type
             if source_type == SourceType.AUTOMAGIK_AGENTS:
                 # Get root info which contains version and service info
@@ -55,9 +51,7 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                 root_response.raise_for_status()
                 root_data = root_response.json()
                 version_data = {
-                    "version": root_data.get(
-                        "version", health_data.get("version", "unknown")
-                    ),
+                    "version": root_data.get("version", health_data.get("version", "unknown")),
                     "name": root_data.get("name", "AutoMagik Agents"),
                     "description": root_data.get("description", ""),
                     "status": health_data.get("status", "unknown"),
@@ -67,16 +61,12 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
             elif source_type == SourceType.AUTOMAGIK_HIVE:
                 # For AutoMagik Hive, get status info for additional details
                 try:
-                    status_response = await client.get(
-                        f"{url}/playground/status", headers=headers
-                    )
+                    status_response = await client.get(f"{url}/playground/status", headers=headers)
                     status_response.raise_for_status()
                     status_data = status_response.json()
                     version_data = {
                         "version": health_data.get("utc", "unknown"),
-                        "name": health_data.get(
-                            "service", "Automagik Hive Multi-Agent System"
-                        ),
+                        "name": health_data.get("service", "Automagik Hive Multi-Agent System"),
                         "description": "AutoMagik Hive Multi-Agent System with agents, teams, and workflows",
                         "status": health_data.get("status", "unknown"),
                         "timestamp": health_data.get("utc"),
@@ -89,9 +79,7 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                     # Fallback if status endpoint fails
                     version_data = {
                         "version": health_data.get("utc", "unknown"),
-                        "name": health_data.get(
-                            "service", "Automagik Hive Multi-Agent System"
-                        ),
+                        "name": health_data.get("service", "Automagik Hive Multi-Agent System"),
                         "description": "AutoMagik Hive Multi-Agent System",
                         "status": health_data.get("status", "unknown"),
                         "timestamp": health_data.get("utc"),
@@ -99,18 +87,14 @@ async def _validate_source(url: str, api_key: str, source_type: SourceType) -> d
                     }
             else:
                 # For langflow, use /api/v1/version endpoint
-                version_response = await client.get(
-                    f"{url}/api/v1/version", headers=headers
-                )
+                version_response = await client.get(f"{url}/api/v1/version", headers=headers)
                 version_response.raise_for_status()
                 version_data = version_response.json()
             return {**version_data, "status": health_data.get("status", "unknown")}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to validate source: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Failed to validate source: {str(e)}")
 
 
 @router.post(
@@ -127,13 +111,9 @@ async def create_source(
     url_str = str(source.url).rstrip("/")
 
     # Check if source with URL already exists
-    result = await session.execute(
-        select(WorkflowSource).where(WorkflowSource.url == url_str)
-    )
+    result = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url_str))
     if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=400, detail=f"Source with URL {url_str} already exists"
-        )
+        raise HTTPException(status_code=400, detail=f"Source with URL {url_str} already exists")
 
     # Validate source and get version info
     version_info = await _validate_source(url_str, source.api_key, source.source_type)
@@ -152,9 +132,7 @@ async def create_source(
         url=url_str,
         encrypted_api_key=WorkflowSource.encrypt_api_key(source.api_key),
         version_info=version_info,
-        status=(
-            "active" if version_info.get("status") == expected_status else "inactive"
-        ),
+        status=("active" if version_info.get("status") == expected_status else "inactive"),
     )
     session.add(db_source)
     await session.commit()
@@ -186,9 +164,7 @@ async def list_sources(
     response_model=WorkflowSourceResponse,
     dependencies=[Depends(verify_api_key)],
 )
-async def get_source(
-    source_id: UUID, session: AsyncSession = Depends(get_async_session)
-) -> WorkflowSourceResponse:
+async def get_source(source_id: UUID, session: AsyncSession = Depends(get_async_session)) -> WorkflowSourceResponse:
     """Get a specific workflow source."""
     source = await session.get(WorkflowSource, source_id)
     if not source:
@@ -221,20 +197,14 @@ async def update_source(
         url_str = str(update_data.url).rstrip("/")
         # Check if new URL conflicts with existing source
         if url_str != source.url:
-            result = await session.execute(
-                select(WorkflowSource).where(WorkflowSource.url == url_str)
-            )
+            result = await session.execute(select(WorkflowSource).where(WorkflowSource.url == url_str))
             if result.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=400, detail=f"Source with URL {url_str} already exists"
-                )
+                raise HTTPException(status_code=400, detail=f"Source with URL {url_str} already exists")
         source.url = url_str
     if update_data.api_key is not None:
         source.encrypted_api_key = WorkflowSource.encrypt_api_key(update_data.api_key)
         # Validate new API key and update version info
-        version_info = await _validate_source(
-            source.url, update_data.api_key, source.source_type
-        )
+        version_info = await _validate_source(source.url, update_data.api_key, source.source_type)
         source.version_info = version_info
     if update_data.status is not None:
         source.status = update_data.status
@@ -245,9 +215,7 @@ async def update_source(
 
 
 @router.delete("/{source_id}", dependencies=[Depends(verify_api_key)])
-async def delete_source(
-    source_id: UUID, session: AsyncSession = Depends(get_async_session)
-) -> dict:
+async def delete_source(source_id: UUID, session: AsyncSession = Depends(get_async_session)) -> dict:
     """Delete a workflow source."""
     try:
         source = await session.get(WorkflowSource, source_id)

@@ -76,16 +76,10 @@ def list_workflows(folder: Optional[str]):
                 for w in workflows:
                     tasks = w.get("tasks", [])
                     schedules = w.get("schedules", [])
-                    latest_task = (
-                        max(tasks, key=lambda t: t["created_at"], default=None)
-                        if tasks
-                        else None
-                    )
+                    latest_task = max(tasks, key=lambda t: t["created_at"], default=None) if tasks else None
 
                     # Count failed tasks
-                    failed_tasks = sum(
-                        1 for t in tasks if t["status"].lower() == "failed"
-                    )
+                    failed_tasks = sum(1 for t in tasks if t["status"].lower() == "failed")
 
                     # Determine workflow status from latest run
                     if not latest_task:
@@ -95,19 +89,14 @@ def list_workflows(folder: Optional[str]):
 
                     # Format task counts
                     if failed_tasks > 0:
-                        tasks_display = (
-                            f"[bold]{len(tasks)}[/bold] ([red]{failed_tasks}[/red])"
-                        )
+                        tasks_display = f"[bold]{len(tasks)}[/bold] ([red]{failed_tasks}[/red])"
                     else:
                         tasks_display = f"[bold]{len(tasks)}[/bold] ([dim]0[/dim])"
 
                     # Get source display name from workflow source
                     instance_name = "unknown"
                     source_type = "unknown"
-                    if (
-                        w.get("workflow_source_id")
-                        and str(w["workflow_source_id"]) in sources
-                    ):
+                    if w.get("workflow_source_id") and str(w["workflow_source_id"]) in sources:
                         source = sources[str(w["workflow_source_id"])]
                         url = source.url
                         instance = url.split("://")[-1].split("/")[0]
@@ -118,9 +107,7 @@ def list_workflows(folder: Optional[str]):
                     # Parse timestamp from ISO format
                     updated_at = w["updated_at"]
                     if isinstance(updated_at, str):
-                        updated_at = datetime.fromisoformat(
-                            updated_at.replace("Z", "+00:00")
-                        )
+                        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
 
                     # Format the row
                     table.add_row(
@@ -157,9 +144,7 @@ def sync_flow(flow_id: Optional[str], source: Optional[str], page: int, page_siz
                 if len(source) == 36:  # Simple UUID length check
                     try:
                         source_id = UUID(source)
-                        result = await session.execute(
-                            select(WorkflowSource).where(WorkflowSource.id == source_id)
-                        )
+                        result = await session.execute(select(WorkflowSource).where(WorkflowSource.id == source_id))
                         source_obj = result.scalar_one_or_none()
                         if source_obj:
                             sources_to_check = [source_obj]
@@ -285,10 +270,7 @@ def sync_flow(flow_id: Optional[str], source: Optional[str], page: int, page_siz
                             (
                                 s.url.split("://")[-1].split("/")[0].split(".")[0]
                                 if hasattr(s, "url")
-                                else s["url"]
-                                .split("://")[-1]
-                                .split("/")[0]
-                                .split(".")[0]
+                                else s["url"].split("://")[-1].split("/")[0].split(".")[0]
                             )
                             for s in sources_to_check
                         ]

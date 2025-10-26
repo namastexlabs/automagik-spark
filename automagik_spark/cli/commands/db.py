@@ -192,9 +192,7 @@ script_location = migrations
             # Initialize alembic
             click.echo("Initializing alembic...")
             alembic_cfg = Config(str(alembic_ini))
-            command.init(
-                config=alembic_cfg, directory=str(MIGRATIONS_DIR), template="async"
-            )
+            command.init(config=alembic_cfg, directory=str(MIGRATIONS_DIR), template="async")
 
             # Update config files with our custom content
             click.echo("Updating configuration...")

@@ -139,13 +139,9 @@ class BaseAPIClient:
     def _handle_error_response(response: httpx.Response) -> None:
         """Handle error responses from the API."""
         if 400 <= response.status_code < 500:
-            raise APIClientError(
-                f"Client error: {response.status_code} - {response.text}"
-            )
+            raise APIClientError(f"Client error: {response.status_code} - {response.text}")
         elif 500 <= response.status_code < 600:
-            raise APIServerError(
-                f"Server error: {response.status_code} - {response.text}"
-            )
+            raise APIServerError(f"Server error: {response.status_code} - {response.text}")
         elif response.status_code == 429:
             raise RateLimitError("Rate limit exceeded")
         response.raise_for_status()
@@ -161,9 +157,7 @@ class BaseAPIClient:
     ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
         try:
-            response = await client.request(
-                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
-            )
+            response = await client.request(method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs)
             self._handle_error_response(response)
             return response
         except httpx.HTTPError as e:
@@ -210,13 +204,9 @@ class LangFlowManager:
     def _handle_error_response(response: httpx.Response) -> None:
         """Handle error responses from the API."""
         if 400 <= response.status_code < 500:
-            raise APIClientError(
-                f"Client error: {response.status_code} - {response.text}"
-            )
+            raise APIClientError(f"Client error: {response.status_code} - {response.text}")
         elif 500 <= response.status_code < 600:
-            raise APIServerError(
-                f"Server error: {response.status_code} - {response.text}"
-            )
+            raise APIServerError(f"Server error: {response.status_code} - {response.text}")
         elif response.status_code == 429:
             raise RateLimitError("Rate limit exceeded")
         response.raise_for_status()
@@ -232,9 +222,7 @@ class LangFlowManager:
     ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
         try:
-            response = await client.request(
-                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
-            )
+            response = await client.request(method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs)
             self._handle_error_response(response)
             return response
         except httpx.HTTPError as e:
@@ -250,15 +238,11 @@ class LangFlowManager:
         retry=retry_if_exception_type(APIServerError),
         reraise=True,
     )
-    def _request_with_retry_sync(
-        self, client: httpx.Client, method: str, endpoint: str, **kwargs
-    ) -> httpx.Response:
+    def _request_with_retry_sync(self, client: httpx.Client, method: str, endpoint: str, **kwargs) -> httpx.Response:
         """Make a synchronous HTTP request with retry logic."""
         try:
             # Use the client passed to the method instead of creating a new one
-            response = client.request(
-                method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs
-            )
+            response = client.request(method, endpoint, headers=self.headers, timeout=self.timeout, **kwargs)
             self._handle_error_response(response)
             return response
         except httpx.HTTPError as e:
@@ -281,12 +265,8 @@ class LangFlowManager:
         self, method: str, endpoint: str, **kwargs
     ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Execute an async request with a temporary client."""
-        async with httpx.AsyncClient(
-            headers=self.headers, timeout=self.timeout, verify=False
-        ) as temp_client:
-            response = await temp_client.request(
-                method, self._get_endpoint(endpoint), **kwargs
-            )
+        async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, verify=False) as temp_client:
+            response = await temp_client.request(method, self._get_endpoint(endpoint), **kwargs)
             self._handle_error_response(response)
             return self._process_response(response)
 
@@ -307,13 +287,9 @@ class LangFlowManager:
             # Use verb-specific method if it exists (helps with unit tests that patch .get etc.)
             verb = method.lower()
             if hasattr(self._client, verb):
-                response = await getattr(self._client, verb)(
-                    url, headers=headers, **kwargs
-                )
+                response = await getattr(self._client, verb)(url, headers=headers, **kwargs)
             else:
-                response = await self._client.request(
-                    method=method, url=url, headers=headers, **kwargs
-                )
+                response = await self._client.request(method=method, url=url, headers=headers, **kwargs)
 
             # Log the request URL and status
             logger.debug(f"LangFlow API request: {method} {url}")
@@ -331,9 +307,7 @@ class LangFlowManager:
 
         except httpx.HTTPStatusError as e:
             # Log and re-raise so callers/tests can handle it
-            logger.error(
-                f"HTTP error for {url}: {e.response.status_code} - {e.response.text}"
-            )
+            logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")
             raise
 
         except httpx.RequestError as e:
@@ -346,20 +320,14 @@ class LangFlowManager:
             logger.error(f"Unexpected error for {url}: {str(e)}")
             return {"error": str(e), "status": "error"}
 
-    def _make_request_sync(
-        self, method: str, endpoint: str, **kwargs
-    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    def _make_request_sync(self, method: str, endpoint: str, **kwargs) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Make a sync request to the API."""
         # Log a warning instead of raising an error if session type doesn't match
         if self.is_async:
-            logger.warning(
-                "Calling sync method on async session. This may cause issues."
-            )
+            logger.warning("Calling sync method on async session. This may cause issues.")
 
         # Use a new client instance to avoid session type issues
-        with httpx.Client(
-            headers=self.headers, timeout=self.timeout, verify=False
-        ) as client:
+        with httpx.Client(headers=self.headers, timeout=self.timeout, verify=False) as client:
             response = client.request(method, self._get_endpoint(endpoint), **kwargs)
             self._handle_error_response(response)
             return self._process_response(response)
@@ -409,9 +377,7 @@ class LangFlowManager:
 
         return []
 
-    async def list_flows(
-        self, source_url: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def list_flows(self, source_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all flows from LangFlow API.
 
         Args:
@@ -447,8 +413,7 @@ class LangFlowManager:
             return [
                 flow
                 for flow in flows
-                if not flow.get("is_component", False)
-                and _get_container_id(flow) in valid_containers
+                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched
@@ -492,8 +457,7 @@ class LangFlowManager:
             return [
                 flow
                 for flow in flows
-                if not flow.get("is_component", False)
-                and _get_container_id(flow) in valid_containers
+                if not flow.get("is_component", False) and _get_container_id(flow) in valid_containers
             ]
         finally:
             # Restore original API URL and key if we switched
@@ -520,9 +484,7 @@ class LangFlowManager:
         """Get flow components from LangFlow API (sync version)."""
         return self._make_request_sync("GET", f"flows/{flow_id}/components/")
 
-    async def run_flow(
-        self, flow_id: str, input_data: str | Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def run_flow(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
         """Run a flow with input data."""
         try:
             # Get flow data to find component IDs
@@ -541,9 +503,7 @@ class LangFlowManager:
                     output_component = node["id"]
 
             if not input_component or not output_component:
-                raise ValueError(
-                    "Could not find chat input and output components in flow"
-                )
+                raise ValueError("Could not find chat input and output components in flow")
 
             request_data = FlowExecuteRequest(
                 input_value=input_data,
@@ -561,9 +521,7 @@ class LangFlowManager:
             logger.error(f"Error in run_flow: {str(e)}")
             raise
 
-    def run_flow_sync(
-        self, flow_id: str, input_data: str | Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def run_flow_sync(self, flow_id: str, input_data: str | Dict[str, Any]) -> Dict[str, Any]:
         """Run a flow with input data (sync version)."""
         # Get flow data to find component IDs
         flow_data = self.get_flow_sync(flow_id)
@@ -583,9 +541,7 @@ class LangFlowManager:
         if not input_component or not output_component:
             raise ValueError("Could not find chat input and output components in flow")
 
-        request_data = FlowExecuteRequest(
-            input_value=input_data, tweaks={input_component: {}, output_component: {}}
-        )
+        request_data = FlowExecuteRequest(input_value=input_data, tweaks={input_component: {}, output_component: {}})
         return self._make_request_sync(
             "POST",
             f"run/{flow_id}",
@@ -610,13 +566,9 @@ class LangFlowManager:
             )
 
             # Execute workflow using a new client instance to avoid session type issues
-            with httpx.Client(
-                headers=self.headers, timeout=60.0, verify=False
-            ) as client:
+            with httpx.Client(headers=self.headers, timeout=60.0, verify=False) as client:
                 url = f"{self.api_url}/api/v1/run/{flow_id}"
-                response = client.post(
-                    url, json=request_data.dict(), params={"stream": "false"}
-                )
+                response = client.post(url, json=request_data.dict(), params={"stream": "false"})
                 response.raise_for_status()
                 return response.json()
 

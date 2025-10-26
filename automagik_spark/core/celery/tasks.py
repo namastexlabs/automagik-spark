@@ -23,11 +23,7 @@ def print_active_schedules():
     """Print active schedules and their next run times."""
     with get_sync_session() as session:
         # Get all active schedules with eager loading of workflow
-        query = (
-            select(Schedule)
-            .where(Schedule.status == "active")
-            .options(joinedload(Schedule.workflow))
-        )
+        query = select(Schedule).where(Schedule.status == "active").options(joinedload(Schedule.workflow))
         result = session.execute(query)
         schedules = result.scalars().all()
 
@@ -38,9 +34,7 @@ def print_active_schedules():
             return
 
         # Create table
-        table = Table(
-            title="Active Schedules", caption=f"Total: {len(schedules)} schedule(s)"
-        )
+        table = Table(title="Active Schedules", caption=f"Total: {len(schedules)} schedule(s)")
         table.add_column("ID", justify="left", style="bright_blue", no_wrap=True)
         table.add_column("Workflow", justify="left", style="green")
         table.add_column("Type", justify="left", style="magenta")
@@ -49,9 +43,7 @@ def print_active_schedules():
 
         for schedule in schedules:
             next_run = (
-                schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-                if schedule.next_run_at
-                else "Not scheduled"
+                schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S UTC") if schedule.next_run_at else "Not scheduled"
             )
             workflow_name = schedule.workflow.name if schedule.workflow else "Unknown"
             table.add_row(
