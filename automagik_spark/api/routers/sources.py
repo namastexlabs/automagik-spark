@@ -2,11 +2,12 @@
 
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 from ..dependencies import verify_api_key
+from ..models import PaginatedResponse
 from ...core.database.session import get_async_session
 from ...core.database.models import WorkflowSource
 from ...core.schemas.source import (
@@ -143,20 +144,36 @@ async def create_source(
 
 @router.get(
     "/",
-    response_model=List[WorkflowSourceResponse],
+    response_model=PaginatedResponse[WorkflowSourceResponse],
     dependencies=[Depends(verify_api_key)],
 )
 async def list_sources(
-    status: Optional[str] = None, session: AsyncSession = Depends(get_async_session)
-) -> List[WorkflowSourceResponse]:
-    """List all workflow sources."""
-    query = select(WorkflowSource)
+    status: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+    session: AsyncSession = Depends(get_async_session),
+) -> PaginatedResponse[WorkflowSourceResponse]:
+    """List all workflow sources with pagination support."""
+    query = select(WorkflowSource).order_by(WorkflowSource.created_at.desc()).limit(limit).offset(offset)
+    count_query = select(func.count(WorkflowSource.id))
+
     if status:
         query = query.where(WorkflowSource.status == status)
+        count_query = count_query.where(WorkflowSource.status == status)
 
     result = await session.execute(query)
     sources = result.scalars().all()
-    return [WorkflowSourceResponse.from_orm(source) for source in sources]
+
+    total_result = await session.execute(count_query)
+    total = total_result.scalar() or 0
+
+    return PaginatedResponse[WorkflowSourceResponse](
+        items=[WorkflowSourceResponse.from_orm(source) for source in sources],
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_more=(offset + limit) < total,
+    )
 
 
 @router.get(

@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from ...api.config import get_langflow_api_url, get_langflow_api_key
+from ...api.config import get_langflow_api_url, get_langflow_api_key, get_http_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +278,7 @@ class LangFlowManager:
         """
         # Create client if it doesn't exist
         if not self._client:
-            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+            self._client = httpx.AsyncClient(verify=False, timeout=get_http_timeout())
 
         url = f"{self.api_url}/api/v1/{endpoint}"
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -566,7 +566,7 @@ class LangFlowManager:
             )
 
             # Execute workflow using a new client instance to avoid session type issues
-            with httpx.Client(headers=self.headers, timeout=60.0, verify=False) as client:
+            with httpx.Client(headers=self.headers, timeout=get_http_timeout(), verify=False) as client:
                 url = f"{self.api_url}/api/v1/run/{flow_id}"
                 response = client.post(url, json=request_data.dict(), params={"stream": "false"})
                 response.raise_for_status()
@@ -582,7 +582,7 @@ class LangFlowManager:
     async def __aenter__(self):
         """Enter async context manager."""
         if self.is_async:
-            self._client = httpx.AsyncClient(verify=False, follow_redirects=True)
+            self._client = httpx.AsyncClient(verify=False, follow_redirects=True, timeout=get_http_timeout())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -593,7 +593,7 @@ class LangFlowManager:
     def __enter__(self):
         """Enter sync context manager."""
         if not self.is_async:
-            self._client = httpx.Client(verify=False)
+            self._client = httpx.Client(verify=False, timeout=get_http_timeout())
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

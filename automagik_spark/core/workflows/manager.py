@@ -350,10 +350,14 @@ class WorkflowManager:
 
         raise ValueError(f"No source found containing flow {flow_id}")
 
-    async def list_workflows(self, options: dict = None) -> List[Dict[str, Any]]:
+    async def list_workflows(self, options: dict = None, limit: Optional[int] = None, offset: int = 0) -> List[Dict[str, Any]]:
         """List all workflows from the local database."""
-        query = select(Workflow)
+        query = select(Workflow).order_by(Workflow.created_at.desc())
         options = options or {}
+
+        # Apply pagination
+        if limit is not None:
+            query = query.limit(limit).offset(offset)
 
         # Always load schedules and tasks by default
         if "joinedload" not in options:
@@ -377,6 +381,12 @@ class WorkflowManager:
         # Call unique() to handle collection relationships
         workflows = result.unique().scalars().all()
         return [workflow.to_dict() for workflow in workflows]
+
+    async def count_workflows(self) -> int:
+        """Count total workflows."""
+        query = select(func.count(Workflow.id))
+        result = await self.session.execute(query)
+        return result.scalar() or 0
 
     async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
         """Get a workflow by ID.
@@ -467,9 +477,10 @@ class WorkflowManager:
         workflow_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 50,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """List tasks from database."""
-        query = select(Task).order_by(Task.created_at.desc()).limit(limit)
+        query = select(Task).order_by(Task.created_at.desc()).limit(limit).offset(offset)
 
         if workflow_id:
             query = query.where(cast(Task.workflow_id, String) == workflow_id)
@@ -479,6 +490,22 @@ class WorkflowManager:
         result = await self.session.execute(query)
         tasks = result.scalars().all()
         return [task.to_dict() for task in tasks]
+
+    async def count_tasks(
+        self,
+        workflow_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> int:
+        """Count total tasks matching filters."""
+        query = select(func.count(Task.id))
+
+        if workflow_id:
+            query = query.where(cast(Task.workflow_id, String) == workflow_id)
+        if status:
+            query = query.where(Task.status == status)
+
+        result = await self.session.execute(query)
+        return result.scalar() or 0
 
     async def retry_task(self, task_id: str) -> Optional[Task]:
         """Retry a failed task."""

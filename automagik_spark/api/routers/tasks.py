@@ -1,8 +1,8 @@
 """Tasks router for the AutoMagik API."""
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
-from ..models import TaskResponse, ErrorResponse
+from fastapi import APIRouter, HTTPException, Depends, Query
+from ..models import TaskResponse, ErrorResponse, PaginatedResponse
 from ..dependencies import verify_api_key
 from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
@@ -18,17 +18,26 @@ async def get_flow_manager(
     return WorkflowManager(session)
 
 
-@router.get("", response_model=List[TaskResponse], dependencies=[Depends(verify_api_key)])
+@router.get("", response_model=PaginatedResponse[TaskResponse], dependencies=[Depends(verify_api_key)])
 async def list_tasks(
     workflow_id: Optional[str] = None,
     status: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     flow_manager: WorkflowManager = Depends(get_flow_manager),
 ):
-    """List all tasks."""
+    """List all tasks with pagination support."""
     try:
-        tasks = await flow_manager.list_tasks(workflow_id, status, limit)
-        return [TaskResponse.model_validate(task) for task in tasks]
+        tasks = await flow_manager.list_tasks(workflow_id, status, limit, offset)
+        total = await flow_manager.count_tasks(workflow_id, status)
+
+        return PaginatedResponse[TaskResponse](
+            items=[TaskResponse.model_validate(task) for task in tasks],
+            total=total,
+            limit=limit,
+            offset=offset,
+            has_more=(offset + limit) < total,
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

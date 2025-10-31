@@ -9,6 +9,7 @@ from automagik_spark.api.config import (
     get_api_key,
     get_langflow_api_url,
     get_langflow_api_key,
+    get_http_timeout,
 )
 
 
@@ -24,6 +25,7 @@ def clean_env():
         "AUTOMAGIK_SPARK_API_KEY",
         "LANGFLOW_API_URL",
         "LANGFLOW_API_KEY",
+        "AUTOMAGIK_SPARK_HTTP_TIMEOUT",
     ]
     # Store original values
     original_values = {}
@@ -145,3 +147,44 @@ def test_get_langflow_api_key_custom(clean_env):
     os.environ["LANGFLOW_API_KEY"] = test_key
     api_key = get_langflow_api_key()
     assert api_key == test_key
+
+
+def test_get_http_timeout_default(clean_env):
+    """Test get_http_timeout returns default value (600 seconds)."""
+    timeout = get_http_timeout()
+    assert timeout == 600.0
+
+
+def test_get_http_timeout_custom(clean_env):
+    """Test get_http_timeout returns custom value."""
+    os.environ["AUTOMAGIK_SPARK_HTTP_TIMEOUT"] = "300"
+    timeout = get_http_timeout()
+    assert timeout == 300.0
+
+
+def test_get_http_timeout_minimum(clean_env):
+    """Test get_http_timeout enforces minimum of 30 seconds."""
+    os.environ["AUTOMAGIK_SPARK_HTTP_TIMEOUT"] = "10"
+    with pytest.raises(ValueError, match="below minimum"):
+        get_http_timeout()
+
+
+def test_get_http_timeout_maximum(clean_env):
+    """Test get_http_timeout enforces maximum of 3600 seconds."""
+    os.environ["AUTOMAGIK_SPARK_HTTP_TIMEOUT"] = "5000"
+    with pytest.raises(ValueError, match="exceeds maximum"):
+        get_http_timeout()
+
+
+def test_get_http_timeout_invalid(clean_env):
+    """Test get_http_timeout handles invalid values."""
+    os.environ["AUTOMAGIK_SPARK_HTTP_TIMEOUT"] = "not-a-number"
+    with pytest.raises(ValueError, match="Invalid timeout value"):
+        get_http_timeout()
+
+
+def test_get_http_timeout_float(clean_env):
+    """Test get_http_timeout handles float values."""
+    os.environ["AUTOMAGIK_SPARK_HTTP_TIMEOUT"] = "45.5"
+    timeout = get_http_timeout()
+    assert timeout == 45.5

@@ -5,6 +5,7 @@ import httpx
 from fastapi import HTTPException
 import logging
 from uuid import UUID
+from ...api.config import get_http_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class AutoMagikAgentManager:
             base_url=self.api_url,
             headers={"accept": "application/json", "x-api-key": self.api_key},
             verify=False,  # TODO: Make this configurable
+            timeout=get_http_timeout(),
         )
         return self
 
@@ -59,6 +61,7 @@ class AutoMagikAgentManager:
                     base_url=self.api_url,
                     headers={"accept": "application/json", "x-api-key": self.api_key},
                     verify=False,  # TODO: Make this configurable
+                    timeout=get_http_timeout(),
                 )
                 should_close_client = True
 
@@ -116,6 +119,7 @@ class AutoMagikAgentManager:
                     base_url=self.api_url,
                     headers={"accept": "application/json", "x-api-key": self.api_key},
                     verify=False,  # TODO: Make this configurable
+                    timeout=get_http_timeout(),
                 )
                 should_close_client = True
 
@@ -221,6 +225,7 @@ class AutoMagikAgentManager:
                     base_url=self.api_url,
                     headers={"accept": "application/json", "x-api-key": self.api_key},
                     verify=False,  # TODO: Make this configurable
+                    timeout=get_http_timeout(),
                 )
                 should_close_client = True
 
@@ -288,6 +293,7 @@ class AutoMagikAgentManager:
                 base_url=self.api_url,
                 headers={"accept": "application/json", "x-api-key": self.api_key},
                 verify=False,  # TODO: Make this configurable
+                timeout=get_http_timeout(),
             ) as client:
                 # Format the payload according to the API requirements
                 payload = {
@@ -358,6 +364,7 @@ class AutoMagikAgentManager:
                 base_url=self.api_url,
                 headers={"accept": "application/json", "x-api-key": self.api_key},
                 verify=False,  # TODO: Make this configurable
+                timeout=get_http_timeout(),
             ) as client:
                 response = client.get("/api/v1/agents")
                 response.raise_for_status()

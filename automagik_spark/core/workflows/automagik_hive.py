@@ -5,6 +5,7 @@ import httpx
 from fastapi import HTTPException
 import logging
 from uuid import UUID
+from ...api.config import get_http_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class AutomagikHiveManager:
             base_url=self.api_url,
             headers={"accept": "application/json", "x-api-key": self.api_key},
             verify=False,  # TODO: Make this configurable
-            timeout=30.0,  # 30 second timeout
+            timeout=get_http_timeout(),
         )
         return self
 
@@ -74,7 +75,7 @@ class AutomagikHiveManager:
                     base_url=self.api_url,
                     headers={"accept": "application/json", "x-api-key": self.api_key},
                     verify=False,
-                    timeout=30.0,
+                    timeout=get_http_timeout(),
                 )
                 should_close_client = True
 
@@ -496,7 +497,7 @@ class AutomagikHiveManager:
             base_url=self.api_url,
             headers={"accept": "application/json", "x-api-key": self.api_key},
             verify=False,
-            timeout=30.0,
+            timeout=get_http_timeout(),
         )
 
     # Synchronous methods for compatibility
@@ -510,7 +511,7 @@ class AutomagikHiveManager:
                     "x-api-key": self.api_key,
                 },
                 verify=False,
-                timeout=30.0,
+                timeout=get_http_timeout(),
             ) as client:
                 # Get agents
                 agents_response = client.get("/agents")
@@ -683,7 +684,7 @@ class AutomagikHiveManager:
                     "x-api-key": self.api_key,
                 },
                 verify=False,
-                timeout=30.0,
+                timeout=get_http_timeout(),
             ) as client:
                 if flow_type == "hive_agent":
                     return self._run_agent_sync(client, flow_id, message, session_id)
