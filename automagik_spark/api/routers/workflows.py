@@ -6,11 +6,11 @@ Provides endpoints for managing workflows.
 
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_session, verify_api_key
-from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse, TaskResponse
+from ..models import WorkflowResponse, WorkflowListResponse, ErrorResponse, TaskResponse, PaginatedResponse
 from ...core.workflows.manager import WorkflowManager
 
 router = APIRouter(
@@ -29,15 +29,25 @@ async def get_workflow_manager(
 
 @router.get(
     "",
-    response_model=List[WorkflowListResponse],
+    response_model=PaginatedResponse[WorkflowListResponse],
     dependencies=[Depends(verify_api_key)],
 )
 async def list_workflows(
+    limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     workflow_manager: WorkflowManager = Depends(get_workflow_manager),
-) -> List[WorkflowListResponse]:
-    """List all workflows."""
-    workflows = await workflow_manager.list_workflows()
-    return [WorkflowListResponse.model_validate(w) for w in workflows]
+) -> PaginatedResponse[WorkflowListResponse]:
+    """List all workflows with pagination support."""
+    workflows = await workflow_manager.list_workflows(limit=limit, offset=offset)
+    total = await workflow_manager.count_workflows()
+
+    return PaginatedResponse[WorkflowListResponse](
+        items=[WorkflowListResponse.model_validate(w) for w in workflows],
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_more=(offset + limit) < total,
+    )
 
 
 @router.get(

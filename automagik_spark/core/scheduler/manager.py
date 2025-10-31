@@ -225,12 +225,23 @@ class SchedulerManager:
         await self.session.commit()
         return schedule
 
-    async def list_schedules(self) -> List[Schedule]:
+    async def list_schedules(self, limit: Optional[int] = None, offset: int = 0) -> List[Schedule]:
         """List all schedules from database."""
-        result = await self.session.execute(
-            select(Schedule).options(joinedload(Schedule.workflow)).order_by(Schedule.created_at)
-        )
+        query = select(Schedule).options(joinedload(Schedule.workflow)).order_by(Schedule.created_at)
+
+        # Apply pagination
+        if limit is not None:
+            query = query.limit(limit).offset(offset)
+
+        result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def count_schedules(self) -> int:
+        """Count total schedules."""
+        from sqlalchemy import func
+        query = select(func.count(Schedule.id))
+        result = await self.session.execute(query)
+        return result.scalar() or 0
 
     async def update_schedule_status(self, schedule_id: str, action: str) -> bool:
         """Update schedule status."""

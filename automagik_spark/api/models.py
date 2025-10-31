@@ -1,9 +1,12 @@
 """API models for request/response validation."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Generic, TypeVar
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from uuid import UUID
+
+# Generic type for pagination
+T = TypeVar("T")
 
 
 class ErrorResponse(BaseModel):
@@ -309,5 +312,17 @@ class WorkerStatus(BaseModel):
     last_heartbeat: datetime = Field(..., description="Last heartbeat timestamp")
     current_task: Optional[str] = Field(None, description="Current task ID if any")
     stats: Dict[str, Any] = Field(default_factory=dict, description="Worker statistics")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic paginated response model."""
+
+    items: List[T] = Field(..., description="List of items")
+    total: int = Field(..., description="Total number of items")
+    limit: int = Field(..., description="Number of items per page")
+    offset: int = Field(..., description="Number of items skipped")
+    has_more: bool = Field(..., description="Whether there are more items")
 
     model_config = ConfigDict(from_attributes=True)

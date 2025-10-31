@@ -358,9 +358,15 @@ class TestSourcesList:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-        assert len(data) >= 1
-        assert any(source["id"] == created_source["id"] for source in data)
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "total" in data
+        assert "limit" in data
+        assert "offset" in data
+        assert "has_more" in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
+        assert any(source["id"] == created_source["id"] for source in data["items"])
 
     async def test_list_sources_with_status_filter(self, client, created_source, clean_env, auth_headers):
         """Test listing sources with status filter."""
@@ -370,8 +376,10 @@ class TestSourcesList:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-        for source in data:
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert isinstance(data["items"], list)
+        for source in data["items"]:
             assert source["status"] == "active"
 
     async def test_list_sources_unauthorized(self, client, clean_env):
@@ -1037,4 +1045,6 @@ class TestErrorHandling:
         # Test empty string separately - routes to list endpoint
         response = client.get("/api/v1/sources/", headers=auth_headers)
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "items" in data

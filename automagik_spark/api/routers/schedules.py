@@ -2,8 +2,8 @@
 
 from typing import List
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Depends
-from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse
+from fastapi import APIRouter, HTTPException, Depends, Query
+from ..models import ScheduleCreate, ScheduleResponse, ErrorResponse, PaginatedResponse
 from ..dependencies import verify_api_key
 from ..dependencies import get_session
 from ...core.workflows.manager import WorkflowManager
@@ -52,14 +52,24 @@ async def create_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("", response_model=List[ScheduleResponse], dependencies=[Depends(verify_api_key)])
+@router.get("", response_model=PaginatedResponse[ScheduleResponse], dependencies=[Depends(verify_api_key)])
 async def list_schedules(
+    limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     scheduler_manager: SchedulerManager = Depends(get_scheduler_manager),
 ):
-    """List all schedules."""
+    """List all schedules with pagination support."""
     try:
-        schedules = await scheduler_manager.list_schedules()
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        schedules = await scheduler_manager.list_schedules(limit=limit, offset=offset)
+        total = await scheduler_manager.count_schedules()
+
+        return PaginatedResponse[ScheduleResponse](
+            items=[ScheduleResponse.model_validate(schedule) for schedule in schedules],
+            total=total,
+            limit=limit,
+            offset=offset,
+            has_more=(offset + limit) < total,
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
