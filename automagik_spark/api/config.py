@@ -68,3 +68,33 @@ def get_agents_api_port() -> int:
 def get_agents_api_host() -> str:
     """Get AutoMagik Agents API host from environment variable or default."""
     return os.environ.get("AUTOMAGIK_API_HOST", "localhost")
+
+
+def get_http_timeout() -> float:
+    """Get HTTP client timeout in seconds from environment variable.
+
+    This timeout applies to all HTTP requests made to external workflow sources
+    (AutoMagik Agents, AutoMagik Hive, LangFlow).
+
+    Default: 600 seconds (10 minutes) for long-running workflow executions.
+    Minimum: 30 seconds to prevent premature timeouts.
+    Maximum: 3600 seconds (1 hour) to prevent indefinite hangs.
+
+    Returns:
+        float: Timeout in seconds
+
+    Environment Variable:
+        AUTOMAGIK_SPARK_HTTP_TIMEOUT: Timeout in seconds (default: 600)
+    """
+    timeout_str = os.getenv("AUTOMAGIK_SPARK_HTTP_TIMEOUT", "600")
+    try:
+        timeout = float(timeout_str)
+        if timeout < 30:
+            raise ValueError(f"Timeout {timeout} is below minimum (30 seconds)")
+        if timeout > 3600:
+            raise ValueError(f"Timeout {timeout} exceeds maximum (3600 seconds)")
+        return timeout
+    except ValueError as e:
+        if "could not convert" in str(e):
+            raise ValueError(f"Invalid timeout value: {timeout_str}")
+        raise
